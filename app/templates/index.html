@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white shadow-xl rounded-lg p-6">
+        <h1 class="text-3xl font-bold text-center mb-8">AI PowerPoint Generator</h1>
+        
+        <form id="presentationForm" class="space-y-6" method="POST" action="{{ url_for('main.generate_presentation') }}">
+            <div>
+                <label for="title" class="block text-sm font-medium text-gray-700">Presentation Title</label>
+                <input type="text" id="title" name="title" required
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+
+            <div>
+                <label for="presenter" class="block text-sm font-medium text-gray-700">Presenter Name</label>
+                <input type="text" id="presenter" name="presenter" required
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+
+            <div>
+                <label for="num_slides" class="block text-sm font-medium text-gray-700">Number of Slides</label>
+                <input type="number" id="num_slides" name="num_slides" min="1" max="20" value="5" required
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+
+            <div>
+                <label for="prompt" class="block text-sm font-medium text-gray-700">What should the presentation be about?</label>
+                <textarea id="prompt" name="prompt" rows="4" required
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="Describe what you want in your presentation..."></textarea>
+            </div>
+
+            <div class="mt-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Select Template Style</label>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <!-- Aesthetic Template -->
+                    <div class="template-option cursor-pointer">
+                        <input type="radio" name="template_style" value="Aesthetic" class="hidden" required>
+                        <img src="{{ url_for('static', filename='img/aesthetic-preview.png') }}" 
+                             alt="Aesthetic Template Preview" 
+                             class="w-full rounded-lg border-2 border-gray-200 hover:border-blue-300 transition-colors">
+                        <p class="mt-1 text-sm text-center text-gray-600">Aesthetic</p>
+                    </div>
+                    
+                    <!-- Minimalist Template -->
+                    <div class="template-option cursor-pointer">
+                        <input type="radio" name="template_style" value="Minimalist" class="hidden">
+                        <img src="{{ url_for('static', filename='img/minimalist-preview.png') }}" 
+                             alt="Minimalist Template Preview" 
+                             class="w-full rounded-lg border-2 border-gray-200 hover:border-blue-300 transition-colors">
+                        <p class="mt-1 text-sm text-center text-gray-600">Minimalist</p>
+                    </div>
+                    
+                    <!-- Professional Template -->
+                    <div class="template-option cursor-pointer">
+                        <input type="radio" name="template_style" value="Professional" class="hidden" checked>
+                        <img src="{{ url_for('static', filename='img/professional-preview.png') }}" 
+                             alt="Professional Template Preview" 
+                             class="w-full rounded-lg border-2 border-blue-500 hover:border-blue-300 transition-colors">
+                        <p class="mt-1 text-sm text-center text-gray-600">Professional</p>
+                    </div>
+                    
+                    <!-- Vintage Template -->
+                    <div class="template-option cursor-pointer">
+                        <input type="radio" name="template_style" value="Vintage" class="hidden">
+                        <img src="{{ url_for('static', filename='img/vintage-preview.png') }}" 
+                             alt="Vintage Template Preview" 
+                             class="w-full rounded-lg border-2 border-gray-200 hover:border-blue-300 transition-colors">
+                        <p class="mt-1 text-sm text-center text-gray-600">Vintage</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center">
+                <input type="checkbox" id="include_images" name="include_images"
+                    class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                <label for="include_images" class="ml-2 block text-sm text-gray-700">
+                    Auto-insert relevant images (using Pexels API)
+                </label>
+            </div>
+
+            <div class="flex items-center justify-center">
+                <button type="submit" id="submitButton"
+                    class="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    Generate Presentation
+                </button>
+                <div id="loadingSpinner" class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto hidden"></div>
+            </div>
+        </form>
+
+        <div id="downloadSection" class="mt-6 text-center hidden">
+            <a href="#" id="downloadLink"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                Download Presentation
+            </a>
+        </div>
+
+        <div id="errorMessage" class="mt-6 text-center hidden">
+            <p class="text-red-600"></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Template selection handling
+    const templateOptions = document.querySelectorAll('.template-option');
+    
+    templateOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            // Remove selected class from all options
+            templateOptions.forEach(opt => {
+                opt.querySelector('img').classList.remove('border-blue-500');
+                opt.querySelector('img').classList.add('border-gray-200');
+                opt.querySelector('input').checked = false;
+            });
+            
+            // Add selected class to clicked option
+            this.querySelector('img').classList.remove('border-gray-200');
+            this.querySelector('img').classList.add('border-blue-500');
+            this.querySelector('input').checked = true;
+        });
+    });
+
+    const form = document.getElementById('presentationForm');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const errorMessage = document.getElementById('errorMessage');
+    const downloadSection = document.getElementById('downloadSection');
+    const downloadLink = document.getElementById('downloadLink');
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Reset UI state
+        errorMessage.style.display = 'none';
+        downloadSection.style.display = 'none';
+        loadingSpinner.style.display = 'block';
+        
+        try {
+            // Get form data
+            const formData = {
+                title: form.querySelector('#title').value,
+                presenter: form.querySelector('#presenter').value,
+                prompt: form.querySelector('#prompt').value,
+                num_slides: parseInt(form.querySelector('#num_slides').value),
+                template_style: form.querySelector('input[name="template_style"]:checked').value,
+                include_images: form.querySelector('#include_images').checked
+            };
+
+            // Send request
+            const response = await fetch('/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            });
+
+            // Parse response
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to generate presentation');
+            }
+
+            if (data.success) {
+                // Show download section
+                downloadLink.href = data.file_url;
+                downloadLink.download = data.filename;
+                downloadSection.style.display = 'block';
+            } else {
+                throw new Error(data.error || 'Unknown error occurred');
+            }
+        } catch (error) {
+            // Show error message
+            errorMessage.textContent = error.message;
+            errorMessage.style.display = 'block';
+        } finally {
+            // Hide loading spinner
+            loadingSpinner.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}
