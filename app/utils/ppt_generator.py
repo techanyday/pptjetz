@@ -76,22 +76,58 @@ class PPTGenerator:
             if style_type in ['title', 'subtitle']:
                 paragraph.alignment = PP_ALIGN.CENTER
 
+    def _get_layout_by_name(self, prs: Presentation, layout_name: str) -> Optional[any]:
+        """Find a slide layout by its name"""
+        for layout in prs.slide_layouts:
+            if layout.name.lower() == layout_name.lower():
+                return layout
+        return None
+
+    def _get_title_layout(self, prs: Presentation) -> any:
+        """Get the title slide layout"""
+        # Try to find a layout specifically for title slides
+        layout = self._get_layout_by_name(prs, "Title Slide")
+        if not layout:
+            layout = self._get_layout_by_name(prs, "Title")
+        if not layout:
+            # Fallback to first layout which is typically the title layout
+            layout = prs.slide_layouts[0]
+        return layout
+
+    def _get_content_layout(self, prs: Presentation) -> any:
+        """Get the content slide layout"""
+        # Try to find a layout specifically for content
+        layout = self._get_layout_by_name(prs, "Title and Content")
+        if not layout:
+            layout = self._get_layout_by_name(prs, "Content")
+        if not layout:
+            # Fallback to second layout which is typically for content
+            layout = prs.slide_layouts[1] if len(prs.slide_layouts) > 1 else prs.slide_layouts[0]
+        return layout
+
     def _add_title_slide(self, prs: Presentation, title: str, presenter: str):
         """Add title slide"""
-        slide = prs.slides.add_slide(prs.slide_layouts[0])
+        layout = self._get_title_layout(prs)
+        slide = prs.slides.add_slide(layout)
         
         # Add title if title placeholder exists
         if slide.shapes.title:
             slide.shapes.title.text = title
         
         # Add subtitle if subtitle placeholder exists
-        if len(slide.placeholders) > 1:
-            subtitle = slide.placeholders[1]
+        subtitle = None
+        for shape in slide.placeholders:
+            if shape.placeholder_format.idx == 1:  # Subtitle placeholder
+                subtitle = shape
+                break
+        
+        if subtitle:
             subtitle.text = f"Presented by {presenter}"
 
     def _add_content_slide(self, prs: Presentation, title: str, content: str):
         """Add content slide"""
-        slide = prs.slides.add_slide(prs.slide_layouts[1])
+        layout = self._get_content_layout(prs)
+        slide = prs.slides.add_slide(layout)
         
         # Add title if title placeholder exists
         if slide.shapes.title:
