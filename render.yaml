@@ -1,0 +1,38 @@
+services:
+  # Development Environment
+  - type: web
+    name: pptjet-dev
+    env: python
+    region: ohio
+    plan: free
+    branch: develop
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: FLASK_ENV
+        value: development
+      - key: ENVIRONMENT
+        value: development
+
+  # Production Environment
+  - type: web
+    name: pptjet
+    env: python
+    region: ohio
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: FLASK_ENV
+        value: production
+      - key: ENVIRONMENT
+        value: production
