@@ -96,14 +96,31 @@ class PPTGenerator:
 
     def _get_content_layout(self, prs: Presentation) -> any:
         """Get the content slide layout"""
-        # Try to find a layout specifically for content
-        layout = self._get_layout_by_name(prs, "Title and Content")
-        if not layout:
-            layout = self._get_layout_by_name(prs, "Content")
-        if not layout:
-            # Fallback to second layout which is typically for content
-            layout = prs.slide_layouts[1] if len(prs.slide_layouts) > 1 else prs.slide_layouts[0]
-        return layout
+        # List of possible content layout names in order of preference
+        layout_names = [
+            "Title and Content",
+            "TITLE_AND_BODY",      # Minimalist template
+            "ONE_COLUMN_TEXT",    # Professional template
+            "Content"
+        ]
+        
+        # Try each layout name
+        for name in layout_names:
+            layout = self._get_layout_by_name(prs, name)
+            if layout:
+                print(f"Found content layout: {name}")
+                return layout
+        
+        # If no named layout found, look for any layout with content placeholder
+        for layout in prs.slide_layouts:
+            for shape in layout.placeholders:
+                if shape.placeholder_format.idx == 1:  # Content placeholder
+                    print(f"Found layout with content placeholder: {layout.name}")
+                    return layout
+        
+        # Final fallback to first non-title layout
+        print("Warning: No content layout found, using fallback")
+        return prs.slide_layouts[1] if len(prs.slide_layouts) > 1 else prs.slide_layouts[0]
 
     def _add_title_slide(self, prs: Presentation, title: str, presenter: str):
         """Add title slide"""
