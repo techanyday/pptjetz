@@ -3,19 +3,24 @@ from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR, PP_PARAGRAPH_ALIGNMENT, MSO_AUTO_SIZE
 from pptx.dml.color import RGBColor
 from pptx.enum.dml import MSO_THEME_COLOR
-from openai import OpenAI
 import os
 import json
+import openai
 import requests
 from typing import List, Dict, Optional
 
 class PPTGenerator:
     def __init__(self):
-        self.openai_api_key = os.environ.get('OPENAI_API_KEY')
-        if not self.openai_api_key:
+        api_key = os.environ.get('OPENAI_API_KEY')
+        print(f"Debug - API Key loaded in PPTGenerator: {api_key[:10]}...")
+        if not api_key:
             raise ValueError("OpenAI API key not found in environment variables")
-        self.client = OpenAI(api_key=self.openai_api_key)
-        self.pexels_api_key = os.environ.get('PEXELS_API_KEY')
+        try:
+            self.client = openai.OpenAI(api_key=api_key)
+            print("Debug - OpenAI client initialized successfully")
+        except Exception as e:
+            print(f"Debug - Error initializing OpenAI client: {str(e)}")
+            raise
         
         # Define available template styles
         self.TEMPLATE_STYLES = {
@@ -177,111 +182,46 @@ class PPTGenerator:
                 p.space_after = Pt(12)
                 p.line_spacing = 1.2
 
-    def get_relevant_image(self, query: str) -> Optional[str]:
-        """Get relevant image URL from Pexels API"""
-        if not self.pexels_api_key:
-            return None
-        
-        headers = {'Authorization': self.pexels_api_key}
-        response = requests.get(
-            f'https://api.pexels.com/v1/search?query={query}&per_page=1',
-            headers=headers
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data['photos']:
-                return data['photos'][0]['src']['large']
-        return None
 
-    def generate_dalle_image(self, prompt: str) -> Optional[str]:
-        """Generate an image using DALL-E 3 and save it to a temporary file"""
-        import tempfile
-        import requests
-        import os
-
-        try:
-            # Generate image with DALL-E 3
-            response = self.client.images.generate(
-                model="dall-e-3",
-                prompt=f"flat vector illustration, white background, minimal, topic: {prompt}",
-                n=1,
-                size="1024x1024"
-            )
-
-            # Get image URL
-            image_url = response.data[0].url
-            if not image_url:
-                return None
-
-            # Download and save image
-            image_response = requests.get(image_url)
-            if image_response.status_code != 200:
-                return None
-
-            # Create temp file
-            temp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-            temp_file.write(image_response.content)
-            temp_file.close()
-            return temp_file.name
-
-        except Exception as e:
-            print(f"Warning: Failed to generate DALL-E image: {str(e)}")
-            return None
 
     def generate_slide_content(self, prompt: str, num_slides: int) -> List[Dict]:
         """Generate slide content using GPT-3.5"""
         try:
-            if not self.openai_api_key:
-                raise ValueError("OpenAI API key not set")
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a presentation content generator. Generate a JSON object with exactly this structure:\n"
+                        "{\"slides\": [{\"title\": \"string\", \"content\": [\"string\"]}]}"
+                        "\nThe 'slides' array should contain presentation slides where:"
+                        "\n- 'title' is the slide title"
+                        "\n- 'content' is an array of bullet points as strings"
+                        "\nDo not include any explanation or other text, just the JSON."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": f"Create {num_slides} slides about: {prompt}"
+                }
+            ]
             
-            system_prompt = f"""Generate a PowerPoint presentation with exactly {num_slides} slides.
-            Return your response as a valid JSON object with a 'slides' array. Each slide must include:
-            1. title (string): A concise, engaging title
-            2. content (array): A list of 3-5 bullet points
-
-            Format example:
-            {{
-                "slides": [
-                    {{
-                        "title": "Introduction",
-                        "content": [
-                            "Key point 1",
-                            "Key point 2",
-                            "Key point 3"
-                        ]
-                    }},
-                    ...
-                ]
-            }}
-
-            Topic: {prompt}
-            
-            Remember:
-            - Keep titles concise and clear
-            - Each bullet point should be a complete thought
-            - Ensure the content flows logically
-            - Return ONLY the JSON object, no other text"""
-
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 temperature=0.7,
-                response_format={ "type": "json_object" }
+                max_tokens=2000
             )
-            
-            # Parse the JSON response
-            content = response.choices[0].message.content
-            print(f"GPT Response: {content}")  # Debug print
-            response_data = json.loads(content)
+        
+            # Extract and parse the response
+            response_text = response.choices[0].message.content
+            print(f"Debug - OpenAI Response: {response_text}")
+            response_data = json.loads(response_text)
             
             if not isinstance(response_data, dict) or 'slides' not in response_data:
                 raise ValueError("Invalid response format from GPT. Expected object with 'slides' array.")
             
             slides_data = response_data['slides']
+            print(f"Debug - Number of slides in response: {len(slides_data)}")
             
             if not isinstance(slides_data, list):
                 raise ValueError("Invalid 'slides' format. Expected array.")
@@ -301,6 +241,7 @@ class PPTGenerator:
                     "title": slide['title'],
                     "content": formatted_content
                 })
+                print(f"Debug - Added slide: {slide['title']}")
             
             return slides
         except json.JSONDecodeError as e:
@@ -328,36 +269,27 @@ class PPTGenerator:
             prs = Presentation()
 
         # Add slides
+        print(f"Debug - Adding title slide: {title}")
         self._add_title_slide(prs, title, presenter)
         
+        print(f"Debug - Number of content slides to add: {len(slides_content)}")
         for slide_content in slides_content:
             # Add content slide first
+            print(f"Debug - Adding content slide: {slide_content['title']}")
             self._add_content_slide(prs, slide_content['title'], slide_content['content'])
 
-            # Generate and add image if enabled
-            if include_images:
-                image_path = self.generate_dalle_image(slide_content['title'])
-                if image_path:
-                    try:
-                        # Add image below content
-                        slide = prs.slides[-1]  # Get the last added slide
-                        # Add image with fixed dimensions, centered horizontally
-                        left = (prs.slide_width - Inches(6)) / 2  # Center horizontally
-                        top = Inches(4.5)  # Below content
-                        slide.shapes.add_picture(image_path, left, top, width=Inches(6))
-                        
-                        # Clean up temporary image file
-                        os.unlink(image_path)
-                    except Exception as e:
-                        print(f"Warning: Failed to add image to slide: {str(e)}")
 
+
+        # Get the absolute path to the generated directory
+        generated_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'generated'))
+        
         # Ensure output directory exists
-        os.makedirs('generated', exist_ok=True)
+        os.makedirs(generated_dir, exist_ok=True)
 
         # Clean filename
         safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_')).rstrip()
         filename = f"{safe_title.replace(' ', '_')}.pptx"
-        output_path = os.path.join('generated', filename)
+        output_path = os.path.join(generated_dir, filename)
 
         prs.save(output_path)
         return output_path
