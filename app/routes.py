@@ -33,7 +33,7 @@ def generate_presentation():
         # Extract optional fields with defaults
         num_slides = int(data.get('num_slides', 5))
         template_style = data.get('template_style', 'Professional')
-        include_images = data.get('include_images', False)
+        include_images = bool(data.get('include_images', False))  # Convert to boolean
 
         # Initialize PPT generator
         ppt_gen = PPTGenerator()
