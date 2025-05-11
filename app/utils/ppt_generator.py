@@ -194,6 +194,41 @@ class PPTGenerator:
                 return data['photos'][0]['src']['large']
         return None
 
+    def generate_dalle_image(self, prompt: str) -> Optional[str]:
+        """Generate an image using DALL-E 3 and save it to a temporary file"""
+        import tempfile
+        import requests
+        import os
+
+        try:
+            # Generate image with DALL-E 3
+            response = self.client.images.generate(
+                model="dall-e-3",
+                prompt=f"flat vector illustration, white background, minimal, topic: {prompt}",
+                n=1,
+                size="1024x1024"
+            )
+
+            # Get image URL
+            image_url = response.data[0].url
+            if not image_url:
+                return None
+
+            # Download and save image
+            image_response = requests.get(image_url)
+            if image_response.status_code != 200:
+                return None
+
+            # Create temp file
+            temp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            temp_file.write(image_response.content)
+            temp_file.close()
+            return temp_file.name
+
+        except Exception as e:
+            print(f"Warning: Failed to generate DALL-E image: {str(e)}")
+            return None
+
     def generate_slide_content(self, prompt: str, num_slides: int) -> List[Dict]:
         """Generate slide content using GPT-3.5"""
         try:
@@ -296,13 +331,25 @@ class PPTGenerator:
         self._add_title_slide(prs, title, presenter)
         
         for slide_content in slides_content:
+            # Add content slide first
             self._add_content_slide(prs, slide_content['title'], slide_content['content'])
 
-            if include_images and self.pexels_api_key:
-                image_url = self.get_relevant_image(slide_content['title'])
-                if image_url:
-                    # TODO: Implement image insertion here if needed
-                    pass
+            # Generate and add image if enabled
+            if include_images:
+                image_path = self.generate_dalle_image(slide_content['title'])
+                if image_path:
+                    try:
+                        # Add image below content
+                        slide = prs.slides[-1]  # Get the last added slide
+                        # Add image with fixed dimensions, centered horizontally
+                        left = (prs.slide_width - Inches(6)) / 2  # Center horizontally
+                        top = Inches(4.5)  # Below content
+                        slide.shapes.add_picture(image_path, left, top, width=Inches(6))
+                        
+                        # Clean up temporary image file
+                        os.unlink(image_path)
+                    except Exception as e:
+                        print(f"Warning: Failed to add image to slide: {str(e)}")
 
         # Ensure output directory exists
         os.makedirs('generated', exist_ok=True)
