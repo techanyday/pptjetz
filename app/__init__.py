@@ -2,23 +2,24 @@ from flask import Flask
 from dotenv import load_dotenv
 import os
 
-# Load environment variables at app initialization
-env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
-print(f"Loading .env from: {env_path}")
+# Load environment variables
+try:
+    # Try to load from .env file if it exists (local development)
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+        print(f"Loaded environment variables from: {env_path}")
+    else:
+        print("No .env file found, using system environment variables")
 
-# Force reload environment variables
-with open(env_path, 'r') as f:
-    for line in f:
-        if line.strip() and not line.startswith('#'):
-            key, value = line.strip().split('=', 1)
-            os.environ[key] = value
-
-# Verify API key is loaded
-api_key = os.environ.get('OPENAI_API_KEY')
-if api_key:
-    print(f"Debug - API Key in __init__.py: {api_key[:10]}...")
-else:
-    print("WARNING: No OpenAI API key found!")
+    # Verify API key is loaded
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if api_key:
+        print("API key loaded successfully")
+    else:
+        print("WARNING: No OpenAI API key found!")
+except Exception as e:
+    print(f"Warning: Error loading environment variables: {str(e)}")
 
 def create_app():
     app = Flask(
