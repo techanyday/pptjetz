@@ -193,15 +193,16 @@ class PPTGenerator:
                     "content": (
                         "You are a presentation content generator. Generate a JSON object with exactly this structure:\n"
                         "{\"slides\": [{\"title\": \"string\", \"content\": [\"string\"]}]}"
-                        "\nThe 'slides' array should contain presentation slides where:"
+                        "\nThe 'slides' array MUST contain exactly the requested number of slides where:"
                         "\n- 'title' is the slide title"
-                        "\n- 'content' is an array of bullet points as strings"
+                        "\n- 'content' is an array of 3-5 bullet points as strings"
                         "\nDo not include any explanation or other text, just the JSON."
+                        "\nEnsure you generate exactly the requested number of unique slides."
                     )
                 },
                 {
                     "role": "user",
-                    "content": f"Create {num_slides} slides about: {prompt}"
+                    "content": f"Create exactly {num_slides} unique slides about: {prompt}. Each slide must have a unique title and 3-5 bullet points."
                 }
             ]
             
@@ -227,13 +228,23 @@ class PPTGenerator:
                 raise ValueError("Invalid 'slides' format. Expected array.")
             
             # Ensure we have the right number of slides and format the content
+            if len(slides_data) < num_slides:
+                raise ValueError(f"OpenAI returned only {len(slides_data)} slides, but {num_slides} were requested")
+
             slides = []
-            for slide in slides_data[:num_slides]:
+            seen_titles = set()
+
+            for slide in slides_data:
                 if not isinstance(slide, dict) or 'title' not in slide or 'content' not in slide:
                     raise ValueError("Invalid slide format. Expected object with 'title' and 'content'.")
                 
                 if not isinstance(slide['content'], list):
                     raise ValueError("Invalid content format. Expected array of strings.")
+                
+                if slide['title'] in seen_titles:
+                    continue  # Skip duplicate titles
+                
+                seen_titles.add(slide['title'])
                 
                 # Join content without bullet points - PowerPoint will add them automatically
                 formatted_content = "\n".join(point.strip() for point in slide['content'])
@@ -242,7 +253,13 @@ class PPTGenerator:
                     "content": formatted_content
                 })
                 print(f"Debug - Added slide: {slide['title']}")
-            
+                
+                if len(slides) == num_slides:
+                    break
+
+            if len(slides) < num_slides:
+                raise ValueError(f"Could not generate enough unique slides. Got {len(slides)}, needed {num_slides}")
+                
             return slides
         except json.JSONDecodeError as e:
             raise Exception(f"Error parsing GPT response: {str(e)}")
