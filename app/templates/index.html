@@ -5,7 +5,7 @@
     <div class="bg-white shadow-xl rounded-lg p-6">
         <h1 class="text-3xl font-bold text-center mb-8">AI PowerPoint Generator</h1>
         
-        <form id="presentationForm" class="space-y-6" method="POST" action="{{ url_for('main.generate_presentation') }}">
+        <form id="presentationForm" class="space-y-6">
             <div>
                 <label for="title" class="block text-sm font-medium text-gray-700">Presentation Title</label>
                 <input type="text" id="title" name="title" required
@@ -29,13 +29,6 @@
                 <textarea id="prompt" name="prompt" rows="4" required
                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                     placeholder="Describe what you want in your presentation..."></textarea>
-            </div>
-
-            <div class="form-check mb-4">
-                <input class="form-check-input" type="checkbox" id="enable_images" name="enable_images">
-                <label class="form-check-label text-sm text-gray-700" for="enable_images">
-                    Auto-generate relevant illustrations (DALL-E 3)
-                </label>
             </div>
 
             <div class="mt-6">
@@ -146,7 +139,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 prompt: form.querySelector('#prompt').value,
                 num_slides: parseInt(form.querySelector('#num_slides').value),
                 template_style: form.querySelector('input[name="template_style"]:checked').value,
-                include_images: form.querySelector('#enable_images').checked
             };
 
             // Send request
