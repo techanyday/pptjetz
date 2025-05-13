@@ -2,8 +2,8 @@ import os
 import json
 import requests
 from flask import Blueprint, request, render_template, send_from_directory, jsonify, url_for, redirect, current_app
-from app.utils.ppt_generator import PPTGenerator
 from flask_login import login_required, login_user, logout_user, current_user
+from app.utils.ppt_generator import PPTGenerator
 from app.models import User
 from app import users_db
 
@@ -11,6 +11,11 @@ from app import users_db
 GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
 
 bp = Blueprint("main", __name__)
+
+# Debug route for static files
+@bp.route('/debug/static/<path:filename>')
+def debug_static(filename):
+    return send_from_directory(current_app.static_folder, filename)
 
 # Get the absolute path to the generated directory
 GENERATED_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'generated'))
