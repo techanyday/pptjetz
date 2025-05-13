@@ -1,35 +1,126 @@
-from flask import Blueprint, request, render_template, send_from_directory, jsonify, url_for
+from flask import Blueprint, request, render_template, send_from_directory, jsonify, url_for, redirect, current_app
 from app.utils.ppt_generator import PPTGenerator
+from flask_login import login_required, login_user, logout_user, current_user
+from app.models import User
+from app import users_db
 import os
-from dotenv import load_dotenv
+import json
+import requests
 
-# Load environment variables
-env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
-print("Loading .env from:", os.path.abspath(env_path))
-load_dotenv(env_path)
-api_key = os.environ.get('OPENAI_API_KEY')
-if api_key:
-    print(f"Debug - API Key in routes.py: {api_key[:10]}...")
-else:
-    print("No API Key found.")
+# Google OAuth 2.0 endpoints
+GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
 
 bp = Blueprint("main", __name__)
+
 # Get the absolute path to the generated directory
 GENERATED_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'generated'))
 os.makedirs(GENERATED_FOLDER, exist_ok=True)
 
+def get_google_provider_cfg():
+    return requests.get(GOOGLE_DISCOVERY_URL).json()
+
 
 @bp.route("/")
 def index():
+    if not current_user.is_authenticated:
+        return redirect(url_for('main.login'))
     try:
         print("Attempting to render index.html")
-        return render_template("index.html")
+        return render_template("index.html", user=current_user)
     except Exception as e:
         print(f"Error rendering index.html: {str(e)}")
         return f"Error: {str(e)}", 500
 
+@bp.route("/login")
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.index'))
+    
+    # Get Google's OAuth 2.0 endpoints
+    google_provider_cfg = get_google_provider_cfg()
+    authorization_endpoint = google_provider_cfg["authorization_endpoint"]
+    
+    # Use library to construct the request for Google login
+    client = current_app.config['OAUTH_CLIENT']
+    request_uri = client.prepare_request_uri(
+        authorization_endpoint,
+        redirect_uri=request.base_url + "/callback",
+        scope=["openid", "email", "profile"],
+    )
+    return redirect(request_uri)
+
+@bp.route("/login/callback")
+def callback():
+    # Get authorization code Google sent back
+    code = request.args.get("code")
+    if not code:
+        return "Error: No code provided", 400
+
+    # Get Google's OAuth 2.0 endpoints
+    google_provider_cfg = get_google_provider_cfg()
+    token_endpoint = google_provider_cfg["token_endpoint"]
+
+    # Prepare and send a request to get tokens
+    client = current_app.config['OAUTH_CLIENT']
+    token_url, headers, body = client.prepare_token_request(
+        token_endpoint,
+        authorization_response=request.url,
+        redirect_url=request.base_url,
+        code=code
+    )
+    token_response = requests.post(
+        token_url,
+        headers=headers,
+        data=body,
+        auth=(current_app.config['GOOGLE_CLIENT_ID'], current_app.config['GOOGLE_CLIENT_SECRET']),
+    )
+
+    # Parse the tokens
+    client.parse_request_body_response(json.dumps(token_response.json()))
+
+    # Get user info from Google
+    userinfo_endpoint = google_provider_cfg["userinfo_endpoint"]
+    uri, headers, body = client.add_token(userinfo_endpoint)
+    userinfo_response = requests.get(uri, headers=headers, data=body)
+
+    if userinfo_response.json().get("email_verified"):
+        unique_id = userinfo_response.json()["sub"]
+        users_email = userinfo_response.json()["email"]
+        users_name = userinfo_response.json()["given_name"]
+        picture = userinfo_response.json()["picture"]
+
+        # Create a user in our db with the information provided by Google
+        user_data = {
+            "id": unique_id,
+            "name": users_name,
+            "email": users_email,
+            "profile_pic": picture
+        }
+        users_db[unique_id] = user_data
+        user = User(
+            id_=unique_id,
+            name=users_name,
+            email=users_email,
+            profile_pic=picture
+        )
+
+        # Begin user session by logging the user in
+        login_user(user)
+
+        # Send user back to homepage
+        return redirect(url_for('main.index'))
+    else:
+        return "User email not available or not verified by Google.", 400
+
+@bp.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('main.login'))
+
 
 @bp.route("/generate", methods=["POST"])
+@login_required
 def generate():
     try:
         data = request.get_json()
@@ -80,6 +171,7 @@ def generate():
 
 
 @bp.route("/download/<filename>")
+@login_required
 def download_file(filename):
     return send_from_directory(GENERATED_FOLDER, filename, as_attachment=True)
 
