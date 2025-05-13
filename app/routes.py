@@ -1,11 +1,11 @@
+import os
+import json
+import requests
 from flask import Blueprint, request, render_template, send_from_directory, jsonify, url_for, redirect, current_app
 from app.utils.ppt_generator import PPTGenerator
 from flask_login import login_required, login_user, logout_user, current_user
 from app.models import User
 from app import users_db
-import os
-import json
-import requests
 
 # Google OAuth 2.0 endpoints
 GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
@@ -79,11 +79,20 @@ def callback():
         redirect_url=redirect_uri,
         code=code
     )
+    # Get client credentials from the OAuth client config
+    client = current_app.config['OAUTH_CLIENT']
+    client_secrets = {
+        "web": {
+            "client_id": os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
+            "client_secret": os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+        }
+    }
+    
     token_response = requests.post(
         token_url,
         headers=headers,
         data=body,
-        auth=(current_app.config['GOOGLE_CLIENT_ID'], current_app.config['GOOGLE_CLIENT_SECRET']),
+        auth=(client_secrets["web"]["client_id"], client_secrets["web"]["client_secret"]),
     )
 
     # Parse the tokens
