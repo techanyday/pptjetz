@@ -6,13 +6,8 @@ services:
     region: ohio
     plan: free
     branch: develop
-    buildCommand: |
-      mkdir -p app/static/img/templates
-      while IFS= read -r file; do
-        mkdir -p "$(dirname "$file")"
-        cp "$file" "$file"
-      done < static.manifest
-      pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
+    staticPublishPath: ./app/static
     startCommand: gunicorn wsgi:app
     envVars:
       - key: PYTHON_VERSION
@@ -31,13 +26,8 @@ services:
     region: ohio
     plan: free
     branch: main
-    buildCommand: |
-      mkdir -p app/static/img/templates
-      while IFS= read -r file; do
-        mkdir -p "$(dirname "$file")"
-        cp "$file" "$file"
-      done < static.manifest
-      pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
+    staticPublishPath: ./app/static
     startCommand: gunicorn wsgi:app
     envVars:
       - key: PYTHON_VERSION

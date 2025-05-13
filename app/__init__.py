@@ -9,9 +9,11 @@ users_db = {}
 
 def create_app():
     # Create Flask app
-    app = Flask(__name__)
-    app.static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
-    app.static_url_path = '/static'
+    app = Flask(
+        __name__,
+        static_folder='static',
+        static_url_path='/static'
+    )
     
     # Load environment variables
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
