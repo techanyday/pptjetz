@@ -180,8 +180,7 @@ def generate():
     
     # GET request - show the form
     return render_template('generate.html', user=current_user)
-                      
-                      \ 
+
 
 @bp.route("/download/<filename>")
 @login_required
