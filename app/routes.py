@@ -139,9 +139,12 @@ def logout():
     return redirect(url_for('main.login'))
 
 
-@bp.route("/generate", methods=["POST"])
+@bp.route("/generate", methods=["GET", "POST"])
 @login_required
 def generate():
+    if request.method == "GET":
+        return render_template('generate.html', user=current_user)
+
     try:
         data = request.get_json()
         if not data:
