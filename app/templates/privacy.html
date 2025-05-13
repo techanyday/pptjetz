@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6">Privacy Policy</h1>
+    
+    <div class="prose prose-lg">
+        <p class="mb-4">Last updated: {{ current_date }}</p>
+
+        <h2 class="text-xl font-semibold mt-6 mb-3">1. Information We Collect</h2>
+        <p>When you use PPTJet, we collect:</p>
+        <ul class="list-disc pl-6 mb-4">
+            <li>Your Google account profile information (name, email, profile picture)</li>
+            <li>Content you input for presentation generation</li>
+            <li>Generated presentations</li>
+        </ul>
+
+        <h2 class="text-xl font-semibold mt-6 mb-3">2. How We Use Your Information</h2>
+        <p>We use your information to:</p>
+        <ul class="list-disc pl-6 mb-4">
+            <li>Provide and improve our presentation generation service</li>
+            <li>Personalize your experience</li>
+            <li>Communicate with you about our service</li>
+        </ul>
+
+        <h2 class="text-xl font-semibold mt-6 mb-3">3. Data Storage</h2>
+        <p>Your data is stored securely and we do not share it with third parties except as necessary to provide our service.</p>
+
+        <h2 class="text-xl font-semibold mt-6 mb-3">4. Your Rights</h2>
+        <p>You have the right to:</p>
+        <ul class="list-disc pl-6 mb-4">
+            <li>Access your personal data</li>
+            <li>Request deletion of your data</li>
+            <li>Opt out of communications</li>
+        </ul>
+
+        <h2 class="text-xl font-semibold mt-6 mb-3">5. Contact Us</h2>
+        <p>If you have any questions about this Privacy Policy, please contact us at: lawrencekarthur@gmail.com</p>
+    </div>
+</div>
+{% endblock %}

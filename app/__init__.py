@@ -28,9 +28,12 @@ def create_app():
         "web": {
             "client_id": os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
             "client_secret": os.getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
+            "project_id": "pptjet",
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": ["https://pptjet-dev.onrender.com/login/callback", "http://localhost:5000/login/callback"]
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "redirect_uris": ["https://pptjet-dev.onrender.com/login/callback", "http://localhost:5000/login/callback"],
+            "javascript_origins": ["https://pptjet-dev.onrender.com", "http://localhost:5000"]
         }
     }
     

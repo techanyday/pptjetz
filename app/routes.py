@@ -24,6 +24,14 @@ def get_google_provider_cfg():
 def index():
     return render_template('index.html', user=current_user)
 
+@bp.route("/privacy")
+def privacy():
+    return render_template('privacy.html', user=current_user, current_date='May 13, 2025')
+
+@bp.route("/terms")
+def terms():
+    return render_template('terms.html', user=current_user, current_date='May 13, 2025')
+
 @bp.route("/login")
 def login():
     if current_user.is_authenticated:
@@ -35,9 +43,14 @@ def login():
     
     # Use library to construct the request for Google login
     client = current_app.config['OAUTH_CLIENT']
+    if request.host.startswith('localhost'):
+        redirect_uri = 'http://localhost:5000/login/callback'
+    else:
+        redirect_uri = 'https://pptjet-dev.onrender.com/login/callback'
+    
     request_uri = client.prepare_request_uri(
         authorization_endpoint,
-        redirect_uri=url_for('main.callback', _external=True),
+        redirect_uri=redirect_uri,
         scope=["openid", "email", "profile"],
     )
     return redirect(request_uri)
@@ -55,10 +68,15 @@ def callback():
 
     # Prepare and send a request to get tokens
     client = current_app.config['OAUTH_CLIENT']
+    if request.host.startswith('localhost'):
+        redirect_uri = 'http://localhost:5000/login/callback'
+    else:
+        redirect_uri = 'https://pptjet-dev.onrender.com/login/callback'
+
     token_url, headers, body = client.prepare_token_request(
         token_endpoint,
         authorization_response=request.url,
-        redirect_url=url_for('main.callback', _external=True),
+        redirect_url=redirect_uri,
         code=code
     )
     token_response = requests.post(
