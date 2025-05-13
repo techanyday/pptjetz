@@ -8,7 +8,10 @@ services:
     branch: develop
     buildCommand: |
       mkdir -p app/static/img/templates
-      cp -r app/static/img/templates/* app/static/img/templates/
+      while IFS= read -r file; do
+        mkdir -p "$(dirname "$file")"
+        cp "$file" "$file"
+      done < static.manifest
       pip install -r requirements.txt
     startCommand: gunicorn wsgi:app
     envVars:
@@ -30,7 +33,10 @@ services:
     branch: main
     buildCommand: |
       mkdir -p app/static/img/templates
-      cp -r app/static/img/templates/* app/static/img/templates/
+      while IFS= read -r file; do
+        mkdir -p "$(dirname "$file")"
+        cp "$file" "$file"
+      done < static.manifest
       pip install -r requirements.txt
     startCommand: gunicorn wsgi:app
     envVars:

@@ -46,3 +46,7 @@ instance/
 # System files
 .DS_Store
 Thumbs.db
+
+# Include template images
+!app/static/img/templates/
+!app/static/img/templates/*.png
