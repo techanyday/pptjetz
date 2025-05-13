@@ -23,8 +23,16 @@ def create_app():
     # Configure app
     app.config['GENERATED_FOLDER'] = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'generated')
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.urandom(24)
-    app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_OAUTH_CLIENT_ID')
-    app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET')
+    # Configure OAuth client
+    client_secrets = {
+        "web": {
+            "client_id": os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
+            "client_secret": os.getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": ["https://pptjet-dev.onrender.com/login/callback", "http://localhost:5000/login/callback"]
+        }
+    }
     
     # Load OpenAI API key
     api_key = os.environ.get('OPENAI_API_KEY')
@@ -34,7 +42,7 @@ def create_app():
         print("WARNING: No OpenAI API key found!")
     
     # OAuth 2 client setup
-    client = WebApplicationClient(app.config['GOOGLE_CLIENT_ID'])
+    client = WebApplicationClient(client_secrets["web"]["client_id"])
     app.config['OAUTH_CLIENT'] = client
     
     # User session management setup

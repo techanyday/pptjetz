@@ -22,14 +22,7 @@ def get_google_provider_cfg():
 
 @bp.route("/")
 def index():
-    if not current_user.is_authenticated:
-        return redirect(url_for('main.login'))
-    try:
-        print("Attempting to render index.html")
-        return render_template("index.html", user=current_user)
-    except Exception as e:
-        print(f"Error rendering index.html: {str(e)}")
-        return f"Error: {str(e)}", 500
+    return render_template('index.html', user=current_user)
 
 @bp.route("/login")
 def login():
