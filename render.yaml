@@ -6,7 +6,10 @@ services:
     region: ohio
     plan: free
     branch: develop
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      mkdir -p app/static/img/templates
+      cp -r app/static/img/templates/* app/static/img/templates/
+      pip install -r requirements.txt
     startCommand: gunicorn wsgi:app
     envVars:
       - key: PYTHON_VERSION
@@ -25,7 +28,10 @@ services:
     region: ohio
     plan: free
     branch: main
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      mkdir -p app/static/img/templates
+      cp -r app/static/img/templates/* app/static/img/templates/
+      pip install -r requirements.txt
     startCommand: gunicorn wsgi:app
     envVars:
       - key: PYTHON_VERSION
