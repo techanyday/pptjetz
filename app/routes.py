@@ -139,47 +139,55 @@ def logout():
     return redirect(url_for('main.login'))
 
 
-@bp.route("/generate", methods=["GET", "POST"])
+@bp.route("/generate", methods=["POST"])
 @login_required
 def generate():
-    if request.method == "POST":
-        # Get form data
-        prompt = request.form.get("prompt")
-        num_slides = int(request.form.get("num_slides", 5))
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data received"}), 400
+
+        # Extract and validate required fields
+        title = data.get("title")
+        presenter = data.get("presenter")
+        prompt = data.get("prompt")
         
-        if not prompt:
-            return "Error: No prompt provided", 400
+        if not all([title, presenter, prompt]):
+            return jsonify({"error": "Missing required fields: title, presenter, or prompt"}), 400
+
+        # Extract optional fields with defaults
+        num_slides = int(data.get("num_slides", 5))
+        template_style = data.get("template_style", "Professional")
+
+        # Initialize PPT generator
+        ppt_generator = PPTGenerator()
         
         try:
-            # Initialize PPT generator
-            ppt_generator = PPTGenerator()
-            
             # Generate slide content
             slides_content = ppt_generator.generate_slide_content(prompt, num_slides)
             
             # Create presentation
             filepath = ppt_generator.create_presentation(
-                title="Generated Presentation",
-                presenter=current_user.name,
+                title=title,
+                presenter=presenter,
                 slides_content=slides_content,
-                template="Professional"
+                template=template_style
             )
             
             # Get filename from path
             filename = os.path.basename(filepath)
             
-            # Send file directly to user
-            return send_file(
-                filepath,
-                as_attachment=True,
-                download_name=filename
-            )
+            return jsonify({
+                'success': True,
+                'filename': filename,
+                'file_url': f'/download/{filename}'
+            })
             
         except Exception as e:
-            return f"Error generating presentation: {str(e)}", 500
-    
-    # GET request - show the form
-    return render_template('generate.html', user=current_user)
+            return jsonify({"error": f"Error generating presentation: {str(e)}"}), 500
+
+    except Exception as e:
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 
 @bp.route("/download/<filename>")

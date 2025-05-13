@@ -1,45 +1,106 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold mb-6">Generate Presentation</h1>
-    
-    <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <form method="POST" action="{{ url_for('main.generate') }}" class="space-y-6">
-            <div>
-                <label for="prompt" class="block text-sm font-medium text-gray-700 mb-2">What would you like your presentation to be about?</label>
-                <textarea 
-                    id="prompt" 
-                    name="prompt" 
-                    rows="4" 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter your topic or description here..."
-                    required
-                ></textarea>
-            </div>
-            
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white shadow-xl rounded-lg p-6">
+        <h1 class="text-3xl font-bold text-center mb-8">AI PowerPoint Generator</h1>
+        <form id="presentationForm" class="space-y-6">
             <div>
                 <label for="num_slides" class="block text-sm font-medium text-gray-700 mb-2">Number of Slides</label>
-                <input 
-                    type="number" 
-                    id="num_slides" 
-                    name="num_slides" 
-                    min="3" 
-                    max="15" 
-                    value="5"
-                    class="w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <input type="number" id="num_slides" name="num_slides" min="1" max="20" value="5" class="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
             </div>
             
-            <div class="pt-4">
-                <button 
-                    type="submit"
-                    class="w-full bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-                >
+            <div>
+                <label for="prompt" class="block text-sm font-medium text-gray-700 mb-2">What should the presentation be about?</label>
+                <textarea id="prompt" name="prompt" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required></textarea>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Select Template Style</label>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="template-option cursor-pointer" data-template="Aesthetic">
+                        <img src="/static/images/templates/aesthetic.jpg" alt="Aesthetic template" class="w-full h-24 object-cover rounded-lg">
+                        <p class="text-center mt-2">Aesthetic</p>
+                    </div>
+                    <div class="template-option cursor-pointer" data-template="Minimalist">
+                        <img src="/static/images/templates/minimalist.jpg" alt="Minimalist template" class="w-full h-24 object-cover rounded-lg">
+                        <p class="text-center mt-2">Minimalist</p>
+                    </div>
+                    <div class="template-option cursor-pointer" data-template="Professional">
+                        <img src="/static/images/templates/professional.jpg" alt="Professional template" class="w-full h-24 object-cover rounded-lg">
+                        <p class="text-center mt-2">Professional</p>
+                    </div>
+                    <div class="template-option cursor-pointer" data-template="Vintage">
+                        <img src="/static/images/templates/vintage.jpg" alt="Vintage template" class="w-full h-24 object-cover rounded-lg">
+                        <p class="text-center mt-2">Vintage</p>
+                    </div>
+                </div>
+                <input type="hidden" id="template_style" name="template_style" value="Professional">
+            </div>
+            
+            <div class="text-center">
+                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                     Generate Presentation
                 </button>
             </div>
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Template selection
+    const templateOptions = document.querySelectorAll('.template-option');
+    const templateInput = document.getElementById('template_style');
+    
+    templateOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            // Remove selected class from all options
+            templateOptions.forEach(opt => opt.classList.remove('ring-2', 'ring-blue-500'));
+            // Add selected class to clicked option
+            this.classList.add('ring-2', 'ring-blue-500');
+            // Update hidden input
+            templateInput.value = this.dataset.template;
+        });
+    });
+
+    // Form submission
+    document.getElementById('presentationForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const submitButton = this.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+        submitButton.innerHTML = 'Generating...';
+        
+        try {
+            const response = await fetch('/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: 'Generated Presentation',
+                    presenter: '{{ user.name }}',
+                    prompt: document.getElementById('prompt').value,
+                    num_slides: parseInt(document.getElementById('num_slides').value),
+                    template_style: document.getElementById('template_style').value
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                window.location.href = data.file_url;
+            } else {
+                alert(data.error || 'An error occurred while generating the presentation');
+            }
+        } catch (error) {
+            alert('An error occurred while generating the presentation');
+        } finally {
+            submitButton.disabled = false;
+            submitButton.innerHTML = 'Generate Presentation';
+        }
+    });
+});
+</script>
 {% endblock %}
