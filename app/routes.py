@@ -12,10 +12,11 @@ GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configura
 
 bp = Blueprint("main", __name__)
 
-# Debug route for static files
-@bp.route('/debug/static/<path:filename>')
-def debug_static(filename):
-    return send_from_directory(current_app.static_folder, filename)
+# Template image routes
+@bp.route('/static/images/templates/<template>.jpg')
+def serve_template_image(template):
+    image_path = os.path.join('images', 'templates', f'{template}.jpg')
+    return send_from_directory(current_app.static_folder, image_path, mimetype='image/jpeg')
 
 # Get the absolute path to the generated directory
 GENERATED_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'generated'))
