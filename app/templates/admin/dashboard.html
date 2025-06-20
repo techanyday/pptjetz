@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - PPTJet{% endblock %}
+
+{% block content %}
+<h2 class="text-3xl font-bold mb-6">Admin Dashboard</h2>
+
+<div id="usage" class="bg-white p-6 rounded shadow mb-8">
+    <h3 class="text-xl font-semibold mb-4">Usage by User</h3>
+    <table class="min-w-full text-sm text-left">
+        <thead>
+            <tr class="border-b bg-gray-50">
+                <th class="py-2 px-3">User ID</th>
+                <th class="py-2 px-3">Email</th>
+                <th class="py-2 px-3">Presentations</th>
+                <th class="py-2 px-3">Award Units</th>
+            </tr>
+        </thead>
+        <tbody id="usageBody"></tbody>
+    </table>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadUsage() {
+    const res = await fetch('/admin/usage');
+    const data = await res.json();
+    const tbody = document.getElementById('usageBody');
+    tbody.innerHTML = '';
+    data.usage.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b';
+        tr.innerHTML = `
+            <td class="py-2 px-3">${u.user_id}</td>
+            <td class="py-2 px-3">${u.email}</td>
+            <td class="py-2 px-3">${u.presentations}</td>
+            <td class="py-2 px-3">
+                <input type="number" min="1" value="1" class="w-16 border rounded mr-2" id="units-${u.user_id}">
+                <button class="bg-blue-600 text-white px-2 py-1 rounded" onclick="awardUnits('${u.user_id}')">Award</button>
+            </td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+async function awardUnits(userId) {
+    const units = document.getElementById(`units-${userId}`).value;
+    const res = await fetch('/admin/award_units', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, units: units })
+    });
+    const data = await res.json();
+    if (data.success) {
+        alert('Units awarded successfully');
+        loadUsage();
+    } else {
+        alert(data.error || 'Error');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadUsage);
+</script>
+{% endblock %}

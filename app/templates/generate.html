@@ -3,7 +3,112 @@
 {% block content %}
 <div class="max-w-4xl mx-auto">
     <div class="bg-white shadow-xl rounded-lg p-6">
-        <h1 class="text-3xl font-bold text-center mb-8">AI PowerPoint Generator</h1>
+        <h1 class="text-3xl font-bold text-center mb-4">AI PowerPoint Generator</h1>
+        
+        <div class="text-center mb-8">
+            <p class="text-gray-600">
+                {% if current_plan == 'pay_per_use' %}
+                    Pay per use ($0.20 per presentation)
+                {% elif current_plan == 'pro' %}
+                    50 presentations remaining (Pro plan)
+                {% else %}
+                    {{ remaining_presentations }} presentations remaining this month
+                    <br>
+                    <span class="text-sm">({{ current_plan|title }} plan)</span>
+                {% endif %}
+            </p>
+        </div>
+        
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">AI PowerPoint Generator</h1>
+            <div class="mt-4 flex items-center justify-center gap-4">
+                <div class="bg-white px-4 py-2 rounded-lg shadow-sm border">
+                    <span class="font-semibold">{{ current_plan|title }} Plan</span>
+                    {% if current_plan == 'free' or current_plan == 'creator' %}
+                        <span class="block text-sm text-gray-600">{{ remaining_presentations }} presentations remaining</span>
+                    {% elif current_plan == 'pro' %}
+                        <span class="block text-sm text-gray-600">50 presentations per month</span>
+                    {% else %}
+                        <span class="block text-sm text-gray-600">Pay per use</span>
+                    {% endif %}
+                </div>
+                <button onclick="togglePricingPlans()" class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 transition-colors">
+                    Switch Plan
+                </button>
+            </div>
+        </div>
+        
+        <!-- Pricing Plans (Hidden by default) -->
+        <div id="pricingPlans" class="mb-8 bg-white p-6 rounded-lg shadow-md hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Choose Your Plan</h2>
+                <button onclick="togglePricingPlans()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <!-- Free Plan -->
+                <div class="border rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow">
+                    <h3 class="text-xl font-semibold mb-2">Free</h3>
+                    <p class="text-3xl font-bold mb-4">GHS 0</p>
+                    <ul class="text-gray-600 mb-6 text-center">
+                        <li class="mb-2">3 presentations/month</li>
+                        <li class="mb-2">Basic templates</li>
+                        <li class="mb-2">Standard support</li>
+                    </ul>
+                    <button onclick="switchPlan('free')" class="w-full {% if user.plan == 'free' %}bg-gray-500{% else %}bg-blue-500{% endif %} text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
+                        {% if user.plan == 'free' %}Current Plan{% else %}Choose Free{% endif %}
+                    </button>
+                </div>
+
+                <!-- Creator Plan -->
+                <div class="border rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow">
+                    <h3 class="text-xl font-semibold mb-2">Creator</h3>
+                    <p class="text-3xl font-bold mb-4">GHS 35.88</p>
+                    <ul class="text-gray-600 mb-6 text-center">
+                        <li class="mb-2">20 presentations/month</li>
+                        <li class="mb-2">All templates</li>
+                        <li class="mb-2">Priority support</li>
+                    </ul>
+                    <button onclick="switchPlan('creator')" class="w-full {% if user.plan == 'creator' %}bg-gray-500{% else %}bg-blue-500{% endif %} text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
+                        {% if user.plan == 'creator' %}Current Plan{% else %}Choose Creator{% endif %}
+                    </button>
+                </div>
+
+                <!-- Pro Plan -->
+                <div class="border-2 {% if user.plan == 'pro' %}border-gray-500{% else %}border-blue-500{% endif %} rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow relative overflow-hidden">
+                    <div class="absolute top-0 right-0 bg-blue-500 text-white px-4 py-1 rounded-bl">Popular</div>
+                    <h3 class="text-xl font-semibold mb-2">Pro</h3>
+                    <p class="text-3xl font-bold mb-4">GHS 63.50</p>
+                    <ul class="text-gray-600 mb-6 text-center">
+                        <li class="mb-2">50 presentations/month</li>
+                        <li class="mb-2">All templates</li>
+                        <li class="mb-2">Premium support</li>
+                    </ul>
+                    <button onclick="switchPlan('pro')" class="w-full {% if user.plan == 'pro' %}bg-gray-500{% else %}bg-blue-500{% endif %} text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
+                        {% if user.plan == 'pro' %}Current Plan{% else %}Choose Pro{% endif %}
+                    </button>
+                </div>
+
+                <!-- Pay per Use Plan -->
+                <div class="border rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow">
+                    <h3 class="text-xl font-semibold mb-2">Pay per Use</h3>
+                    <p class="text-3xl font-bold mb-4">$0.20</p>
+                    <p class="text-sm text-gray-500 -mt-2 mb-4">(GHS 2.40)</p>
+                    <ul class="text-gray-600 mb-6 text-center">
+                        <li class="mb-2">Pay as you go</li>
+                        <li class="mb-2">All templates</li>
+                        <li class="mb-2">Standard support</li>
+                    </ul>
+                    <button onclick="showPayPerUseModal()" class="w-full {% if user.plan == 'pay_per_use' %}bg-gray-500{% else %}bg-blue-500{% endif %} text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
+                        {% if user.plan == 'pay_per_use' %}Current Plan{% else %}Choose Pay per Use{% endif %}
+                    </button>
+                </div>
+            </div>
+        </div>
+        
         <form id="presentationForm" class="space-y-6">
             <div>
                 <label for="num_slides" class="block text-sm font-medium text-gray-700 mb-2">Number of Slides</label>
@@ -17,25 +122,46 @@
             
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Select Template Style</label>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-4">
                     <div class="template-option cursor-pointer" data-template="Aesthetic">
-                        <img src="{{ url_for('static', filename='images/templates/aesthetic.jpg') }}" alt="Aesthetic template" class="w-full h-24 object-cover rounded-lg">
+                        <img src="{{ url_for('static', filename='img/templates/aesthetic.jpg') }}" alt="Aesthetic template" class="w-full h-32 object-cover rounded-lg" />
                         <p class="text-center mt-2">Aesthetic</p>
                     </div>
                     <div class="template-option cursor-pointer" data-template="Minimalist">
-                        <img src="{{ url_for('static', filename='images/templates/minimalist.jpg') }}" alt="Minimalist template" class="w-full h-24 object-cover rounded-lg">
+                        <img src="{{ url_for('static', filename='img/templates/minimalist.jpg') }}" alt="Minimalist template" class="w-full h-32 object-cover rounded-lg" />
                         <p class="text-center mt-2">Minimalist</p>
                     </div>
                     <div class="template-option cursor-pointer" data-template="Professional">
-                        <img src="{{ url_for('static', filename='images/templates/professional.jpg') }}" alt="Professional template" class="w-full h-24 object-cover rounded-lg">
+                        <img src="{{ url_for('static', filename='img/templates/professional.jpg') }}" alt="Professional template" class="w-full h-32 object-cover rounded-lg" />
                         <p class="text-center mt-2">Professional</p>
                     </div>
                     <div class="template-option cursor-pointer" data-template="Vintage">
-                        <img src="{{ url_for('static', filename='images/templates/vintage.jpg') }}" alt="Vintage template" class="w-full h-24 object-cover rounded-lg">
+                        <img src="{{ url_for('static', filename='img/templates/vintage.jpg') }}" alt="Vintage template" class="w-full h-32 object-cover rounded-lg" />
                         <p class="text-center mt-2">Vintage</p>
+                    </div>
+                    <div class="template-option cursor-pointer" data-template="Corporate">
+                        <img src="{{ url_for('static', filename='img/templates/corporate.jpg') }}" alt="Corporate template" class="w-full h-32 object-cover rounded-lg" />
+                        <p class="text-center mt-2">Corporate</p>
+                    </div>
+                    <div class="template-option cursor-pointer" data-template="Creative">
+                        <img src="{{ url_for('static', filename='img/templates/creative.jpg') }}" alt="Creative template" class="w-full h-32 object-cover rounded-lg" />
+                        <p class="text-center mt-2">Creative</p>
+                    </div>
+                    <div class="template-option cursor-pointer" data-template="Modern">
+                        <img src="{{ url_for('static', filename='img/templates/modern.jpg') }}" alt="Modern template" class="w-full h-32 object-cover rounded-lg" />
+                        <p class="text-center mt-2">Modern</p>
+                    </div>
+                    <div class="template-option cursor-pointer" data-template="Simple">
+                        <img src="{{ url_for('static', filename='img/templates/simple.jpg') }}" alt="Simple template" class="w-full h-32 object-cover rounded-lg" />
+                        <p class="text-center mt-2">Simple</p>
                     </div>
                 </div>
                 <input type="hidden" id="template_style" name="template_style" value="Professional">
+            </div>
+            
+            <div class="flex items-center mb-4">
+                <input type="checkbox" id="include_images" class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                <label for="include_images" class="text-sm font-medium text-gray-700">Include DALL·E&nbsp;3 Images</label>
             </div>
             
             <div class="text-center">
@@ -48,6 +174,103 @@
 </div>
 
 <script>
+// Toggle pricing plans visibility
+function togglePricingPlans() {
+    const pricingPlans = document.getElementById('pricingPlans');
+    if (pricingPlans.classList.contains('hidden')) {
+        // Show pricing plans with animation
+        pricingPlans.classList.remove('hidden');
+        pricingPlans.classList.add('animate-fade-in');
+        // Scroll to pricing plans
+        pricingPlans.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+        // Hide pricing plans
+        pricingPlans.classList.add('hidden');
+        pricingPlans.classList.remove('animate-fade-in');
+    }
+}
+
+// Payment initialization function
+async function initializePayment() {
+    try {
+        const response = await fetch('/initialize_payment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            // Redirect to Paystack payment page
+            window.location.href = data.authorization_url;
+        } else {
+            alert(data.error || 'Error initializing payment');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error initializing payment');
+    }
+}
+
+// Plan switching functionality
+async function switchPlan(planType) {
+    if (confirm(`Switch to ${planType.charAt(0).toUpperCase() + planType.slice(1)} Plan?`)) {
+        try {
+            console.log(`Switching to plan: ${planType}`);
+            const response = await fetch(`/switch_plan/${planType}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin'
+            });
+            
+            const data = await response.json();
+            console.log('Response:', data);
+            
+            if (data.success) {
+                console.log('Plan switch successful, reloading...');
+                window.location.reload();
+            } else if (data.payment_url) {
+                console.log('Redirecting to payment:', data.payment_url);
+                window.location.href = data.payment_url;
+            } else {
+                console.error('Error:', data.error);
+                alert(data.error || 'Error switching plans');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error switching plans');
+        }
+    }
+}
+
+// Pay per use modal functionality
+function showPayPerUseModal() {
+    if (confirm('Switch to Pay-per-Presentation Plan?\n\nPricing:\n- $0.20 (GHS 2.40) per presentation\n- No monthly limits\n- Pay only for what you use\n\nWould you like to switch to this plan?')) {
+        // Send request to switch to pay-per-use plan
+        fetch('/switch_plan/pay_per_use', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert(data.error || 'Error switching plans');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error switching plans');
+        });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Template selection
     const templateOptions = document.querySelectorAll('.template-option');
@@ -72,30 +295,37 @@ document.addEventListener('DOMContentLoaded', function() {
         submitButton.disabled = true;
         submitButton.innerHTML = 'Generating...';
         
+        const formData = {
+            title: 'Generated Presentation',
+            presenter: '{{ user.name }}',
+            prompt: document.getElementById('prompt').value,
+            num_slides: parseInt(document.getElementById('num_slides').value),
+            template_style: document.getElementById('template_style').value,
+             include_images: document.getElementById('include_images').checked
+        };
+
         try {
             const response = await fetch('/generate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    title: 'Generated Presentation',
-                    presenter: '{{ user.name }}',
-                    prompt: document.getElementById('prompt').value,
-                    num_slides: parseInt(document.getElementById('num_slides').value),
-                    template_style: document.getElementById('template_style').value
-                })
+                body: JSON.stringify(formData)
             });
             
             const data = await response.json();
             
-            if (response.ok) {
-                window.location.href = data.file_url;
+            if (data.success) {
+                window.location.href = data.download_url;
+            } else if (response.status === 402) {
+                // Payment required for pay-per-use
+                await initializePayment();
             } else {
-                alert(data.error || 'An error occurred while generating the presentation');
+                alert(data.error || 'Error generating presentation');
             }
         } catch (error) {
-            alert('An error occurred while generating the presentation');
+            console.error('Error:', error);
+            alert('Error generating presentation');
         } finally {
             submitButton.disabled = false;
             submitButton.innerHTML = 'Generate Presentation';

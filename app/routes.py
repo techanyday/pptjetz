@@ -1,11 +1,16 @@
 import os
 import json
 import requests
-from flask import Blueprint, request, render_template, send_from_directory, jsonify, url_for, redirect, current_app
+import secrets
+from functools import wraps
+from flask import Blueprint, request, render_template, send_from_directory, jsonify, url_for, redirect, current_app, flash, session
+import requests
 from flask_login import login_required, login_user, logout_user, current_user
 from app.utils.ppt_generator import PPTGenerator
 from app.models import User
-from app import users_db
+from app.presentation_log import PresentationLog
+from app import db
+from datetime import datetime
 
 # Google OAuth 2.0 endpoints
 GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
@@ -21,6 +26,23 @@ def serve_template_image(template):
 # Get the absolute path to the generated directory
 GENERATED_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'generated'))
 os.makedirs(GENERATED_FOLDER, exist_ok=True)
+
+# Store download tokens (token -> filename mapping)
+
+# ------------------
+# Admin decorator
+# ------------------
+
+def admin_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not current_user.is_authenticated or not getattr(current_user, 'is_admin', False):
+            flash('Admin privileges required', 'error')
+            return redirect(url_for('main.index'))
+        return f(*args, **kwargs)
+    return wrapper
+
+download_tokens = {}
 
 def get_google_provider_cfg():
     return requests.get(GOOGLE_DISCOVERY_URL).json()
@@ -47,12 +69,17 @@ def login():
     google_provider_cfg = get_google_provider_cfg()
     authorization_endpoint = google_provider_cfg["authorization_endpoint"]
     
-    # Use library to construct the request for Google login
+    # OAuth client
     client = current_app.config['OAUTH_CLIENT']
-    if request.host.startswith('localhost'):
-        redirect_uri = 'http://localhost:5000/login/callback'
-    else:
-        redirect_uri = 'https://pptjet-dev.onrender.com/login/callback'
+
+    # Build redirect URI dynamically based on current host
+    redirect_uri = url_for('main.callback', _external=True)
+
+    # Allow insecure transport when running on localhost
+    if request.host.startswith('localhost') or request.host.startswith('127.0.0.1'):
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    
+    print(f"Debug - Login redirect URI: {redirect_uri}")
     
     request_uri = client.prepare_request_uri(
         authorization_endpoint,
@@ -63,46 +90,139 @@ def login():
 
 @bp.route("/login/callback")
 def callback():
-    # Get authorization code Google sent back
-    code = request.args.get("code")
-    if not code:
-        return "Error: No code provided", 400
+    try:
+        # Get the authorization code from the request
+        code = request.args.get("code")
+        if not code:
+            return "Error: No code provided", 400
 
-    # Get Google's OAuth 2.0 endpoints
-    google_provider_cfg = get_google_provider_cfg()
-    token_endpoint = google_provider_cfg["token_endpoint"]
+        # Prepare token endpoint
+        google_provider_cfg = get_google_provider_cfg()
+        token_endpoint = google_provider_cfg["token_endpoint"]
 
-    # Prepare and send a request to get tokens
-    client = current_app.config['OAUTH_CLIENT']
-    if request.host.startswith('localhost'):
-        redirect_uri = 'http://localhost:5000/login/callback'
-    else:
-        redirect_uri = 'https://pptjet-dev.onrender.com/login/callback'
+        # Reconstruct redirect_uri based on current host
+        redirect_uri = url_for('main.callback', _external=True)
+        if request.host.startswith('localhost') or request.host.startswith('127.0.0.1'):
+            os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+        
+        print(f"Debug - Callback redirect URI: {redirect_uri}")
 
-    token_url, headers, body = client.prepare_token_request(
-        token_endpoint,
-        authorization_response=request.url,
-        redirect_url=redirect_uri,
-        code=code
-    )
-    # Get client credentials from the OAuth client config
-    client = current_app.config['OAUTH_CLIENT']
-    client_secrets = {
-        "web": {
-            "client_id": os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
-            "client_secret": os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+        # Prepare the token request
+        client = current_app.config['OAUTH_CLIENT']
+        token_url, headers, body = client.prepare_token_request(
+            token_endpoint,
+            authorization_response=request.url,
+            redirect_url=redirect_uri,
+            code=code
+        )
+
+        # Get client credentials from the OAuth client config
+        client_secrets = {
+            "web": {
+                "client_id": os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
+                "client_secret": os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+            }
         }
-    }
-    
-    token_response = requests.post(
-        token_url,
-        headers=headers,
-        data=body,
-        auth=(client_secrets["web"]["client_id"], client_secrets["web"]["client_secret"]),
-    )
 
-    # Parse the tokens
-    client.parse_request_body_response(json.dumps(token_response.json()))
+        # Build the token payload including client credentials
+        import urllib.parse
+        token_payload = dict(urllib.parse.parse_qsl(body))
+        token_payload["client_id"] = client_secrets["web"]["client_id"]
+        token_payload["client_secret"] = client_secrets["web"]["client_secret"]
+
+        # --- Debug: Token Request ---
+        print("\n--- GOOGLE OAUTH TOKEN REQUEST ---")
+        print("URL:", token_url)
+        print("Payload:", token_payload)
+        print("----------------------------------")
+
+        token_response = requests.post(
+            token_url,
+            headers=headers,
+            data=token_payload,
+        )
+
+        # Check if the token request was successful
+        if not token_response.ok:
+            error_data = token_response.json()
+            print(f"Token Error Response: {error_data}")
+            return f"Error getting token: {error_data.get('error_description', 'Unknown error')}", 400
+
+        # Parse the tokens
+        token_data = token_response.json()
+        if 'error' in token_data:
+            print(f"Token Error: {token_data}")
+            return f"Error in token response: {token_data.get('error_description', 'Unknown error')}", 400
+
+        client.parse_request_body_response(json.dumps(token_data))
+
+        # Get user info from Google
+        print("Debug - Getting user info from Google...")
+        userinfo_endpoint = google_provider_cfg["userinfo_endpoint"]
+        uri, headers, body = client.add_token(userinfo_endpoint)
+        print(f"Debug - User info request: URI={uri}, Headers={headers}")
+        
+        userinfo_response = requests.get(uri, headers=headers, data=body)
+        print(f"Debug - User info response status: {userinfo_response.status_code}")
+        print(f"Debug - User info response: {userinfo_response.json()}")
+
+        if userinfo_response.json().get("email_verified"):
+            unique_id = userinfo_response.json()["sub"]
+            users_email = userinfo_response.json()["email"]
+            users_name = userinfo_response.json()["given_name"]
+            picture = userinfo_response.json()["picture"]
+
+            # Create or update user
+            user = User.query.get(unique_id)
+            if not user:
+                user = User(id_=unique_id, email=users_email, name=users_name, profile_pic=picture)
+                db.session.add(user)
+            else:
+                user.email = users_email
+                user.name = users_name
+                user.profile_pic = picture
+            
+            db.session.commit()
+            login_user(user)
+            return redirect(url_for('main.index'))
+        else:
+            return "User email not verified by Google.", 400
+            
+    except Exception as e:
+        print(f"Error in callback: {str(e)}")
+        return f"Error processing callback: {str(e)}", 400
+    
+        # Build the token payload including client credentials
+        import urllib.parse
+        token_payload = dict(urllib.parse.parse_qsl(body))
+        token_payload["client_id"] = client_secrets["web"]["client_id"]
+        token_payload["client_secret"] = client_secrets["web"]["client_secret"]
+
+        # --- Debug: Token Request ---
+        print("\n--- GOOGLE OAUTH TOKEN REQUEST ---")
+        print("URL:", token_url)
+        print("Payload:", token_payload)
+        print("----------------------------------")
+
+        token_response = requests.post(
+            token_url,
+            headers=headers,
+            data=token_payload,
+        )
+
+        # Check if the token request was successful
+        if not token_response.ok:
+            error_data = token_response.json()
+            print(f"Token Error Response: {error_data}")
+            return f"Error getting token: {error_data.get('error_description', 'Unknown error')}", 400
+
+        # Parse the tokens
+        token_data = token_response.json()
+        if 'error' in token_data:
+            print(f"Token Error: {token_data}")
+            return f"Error in token response: {token_data.get('error_description', 'Unknown error')}", 400
+
+        client.parse_request_body_response(json.dumps(token_data))
 
     # Get user info from Google
     userinfo_endpoint = google_provider_cfg["userinfo_endpoint"]
@@ -115,20 +235,18 @@ def callback():
         users_name = userinfo_response.json()["given_name"]
         picture = userinfo_response.json()["picture"]
 
-        # Create a user in our db with the information provided by Google
-        user_data = {
-            "id": unique_id,
-            "name": users_name,
-            "email": users_email,
-            "profile_pic": picture
-        }
-        users_db[unique_id] = user_data
-        user = User(
-            id_=unique_id,
-            name=users_name,
-            email=users_email,
-            profile_pic=picture
-        )
+        # Create or update user in our db with the information provided by Google
+        # Get or create user
+        user = User.query.get(unique_id)
+        if not user:
+            user = User(
+                id_=unique_id,
+                name=users_name,
+                email=users_email,
+                profile_pic=picture
+            )
+            db.session.add(user)
+            db.session.commit()
 
         # Begin user session by logging the user in
         login_user(user)
@@ -149,7 +267,33 @@ def logout():
 @login_required
 def generate():
     if request.method == "GET":
-        return render_template('generate.html', user=current_user)
+        # Check if we need to reset the monthly count
+        if current_user.last_reset and (datetime.now() - current_user.last_reset).days >= 30:
+            current_user.presentations_count = 0
+            current_user.last_reset = datetime.utcnow()
+            db.session.commit()
+        
+        # Calculate remaining presentations
+        plan_info = User.PLANS.get(current_user.plan)
+        remaining = None
+        
+        if current_user.plan == 'pay_per_use':
+            remaining = 'Pay per use'
+        elif plan_info:
+            if plan_info['limit'] is None:
+                remaining = 'Unlimited'
+            else:
+                remaining = max(0, plan_info['limit'] - current_user.presentations_count)
+        else:
+            remaining = 'Unknown'
+        
+        return render_template(
+            'generate.html',
+            user=current_user,
+            remaining_presentations=remaining,
+            current_plan=current_user.plan,
+            plan_info=plan_info
+        )
 
     try:
         data = request.get_json()
@@ -167,29 +311,75 @@ def generate():
         # Extract optional fields with defaults
         num_slides = int(data.get("num_slides", 5))
         template_style = data.get("template_style", "Professional")
+        include_images = bool(data.get("include_images", False))
 
         # Initialize PPT generator
-        ppt_generator = PPTGenerator()
-        
         try:
+            # For pay-per-use, check payment first
+            if current_user.plan == 'pay_per_use':
+                if not session.get('payment_verified'):
+                    return jsonify({
+                        'error': 'Payment required',
+                        'payment_required': True
+                    }), 402
+                # Clear payment verification after use
+                session.pop('payment_verified', None)
+            else:
+                # For other plans, check presentation limits
+                # Skip limit check for admins
+                if not current_user.is_admin:
+                    plan_limit = User.PLANS[current_user.plan]['limit']
+                    if plan_limit and current_user.presentations_count >= plan_limit:
+                        return jsonify({
+                            'error': f'You have reached your {User.PLANS[current_user.plan]["name"]} plan limit. Please upgrade to continue.'
+                        }), 403
+
+            # Initialize PPT generator
+            try:
+                ppt_generator = PPTGenerator()
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 400
+            except Exception as e:
+                return jsonify({"error": f"Error initializing presentation generator: {str(e)}"}), 500
+
             # Generate slide content
-            slides_content = ppt_generator.generate_slide_content(prompt, num_slides)
+            try:
+                slides_content = ppt_generator.generate_slide_content(prompt, num_slides)
+            except Exception as e:
+                return jsonify({"error": f"Error generating slide content: {str(e)}"}), 500
             
             # Create presentation
-            filepath = ppt_generator.create_presentation(
-                title=title,
-                presenter=presenter,
-                slides_content=slides_content,
-                template=template_style
-            )
+            try:
+                # Use the prompt as both the title and the first slide title
+                filepath = ppt_generator.create_presentation(
+                    title=prompt,  # Use prompt as title instead of the generic title
+                    presenter=presenter,
+                    slides_content=slides_content,
+                    template_style=template_style,
+                    include_images=include_images
+                )
+            except Exception as e:
+                return jsonify({"error": f"Error creating presentation: {str(e)}"}), 500
             
+            # Increment presentation count and log usage
+            current_user.presentations_count += 1
+            # Create presentation log entry
+            log_entry = PresentationLog(
+                user_id=current_user.id,
+                title=prompt,
+                num_slides=num_slides,
+                units_used=1
+            )
+            db.session.add(log_entry)
+            db.session.commit()
+
             # Get filename from path
             filename = os.path.basename(filepath)
             
             return jsonify({
                 'success': True,
                 'filename': filename,
-                'file_url': f'/download/{filename}'
+                'download_url': url_for('main.download_page', filename=filename)
             })
             
         except Exception as e:
@@ -199,8 +389,343 @@ def generate():
         return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 
-@bp.route("/download/<filename>")
+@bp.route("/download/page/<filename>")
 @login_required
-def download_file(filename):
-    return send_from_directory(GENERATED_FOLDER, filename, as_attachment=True)
+def download_page(filename):
+    # Calculate remaining presentations
+    plan_limit = User.PLANS[current_user.plan]['limit']
+    remaining = plan_limit - current_user.presentations_count if plan_limit else 'Pay per use'
+    
+    # Generate a unique download token
+    token = secrets.token_urlsafe(32)
+    download_tokens[token] = filename
+    
+    return render_template('download.html',
+                           user=current_user,
+                           download_url=url_for('main.download_file', token=token),
+                           remaining_presentations=remaining)
+
+@bp.route("/download/file/<token>")
+@login_required
+def download_file(token):
+    # Verify token and get filename
+    filename = download_tokens.get(token)
+    if not filename:
+        # Refund the presentation unit since the link is invalid/expired
+        try:
+            if current_user.is_authenticated and current_user.presentations_count > 0:
+                current_user.presentations_count -= 1
+                db.session.commit()
+        except Exception as e:
+            # Log any issues but don't block the response
+            print(f"Error refunding presentation unit: {str(e)}")
+        return "Invalid or expired download link", 400
+    
+    # Remove the token after use
+    del download_tokens[token]
+    
+    # Set cache control headers to prevent caching
+    response = send_from_directory(GENERATED_FOLDER, filename, as_attachment=True)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    
+    return response
+
+@bp.route('/switch_plan/<plan_type>', methods=['POST'])
+@login_required
+def switch_plan(plan_type):
+    try:
+        print(f"Debug - Switch plan request received for plan: {plan_type}")
+        
+        # Validate plan type (including pay_per_use)
+        valid_plans = list(User.PLANS.keys()) + ['pay_per_use']
+        if plan_type not in valid_plans:
+            print(f"Debug - Invalid plan type: {plan_type}")
+            return jsonify({
+                'success': False,
+                'error': 'Invalid plan type'
+            }), 400
+
+        # For paid plans (pro and creator), initialize payment
+        if plan_type in ['pro', 'creator']:
+            print(f"Debug - Initializing payment for paid plan: {plan_type}")
+            
+            # Get plan details
+            plan = User.PLANS[plan_type]
+            amount = plan['price']
+            plan_id = plan.get('plan_id')
+            
+            print(f"Debug - Plan details: amount={amount}, plan_id={plan_id}")
+
+            # Initialize Paystack payment
+            url = "https://api.paystack.co/transaction/initialize"
+            headers = {
+                "Authorization": f"Bearer {os.getenv('PAYSTACK_SECRET_KEY')}",
+                "Content-Type": "application/json"
+            }
+            
+            callback_url = url_for('main.payment_callback', _external=True, _scheme='http')
+            print(f"Debug - Callback URL: {callback_url}")
+            
+            data = {
+                "email": current_user.email,
+                "amount": int(amount * 100),  # Convert to pesewas
+                "currency": "GHS",
+                "callback_url": callback_url,
+                "metadata": {
+                    "user_id": current_user.id,
+                    "plan": plan_type,
+                    "plan_id": plan_id
+                }
+            }
+            
+            print(f"Debug - Payment request data: {data}")
+            response = requests.post(url, headers=headers, json=data)
+            print(f"Debug - Paystack response status: {response.status_code}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                print(f"Debug - Paystack response: {result}")
+                
+                if result.get('status'):
+                    # Store payment reference in session
+                    session['payment_reference'] = result['data']['reference']
+                    payment_url = result['data']['authorization_url']
+                    print(f"Debug - Payment initialized, redirecting to: {payment_url}")
+                    
+                    return jsonify({
+                        'success': False,  # Set to false to ensure frontend redirects
+                        'payment_url': payment_url
+                    })
+                else:
+                    print(f"Debug - Payment initialization failed: {result}")
+            else:
+                print(f"Debug - Payment request failed: {response.text}")
+
+            return jsonify({
+                'success': False,
+                'error': 'Failed to initialize payment'
+            }), 400
+
+        # For free plan or pay-per-use, switch immediately
+        print(f"Debug - Switching to {plan_type} plan immediately")
+        if plan_type in ['free', 'pay_per_use']:
+            # Store the old plan and count in case we need to revert
+            old_plan = current_user.plan
+            old_count = current_user.presentations_count
+            old_reset = current_user.last_reset
+            
+            current_user.plan = plan_type
+            current_user.presentations_count = 0  # Reset count on plan change
+            current_user.last_reset = datetime.utcnow()  # Reset the monthly counter
+            db.session.commit()
+            
+            # Store the old plan info in session in case payment fails
+            session['previous_plan'] = old_plan
+            session['previous_count'] = old_count
+            session['previous_reset'] = old_reset.isoformat() if old_reset else None
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully switched to {plan_type} plan'
+        })
+        
+    except Exception as e:
+        print(f"Debug - Error in switch_plan: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@bp.route('/initialize_payment', methods=['POST'])
+@login_required
+def initialize_payment():
+    try:
+        # Calculate amount in pesewas (Paystack uses smallest currency unit)
+        usd_amount = 0.20  # Price in USD
+        usd_to_ghs_rate = 12  # Exchange rate
+        ghs_amount = round(usd_amount * usd_to_ghs_rate, 2)  # Convert to GHS
+        pesewas_amount = int(ghs_amount * 100)  # Convert to pesewas
+        
+        # Initialize Paystack payment
+        url = "https://api.paystack.co/transaction/initialize"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('PAYSTACK_SECRET_KEY')}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "email": current_user.email,
+            "amount": pesewas_amount,  # Amount in pesewas
+            "currency": "GHS",  # Specify Ghana Cedis
+            "callback_url": url_for('main.payment_callback', _external=True),
+            "metadata": {
+                "user_id": current_user.id,
+                "plan": "pay_per_use",
+                "usd_amount": usd_amount,
+                "exchange_rate": usd_to_ghs_rate
+            }
+        }
+        
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code == 200:
+            result = response.json()
+            if result['status']:
+                # Store payment reference in session
+                session['payment_reference'] = result['data']['reference']
+                return jsonify({
+                    'success': True,
+                    'authorization_url': result['data']['authorization_url']
+                })
+        
+        return jsonify({
+            'success': False,
+            'error': 'Failed to initialize payment'
+        }), 400
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ------------------
+# User Dashboard
+# ------------------
+@bp.route('/dashboard')
+@login_required
+def dashboard():
+    plan_info = User.PLANS.get(current_user.plan)
+    used = current_user.presentations_count
+    remaining = 'Unlimited' if current_user.is_admin or not plan_info or plan_info['limit'] is None else max(0, plan_info['limit'] - used)
+    logs = PresentationLog.query.filter_by(user_id=current_user.id).order_by(PresentationLog.created_at.desc()).limit(20).all()
+    return render_template('dashboard.html', user=current_user, used=used, remaining=remaining, logs=logs)
+
+# ------------------
+# Admin Dashboard Page
+# ------------------
+@bp.route('/admin')
+@admin_required
+def admin_dashboard_page():
+    # HTML template fetches usage via JS
+    return render_template('admin/dashboard.html', user=current_user)
+
+# ------------------
+# Admin endpoints
+# ------------------
+@bp.route('/admin/usage')
+@admin_required
+def admin_usage():
+    # Aggregate usage by user
+    from sqlalchemy import func
+    usage = (
+        db.session.query(User.id, User.email, func.count(PresentationLog.id))
+        .join(PresentationLog, PresentationLog.user_id == User.id)
+        .group_by(User.id)
+        .all()
+    )
+    usage_data = [
+        {"user_id": u[0], "email": u[1], "presentations": u[2]} for u in usage
+    ]
+    return jsonify({"usage": usage_data})
+
+@bp.route('/admin/award_units', methods=['POST'])
+@admin_required
+def admin_award_units():
+    data = request.get_json() or {}
+    user_id = data.get('user_id')
+    units = int(data.get('units', 0))
+    if not user_id or units <= 0:
+        return jsonify({'success': False, 'error': 'Invalid parameters'}), 400
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+    user.presentations_count = max(0, user.presentations_count - units)
+    db.session.commit()
+    return jsonify({'success': True, 'presentations_count': user.presentations_count})
+
+@bp.route('/payment/callback')
+@login_required
+def payment_callback():
+    reference = request.args.get('reference')
+    print(f"Debug - Payment callback received with reference: {reference}")
+    print(f"Debug - Session reference: {session.get('payment_reference')}")
+    
+    if not reference or reference != session.get('payment_reference'):
+        flash('Invalid payment reference', 'error')
+        return redirect(url_for('main.generate'))
+    
+    try:
+        # Verify payment with Paystack
+        url = f"https://api.paystack.co/transaction/verify/{reference}"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('PAYSTACK_SECRET_KEY')}"
+        }
+        print(f"Debug - Verifying payment with Paystack")
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"Debug - Paystack response: {result}")
+            
+            if result['status'] and result['data']['status'] == 'success':
+                # Get metadata from payment
+                metadata = result['data'].get('metadata', {})
+                plan_type = metadata.get('plan')
+                print(f"Debug - Plan type from metadata: {plan_type}")
+
+                if plan_type in ['pro', 'creator']:
+                    # Update user's subscription plan
+                    print(f"Debug - Updating user plan from {current_user.plan} to {plan_type}")
+                    current_user.plan = plan_type
+                    current_user.presentations_count = 0  # Reset count on plan change
+                    current_user.last_reset = datetime.utcnow()  # Reset the monthly counter
+                    db.session.commit()
+                    print(f"Debug - Plan updated in database and counters reset")
+                    flash(f'Payment successful! Your plan has been upgraded to {plan_type}.', 'success')
+                    
+                    # Clear the previous plan info from session
+                    session.pop('previous_plan', None)
+                    session.pop('previous_count', None)
+                    session.pop('previous_reset', None)
+                else:
+                    # For pay-per-use, mark payment as verified
+                    session['payment_verified'] = True
+                    flash('Payment successful! You can now generate your presentation.', 'success')
+
+                # Clear the payment reference from session
+                session.pop('payment_reference', None)
+                return redirect(url_for('main.generate'))
+            else:
+                print(f"Debug - Payment not successful: {result}")
+        else:
+            print(f"Debug - Paystack verification failed with status code: {response.status_code}")
+        
+        # Revert to previous plan if payment failed
+        if 'previous_plan' in session:
+            current_user.plan = session['previous_plan']
+            current_user.presentations_count = session['previous_count']
+            if session['previous_reset']:
+                current_user.last_reset = datetime.fromisoformat(session['previous_reset'])
+            db.session.commit()
+            
+            # Clear the previous plan info from session
+            session.pop('previous_plan', None)
+            session.pop('previous_count', None)
+            session.pop('previous_reset', None)
+        
+        flash('Payment verification failed - your previous plan has been restored', 'error')
+        return redirect(url_for('main.generate'))
+        
+    except Exception as e:
+        print(f"Debug - Error in payment callback: {str(e)}")
+        flash('Error verifying payment', 'error')
+        return redirect(url_for('main.generate'))
 

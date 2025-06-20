@@ -1,6 +1,6 @@
-# SlideAI: AI-Powered PowerPoint Generator
+# PPTJet: AI-Powered PowerPoint Generator
 
-SlideAI is a modern web application that leverages OpenAI's GPT models to automatically generate professional PowerPoint presentations. With a selection of beautiful templates and AI-driven content generation, create engaging presentations in minutes.
+PPTJet is a modern web application that leverages OpenAI's GPT models to automatically generate professional PowerPoint presentations. With a selection of beautiful templates and AI-driven content generation, create engaging presentations in minutes.
 
 ## 🌟 Features
 
@@ -56,7 +56,7 @@ PEXELS_API_KEY=your_pexels_api_key  # Optional, for image support
 python -m flask --app run.py run --debug
 ```
 
-Visit `http://127.0.0.1:5000` in your browser to start using SlideAI.
+Visit `http://127.0.0.1:5000` in your browser to start using PPTJet.
 
 ## 🎯 Usage
 
@@ -83,7 +83,7 @@ Visit `http://127.0.0.1:5000` in your browser to start using SlideAI.
 ## 📁 Project Structure
 
 ```
-SlideAI/
+PPTJet/
 ├── app/
 │   ├── static/
 │   │   ├── img/                    # Template previews
