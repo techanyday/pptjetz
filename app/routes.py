@@ -2,6 +2,7 @@ import os
 import json
 import requests
 import secrets
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from functools import wraps
 from flask import Blueprint, request, render_template, send_from_directory, jsonify, url_for, redirect, current_app, flash, session
 import requests
@@ -27,7 +28,14 @@ def serve_template_image(template):
 GENERATED_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'generated'))
 os.makedirs(GENERATED_FOLDER, exist_ok=True)
 
-# Store download tokens (token -> filename mapping)
+# ====================
+# Download token serializer (signed, timed)
+# ====================
+
+def _get_serializer():
+    """Return a URLSafeTimedSerializer using the app's secret key."""
+    secret_key = current_app.config.get('SECRET_KEY')
+    return URLSafeTimedSerializer(secret_key, salt='download-token')
 
 # ------------------
 # Admin decorator
@@ -42,7 +50,7 @@ def admin_required(f):
         return f(*args, **kwargs)
     return wrapper
 
-download_tokens = {}
+# In-memory download_tokens dict deprecated – using signed tokens now
 
 def get_google_provider_cfg():
     return requests.get(GOOGLE_DISCOVERY_URL).json()
@@ -396,9 +404,9 @@ def download_page(filename):
     plan_limit = User.PLANS[current_user.plan]['limit']
     remaining = plan_limit - current_user.presentations_count if plan_limit else 'Pay per use'
     
-    # Generate a unique download token
-    token = secrets.token_urlsafe(32)
-    download_tokens[token] = filename
+    # Generate a signed download token (valid for 1 hour)
+    serializer = _get_serializer()
+    token = serializer.dumps(filename)
     
     return render_template('download.html',
                            user=current_user,
@@ -408,8 +416,16 @@ def download_page(filename):
 @bp.route("/download/file/<token>")
 @login_required
 def download_file(token):
-    # Verify token and get filename
-    filename = download_tokens.get(token)
+    # Verify token and get filename using signed token
+    try:
+        filename = _get_serializer().loads(token, max_age=3600)  # Expires in 1 hour
+    except SignatureExpired:
+        error_msg = "Download link expired"
+        filename = None
+    except BadSignature:
+        error_msg = "Invalid download link"
+        filename = None
+
     if not filename:
         # Refund the presentation unit since the link is invalid/expired
         try:
@@ -419,11 +435,9 @@ def download_file(token):
         except Exception as e:
             # Log any issues but don't block the response
             print(f"Error refunding presentation unit: {str(e)}")
-        return "Invalid or expired download link", 400
+        return error_msg, 400
     
-    # Remove the token after use
-    del download_tokens[token]
-    
+
     # Set cache control headers to prevent caching
     response = send_from_directory(GENERATED_FOLDER, filename, as_attachment=True)
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
