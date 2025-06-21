@@ -11,6 +11,7 @@ from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 from oauthlib.oauth2 import WebApplicationClient
 
 # Initialize extensions
@@ -112,4 +113,9 @@ def create_app():
     # Ensure the generated directory exists
     os.makedirs(os.path.join(os.path.dirname(app.root_path), 'generated'), exist_ok=True)
     
+    # Tell Flask to prefer HTTPS when building external URLs
+    app.config['PREFERRED_URL_SCHEME'] = 'https'
+
+    # Ensure Flask respects X-Forwarded-Proto/Host headers so generated URLs use HTTPS and correct host on Render
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
     return app
