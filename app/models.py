@@ -43,11 +43,12 @@ class User(UserMixin, db.Model):
         }
     }
 
-    def __init__(self, id_, name, email, profile_pic, plan='free', presentations_count=0, last_reset=None):
+    def __init__(self, id_, name, email, profile_pic, is_admin=False, plan='free', presentations_count=0, last_reset=None):
         self.id = id_
         self.name = name
         self.email = email
         self.profile_pic = profile_pic
+        self.is_admin = is_admin
         self.plan = plan
         self.presentations_count = presentations_count
         self.last_reset = last_reset or datetime.utcnow()

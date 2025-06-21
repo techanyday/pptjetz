@@ -51,6 +51,10 @@ def create_app():
     
     # Environment variables already loaded at startup
     
+    # Load admin email list from environment (comma-separated)
+    admin_emails_env = os.getenv('ADMIN_EMAILS', '')
+    app.config['ADMIN_EMAILS'] = [e.strip().lower() for e in admin_emails_env.split(',') if e.strip()]
+
     # Configure app
     app.config['GENERATED_FOLDER'] = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'generated')
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.urandom(24)

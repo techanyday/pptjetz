@@ -179,16 +179,20 @@ def callback():
             users_email = userinfo_response.json()["email"]
             users_name = userinfo_response.json()["given_name"]
             picture = userinfo_response.json()["picture"]
+            # Determine if the logged-in user is an admin based on configured admin emails
+            is_admin_user = users_email.lower() in current_app.config.get('ADMIN_EMAILS', [])
+            print(f"Debug - Admin status for {users_email}: {is_admin_user}")
 
             # Create or update user
             user = User.query.get(unique_id)
             if not user:
-                user = User(id_=unique_id, email=users_email, name=users_name, profile_pic=picture)
+                user = User(id_=unique_id, email=users_email, name=users_name, profile_pic=picture, is_admin=is_admin_user)
                 db.session.add(user)
             else:
                 user.email = users_email
                 user.name = users_name
                 user.profile_pic = picture
+                user.is_admin = is_admin_user
             
             db.session.commit()
             login_user(user)
@@ -247,11 +251,13 @@ def callback():
         # Get or create user
         user = User.query.get(unique_id)
         if not user:
+            is_admin_user = users_email in ADMIN_EMAILS
             user = User(
                 id_=unique_id,
                 name=users_name,
                 email=users_email,
-                profile_pic=picture
+                profile_pic=picture,
+                is_admin=is_admin_user
             )
             db.session.add(user)
             db.session.commit()
