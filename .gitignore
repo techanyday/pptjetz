@@ -34,6 +34,8 @@ env/
 
 # Generated files
 generated/
+# Office temporary files
+~$*.pptx
 # Track template PPTX files so they are deployed
 !app/static/presentations/custom_styles/*.pptx
 

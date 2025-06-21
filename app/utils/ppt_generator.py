@@ -324,10 +324,16 @@ class PPTGenerator:
         print("Debug - Searching for content placeholder...")
         for shape in slide.placeholders:
             print(f"Debug - Checking placeholder: type={shape.placeholder_format.type}, idx={shape.placeholder_format.idx}")
-            # Try multiple placeholder types and indices
-            if (shape.placeholder_format.type in [2, 7] or  # Body (2) or Content (7) placeholder
-                shape.placeholder_format.idx in [1, 2] or  # Common content indices
-                (hasattr(shape, 'text') and not shape.text and shape != slide.shapes.title)):  # Empty text placeholder that's not the title
+            # Skip the title placeholder entirely
+            if shape == slide.shapes.title:
+                continue
+
+            # Accept this placeholder if it is a body/content placeholder OR an empty text placeholder
+            is_body_placeholder = shape.placeholder_format.type in [2, 7]  # Body (2) or Content (7)
+            is_common_content_idx = shape.placeholder_format.idx in [1, 2]
+            is_empty_text_placeholder = hasattr(shape, 'text') and not shape.text
+
+            if is_body_placeholder or (is_common_content_idx and not is_body_placeholder) or is_empty_text_placeholder:
                 content_placeholder = shape
                 print(f"Debug - Found content placeholder: type={shape.placeholder_format.type}, idx={shape.placeholder_format.idx}")
                 break
@@ -335,6 +341,18 @@ class PPTGenerator:
         # Add content if placeholder exists
         if content_placeholder:
             try:
+                # Ensure content placeholder sits below the title to avoid overlap
+                if slide.shapes.title is not None:
+                    title_bottom = slide.shapes.title.top + slide.shapes.title.height
+                    margin = Pt(10)
+                    if content_placeholder.top < title_bottom + margin:
+                        # Move content placeholder just below title
+                        delta = (title_bottom + margin) - content_placeholder.top
+                        content_placeholder.top += delta
+                        # Reduce height so it still fits on the slide
+                        if content_placeholder.height > delta:
+                            content_placeholder.height -= delta
+                
                 text_frame = content_placeholder.text_frame
                 text_frame.word_wrap = True
                 # Shrink text automatically to prevent overflow beyond placeholder bounds
