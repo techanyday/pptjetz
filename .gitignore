@@ -34,7 +34,8 @@ env/
 
 # Generated files
 generated/
-*.pptx
+# Track template PPTX files so they are deployed
+!app/static/presentations/custom_styles/*.pptx
 
 # Logs
 *.log
