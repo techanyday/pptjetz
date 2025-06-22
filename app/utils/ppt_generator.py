@@ -353,10 +353,35 @@ class PPTGenerator:
                         if content_placeholder.height > delta:
                             content_placeholder.height -= delta
                 
-                text_frame = content_placeholder.text_frame
-                text_frame.word_wrap = True
-                # Shrink text automatically to prevent overflow beyond placeholder bounds
-                text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                # Determine whether to use the placeholder or create a new textbox
+                use_placeholder = False
+                if content_placeholder is not None:
+                    try:
+                        # Check text direction attribute on <a:bodyPr>
+                        bodyPr = content_placeholder._element.bodyPr
+                        vert_attr = bodyPr.get('vert') if bodyPr is not None else None
+                        # Use placeholder only if horizontal text orientation and reasonably wide
+                        if vert_attr in (None, 'horz') and content_placeholder.width >= Inches(3.2):
+                            use_placeholder = True
+                    except Exception:
+                        pass
+                
+                if not use_placeholder:
+                    # Create our own horizontal textbox on left side
+                    left_margin = Inches(0.8)
+                    top_margin = Inches(1.5)
+                    box_width = prs.slide_width * 0.45  # ~45% of slide width
+                    box_height = prs.slide_height - top_margin - Inches(1.0)
+                    textbox = slide.shapes.add_textbox(left_margin, top_margin, box_width, box_height)
+                    text_frame = textbox.text_frame
+                    text_frame.word_wrap = True
+                    # Clear any default empty paragraph
+                    text_frame.clear()
+                else:
+                    # Use the placeholder’s text frame
+                    text_frame = content_placeholder.text_frame
+                    text_frame.word_wrap = True
+                    text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
                 
                 # Add bullet points
                 first = True
