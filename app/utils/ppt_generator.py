@@ -399,16 +399,37 @@ class PPTGenerator:
                     p.line_spacing = 1.2
                 print("Debug - Successfully added content to slide")
 
-                # Remove any leftover narrow vertical placeholders that still show default text
+                # Remove leftover placeholders showing default prompt (e.g., vertical "Click to add text")
                 for shp in list(slide.shapes):
+                    # Only consider placeholders we didn't use
                     try:
-                        if not shp.is_placeholder:
+                        if not shp.is_placeholder or shp == content_placeholder:
                             continue
                     except AttributeError:
                         continue
-                    if shp == content_placeholder:
-                        continue  # keep our main content placeholder
-                    if shp.has_text_frame and (not shp.text_frame.text.strip()) and shp.width < Inches(2):
+
+                    # Gather text content (python-pptx returns empty string for default prompt)
+                    text_content = ""
+                    if shp.has_text_frame:
+                        text_content = "".join(p.text for p in shp.text_frame.paragraphs).strip().lower().replace(" ", "")
+
+                    # Check the bodyPr vert attribute (indicates vertical orientation)
+                    vert_attr = None
+                    try:
+                        vert_attr = shp._element.bodyPr.get("vert")
+                    except Exception:
+                        pass
+
+                    # Conditions to remove: vertical orientation OR default prompt text present OR empty + narrow
+                    remove = False
+                    if vert_attr and vert_attr != "horz":
+                        remove = True
+                    elif "clicktoaddtext" in text_content:
+                        remove = True
+                    elif not text_content and shp.width < Inches(2.5):
+                        remove = True
+
+                    if remove:
                         slide.shapes._spTree.remove(shp._element)
             except Exception as e:
                 print(f"Debug - Error adding content to placeholder: {str(e)}")
