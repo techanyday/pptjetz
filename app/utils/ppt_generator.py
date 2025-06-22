@@ -574,9 +574,14 @@ class PPTGenerator:
                             if shp.shape_type == 13:  # MSO_SHAPE_TYPE.PICTURE
                                 continue
                             if hasattr(shp, "text_frame") and shp.text_frame is not None:
-                                # Only shrink if current right edge goes beyond image left
-                                if shp.left + shp.width > available_width:
-                                    shp.width = max(Inches(2), available_width - shp.left)
+                                # Adjust width if current right edge goes beyond image left OR if placeholder is very narrow
+                                needs_adjust = shp.left + shp.width > available_width or shp.width < Inches(3.5)
+                                if needs_adjust:
+                                    # Compute target width that fits within available area but is not too narrow
+                                    target_width = max(Inches(4), min(available_width - shp.left, shp.width))
+                                    # Ensure target_width is positive
+                                    if target_width > Inches(1):
+                                        shp.width = target_width
                         print("Debug - Image added to slide")
                 except Exception as e:
                     print(f"Warning - Could not add image to slide: {str(e)}")
