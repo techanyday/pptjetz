@@ -398,6 +398,18 @@ class PPTGenerator:
                     p.space_after = Pt(12)
                     p.line_spacing = 1.2
                 print("Debug - Successfully added content to slide")
+
+                # Remove any leftover narrow vertical placeholders that still show default text
+                for shp in list(slide.shapes):
+                    try:
+                        if not shp.is_placeholder:
+                            continue
+                    except AttributeError:
+                        continue
+                    if shp == content_placeholder:
+                        continue  # keep our main content placeholder
+                    if shp.has_text_frame and (not shp.text_frame.text.strip()) and shp.width < Inches(2):
+                        slide.shapes._spTree.remove(shp._element)
             except Exception as e:
                 print(f"Debug - Error adding content to placeholder: {str(e)}")
         else:
