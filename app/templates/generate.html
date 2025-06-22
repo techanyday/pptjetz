@@ -52,7 +52,7 @@
                 <!-- Free Plan -->
                 <div class="border rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow">
                     <h3 class="text-xl font-semibold mb-2">Free</h3>
-                    <p class="text-3xl font-bold mb-4">GHS 0</p>
+                    <p class="text-3xl font-bold mb-4">$0</p>
                     <ul class="text-gray-600 mb-6 text-center">
                         <li class="mb-2">3 presentations/month</li>
                         <li class="mb-2">Basic templates</li>
@@ -66,7 +66,7 @@
                 <!-- Creator Plan -->
                 <div class="border rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow">
                     <h3 class="text-xl font-semibold mb-2">Creator</h3>
-                    <p class="text-3xl font-bold mb-4">GHS 35.88</p>
+                    <p class="text-3xl font-bold mb-4">$2.99</p>
                     <ul class="text-gray-600 mb-6 text-center">
                         <li class="mb-2">20 presentations/month</li>
                         <li class="mb-2">All templates</li>
@@ -81,7 +81,7 @@
                 <div class="border-2 {% if user.plan == 'pro' %}border-gray-500{% else %}border-blue-500{% endif %} rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow relative overflow-hidden">
                     <div class="absolute top-0 right-0 bg-blue-500 text-white px-4 py-1 rounded-bl">Popular</div>
                     <h3 class="text-xl font-semibold mb-2">Pro</h3>
-                    <p class="text-3xl font-bold mb-4">GHS 63.50</p>
+                    <p class="text-3xl font-bold mb-4">$4.99</p>
                     <ul class="text-gray-600 mb-6 text-center">
                         <li class="mb-2">50 presentations/month</li>
                         <li class="mb-2">All templates</li>
@@ -96,7 +96,7 @@
                 <div class="border rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow">
                     <h3 class="text-xl font-semibold mb-2">Pay per Use</h3>
                     <p class="text-3xl font-bold mb-4">$0.20</p>
-                    <p class="text-sm text-gray-500 -mt-2 mb-4">(GHS 2.40)</p>
+                    <p class="text-sm text-gray-500 -mt-2 mb-4">&nbsp;</p>
                     <ul class="text-gray-600 mb-6 text-center">
                         <li class="mb-2">Pay as you go</li>
                         <li class="mb-2">All templates</li>
@@ -248,7 +248,7 @@ async function switchPlan(planType) {
 
 // Pay per use modal functionality
 function showPayPerUseModal() {
-    if (confirm('Switch to Pay-per-Presentation Plan?\n\nPricing:\n- $0.20 (GHS 2.40) per presentation\n- No monthly limits\n- Pay only for what you use\n\nWould you like to switch to this plan?')) {
+    if (confirm('Switch to Pay-per-Presentation Plan?\n\nPricing:\n- $0.20 per presentation\n- No monthly limits\n- Pay only for what you use\n\nWould you like to switch to this plan?')) {
         // Send request to switch to pay-per-use plan
         fetch('/switch_plan/pay_per_use', {
             method: 'POST',
