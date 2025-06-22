@@ -575,13 +575,20 @@ class PPTGenerator:
                                 continue
                             if hasattr(shp, "text_frame") and shp.text_frame is not None:
                                 # Adjust width if current right edge goes beyond image left OR if placeholder is very narrow
-                                needs_adjust = shp.left + shp.width > available_width or shp.width < Inches(3.5)
-                                if needs_adjust:
-                                    # Compute target width that fits within available area but is not too narrow
-                                    target_width = max(Inches(4), min(available_width - shp.left, shp.width))
-                                    # Ensure target_width is positive
-                                    if target_width > Inches(1):
-                                        shp.width = target_width
+                                # Determine available horizontal space for this shape
+                                max_width_allowed = available_width - shp.left
+                                min_width_needed = Inches(4)
+
+                                if max_width_allowed <= Inches(1):
+                                    continue  # No space to change
+
+                                # If shape is wider than allowed, shrink; if narrower than reasonable, grow (if space)
+                                if shp.left + shp.width > available_width:
+                                    # shrink to fit but not below min reasonable width
+                                    shp.width = max(min_width_needed, max_width_allowed)
+                                elif shp.width < min_width_needed and max_width_allowed >= min_width_needed:
+                                    # expand to a comfortable width
+                                    shp.width = min_width_needed
                         print("Debug - Image added to slide")
                 except Exception as e:
                     print(f"Warning - Could not add image to slide: {str(e)}")
