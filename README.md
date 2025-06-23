@@ -7,7 +7,6 @@ PPTJet is a modern web application that leverages OpenAI's GPT models to automat
 - **AI-Powered Content Generation**: Automatically generates slide content based on your prompt
 - **Multiple Template Styles**:
   - 🎨 Aesthetic: Modern and creative design
-  - ⚪ Minimalist: Clean and simple layout
   - 👔 Professional: Business-ready presentation
   - 🕰️ Vintage: Classic and elegant style
 - **Customization Options**:

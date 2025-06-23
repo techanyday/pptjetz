@@ -18,8 +18,5 @@ def analyze_template(template_name):
     except Exception as e:
         print(f"Error analyzing template: {str(e)}")
 
-# Analyze minimalist template
-analyze_template("Minimalist.pptx")
-
-# For comparison, analyze professional template
+# Analyze professional template only
 analyze_template("Professional.pptx")

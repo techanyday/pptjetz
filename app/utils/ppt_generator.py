@@ -44,7 +44,7 @@ class PPTGenerator:
         # Define available template styles
         self.TEMPLATE_STYLES = {
             "Aesthetic": "Aesthetic.pptx",
-            "Minimalist": "Minimalist.pptx",
+
             "Professional": "Professional.pptx",
             "Vintage": "Vintage.pptx",
             "Corporate": "Corporate.pptx",
@@ -101,7 +101,7 @@ class PPTGenerator:
         # Define available template styles
         self.TEMPLATE_STYLES = {
             "Aesthetic": "Aesthetic.pptx",
-            "Minimalist": "Minimalist.pptx",
+
             "Professional": "Professional.pptx",
             "Vintage": "Vintage.pptx",
             "Corporate": "Corporate.pptx",
