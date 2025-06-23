@@ -411,13 +411,22 @@ class PPTGenerator:
                     if shp == content_placeholder or (slide.shapes.title and shp == slide.shapes.title):
                         continue
 
-                    # If the placeholder has no meaningful text (default prompt returns empty), remove it.
+                    # Determine if the placeholder is effectively empty or just shows the default prompt
                     empty = True
                     if shp.has_text_frame:
                         txt = "".join(p.text for p in shp.text_frame.paragraphs).strip()
-                        if txt:
+                        default_prompt = txt.lower().startswith("click to add")
+                        if txt and not default_prompt:
                             empty = False
-                    # If it's a picture or other non-text placeholder with no content, it's safe to drop.
+                    # Treat placeholders with vertical orientation (non-horizontal text) as removable noise
+                    try:
+                        bodyPr = shp._element.bodyPr
+                        vert_attr = bodyPr.get("vert") if bodyPr is not None else None
+                        if vert_attr and vert_attr != "horz":
+                            empty = True
+                    except Exception:
+                        pass
+                    # If it's a picture or other non-text placeholder with no meaningful content, it's safe to drop.
                     if empty:
                         slide.shapes._spTree.remove(shp._element)
             except Exception as e:
