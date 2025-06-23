@@ -45,11 +45,11 @@ class PPTGenerator:
         self.TEMPLATE_STYLES = {
             "Aesthetic": "Aesthetic.pptx",
 
-            "Professional": "Professional.pptx",
+
             "Vintage": "Vintage.pptx",
-            "Corporate": "Corporate.pptx",
+
             "Creative": "Creative.pptx",
-            "Modern": "Modern.pptx",
+
             "Simple": "Simple.pptx"
         }
 
@@ -102,11 +102,11 @@ class PPTGenerator:
         self.TEMPLATE_STYLES = {
             "Aesthetic": "Aesthetic.pptx",
 
-            "Professional": "Professional.pptx",
+
             "Vintage": "Vintage.pptx",
-            "Corporate": "Corporate.pptx",
+
             "Creative": "Creative.pptx",
-            "Modern": "Modern.pptx",
+
             "Simple": "Simple.pptx"
         }
         
@@ -134,7 +134,7 @@ class PPTGenerator:
 
     def get_template_path(self, style: str) -> str:
         """Get the path to the selected template style"""
-        filename = self.TEMPLATE_STYLES.get(style, "Professional.pptx")  # Default to Professional if style not found
+        filename = self.TEMPLATE_STYLES.get(style, "Aesthetic.pptx")  # Default to Professional if style not found
         # Get absolute path to the project root directory
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         template_path = os.path.join(project_root, "app", "static", "presentations", "custom_styles", filename)
@@ -354,6 +354,7 @@ class PPTGenerator:
                             content_placeholder.height -= delta
                 
                 # Determine whether to use the placeholder or create a new textbox
+                used_placeholder = False  # track if we actually populate the placeholder
                 use_placeholder = False
                 if content_placeholder is not None:
                     try:
@@ -374,14 +375,16 @@ class PPTGenerator:
                     box_height = prs.slide_height - top_margin - Inches(1.0)
                     textbox = slide.shapes.add_textbox(left_margin, top_margin, box_width, box_height)
                     text_frame = textbox.text_frame
-                    text_frame.word_wrap = True
-                    # Clear any default empty paragraph
-                    text_frame.clear()
+                    text_frame.clear()  # Remove default empty paragraph
+                    used_placeholder = False
                 else:
-                    # Use the placeholder’s text frame
+                    # Use the placeholder's text frame
                     text_frame = content_placeholder.text_frame
-                    text_frame.word_wrap = True
-                    text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                    used_placeholder = True
+
+                # Common text frame settings
+                text_frame.word_wrap = True
+                text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
                 
                 # Add bullet points
                 first = True
@@ -407,8 +410,10 @@ class PPTGenerator:
                     except AttributeError:
                         continue
 
-                    # Keep the main title and content placeholders that we have filled.
-                    if shp == content_placeholder or (slide.shapes.title and shp == slide.shapes.title):
+                    # Always keep the title placeholder. Only keep the content placeholder if we actually used it.
+                    if shp == slide.shapes.title:
+                        continue
+                    if shp == content_placeholder and used_placeholder:
                         continue
 
                     # Determine if the placeholder is effectively empty or just shows the default prompt
@@ -567,7 +572,7 @@ class PPTGenerator:
                     title: str,
                     presenter: str,
                     slides_content: List[Dict],
-                    template_style: str = "Professional",
+                    template_style: str = "Aesthetic",
                     include_images: bool = False) -> str:
         """Create PowerPoint presentation using a selected template style"""
         # Generate an intelligent title from the input description
@@ -612,17 +617,30 @@ class PPTGenerator:
                             except Exception:
                                 pass
 
+                        # Insert the image and capture the resulting shape reference
                         if pic_placeholder:
-                            pic_placeholder.insert_picture(img_path)
-                            # Determine left bound of image for text wrap adjustment
-                            left = pic_placeholder.left
-                            pic_width = pic_placeholder.width
+                            pic_shape = pic_placeholder.insert_picture(img_path)
                         else:
                             # Fallback: place on right half, respecting slide margins
                             pic_width = Inches(4)
                             left = prs.slide_width - pic_width - Inches(0.5)
-                            top = Inches(1.5)
-                            slide.shapes.add_picture(img_path, left, top, width=pic_width)
+                            top = Inches(1.0)  # start a bit higher to leave more space for bottom border
+                            pic_shape = slide.shapes.add_picture(img_path, left, top, width=pic_width)
+
+                        # ------------------------------------------------------------------
+                        # Post-adjustment: ensure the image does NOT overlap the bottom line
+                        # ------------------------------------------------------------------
+                        bottom_margin = Inches(0.5)
+                        max_height = prs.slide_height - bottom_margin - pic_shape.top
+                        if pic_shape.height > max_height:
+                            ratio = max_height / pic_shape.height
+                            pic_shape.height = int(pic_shape.height * ratio)
+                            pic_shape.width = int(pic_shape.width * ratio)
+
+                        # Recalculate left bound / width after possible resize
+                        left = pic_shape.left
+                        pic_width = pic_shape.width
+
                         # Reduce width of text-containing shapes to avoid overlap
                         available_width = left - Inches(0.3)
                         for shp in slide.shapes:
