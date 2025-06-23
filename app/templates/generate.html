@@ -122,37 +122,34 @@
             
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Select Template Style</label>
-                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-4">
+                <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     <div class="template-option cursor-pointer" data-template="Aesthetic">
                         <img src="{{ url_for('static', filename='img/templates/aesthetic.jpg') }}" alt="Aesthetic template" class="w-full h-32 object-cover rounded-lg" />
                         <p class="text-center mt-2">Aesthetic</p>
                     </div>
-                    <div class="template-option cursor-pointer" data-template="Professional">
-                        <img src="{{ url_for('static', filename='img/templates/professional.jpg') }}" alt="Professional template" class="w-full h-32 object-cover rounded-lg" />
-                        <p class="text-center mt-2">Professional</p>
-                    </div>
+                    
+                        
+                        
                     <div class="template-option cursor-pointer" data-template="Vintage">
                         <img src="{{ url_for('static', filename='img/templates/vintage.jpg') }}" alt="Vintage template" class="w-full h-32 object-cover rounded-lg" />
                         <p class="text-center mt-2">Vintage</p>
                     </div>
-                    <div class="template-option cursor-pointer" data-template="Corporate">
-                        <img src="{{ url_for('static', filename='img/templates/corporate.jpg') }}" alt="Corporate template" class="w-full h-32 object-cover rounded-lg" />
-                        <p class="text-center mt-2">Corporate</p>
-                    </div>
+                    
+                        
+                        
                     <div class="template-option cursor-pointer" data-template="Creative">
                         <img src="{{ url_for('static', filename='img/templates/creative.jpg') }}" alt="Creative template" class="w-full h-32 object-cover rounded-lg" />
                         <p class="text-center mt-2">Creative</p>
                     </div>
-                    <div class="template-option cursor-pointer" data-template="Modern">
-                        <img src="{{ url_for('static', filename='img/templates/modern.jpg') }}" alt="Modern template" class="w-full h-32 object-cover rounded-lg" />
-                        <p class="text-center mt-2">Modern</p>
-                    </div>
+                    
+                        
+                        
                     <div class="template-option cursor-pointer" data-template="Simple">
                         <img src="{{ url_for('static', filename='img/templates/simple.jpg') }}" alt="Simple template" class="w-full h-32 object-cover rounded-lg" />
                         <p class="text-center mt-2">Simple</p>
                     </div>
                 </div>
-                <input type="hidden" id="template_style" name="template_style" value="Professional">
+                <input type="hidden" id="template_style" name="template_style" value="Aesthetic">
             </div>
             
             <div class="flex items-center mb-4">
