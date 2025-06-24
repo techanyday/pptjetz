@@ -82,6 +82,11 @@ def about():
     """Render the About Us page."""
     return render_template('about_us.html', user=current_user)
 
+@bp.route("/faq")
+def faq():
+    """Render the Frequently Asked Questions page."""
+    return render_template('faq.html', user=current_user)
+
 @bp.route("/login")
 def login():
     if current_user.is_authenticated:
