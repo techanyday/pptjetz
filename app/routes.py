@@ -92,6 +92,12 @@ def pricing():
     """Render the Pricing page with package details."""
     return render_template('pricing.html', user=current_user)
 
+@bp.route("/blog")
+def blog():
+    """Render the first blog post page."""
+    from datetime import datetime
+    return render_template('blog_future_ai_presentations.html', user=current_user, datetime=datetime)
+
 @bp.route("/login")
 def login():
     if current_user.is_authenticated:
