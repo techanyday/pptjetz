@@ -106,25 +106,25 @@ def blog_index():
             'title': 'The Future of Presentations: Why AI Is Reshaping Slide Creation',
             'description': 'How AI is transforming slide creation and storytelling.',
             'url': url_for('main.blog_future'),
-            'image': 'https://picsum.photos/id/1037/800/600'
+            'image': None
         },
         {
             'title': 'From Idea to Slide: How PPTJet Transforms Presentations with AI',
             'description': 'See how PPTJet turns raw ideas into structured slides in seconds.',
             'url': url_for('main.blog_idea_to_slide'),
-            'image': 'https://picsum.photos/id/1057/800/600'
+            'image': None
         },
         {
             'title': 'When the Slides Write Themselves',
             'description': 'Real-world use-cases showing PPTJet saving time for everyone.',
             'url': url_for('main.blog_slides_write_themselves'),
-            'image': 'https://picsum.photos/id/1074/800/600'
+            'image': None
         },
         {
             'title': 'Design Less, Communicate More: Why Minimalism Works',
             'description': 'Minimalist principles that make presentations clear and memorable.',
             'url': url_for('main.blog_minimalism'),
-            'image': 'https://images.unsplash.com/photo-1499952127939-9bbf5af6c51c?auto=format&fit=crop&w=800&q=60'
+            'image': None
         },
     ]
     return render_template('blog_index.html', user=current_user, posts=posts, datetime=datetime)
