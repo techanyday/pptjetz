@@ -68,6 +68,15 @@ def privacy():
 def terms():
     return render_template('terms.html', user=current_user, current_date='May 13, 2025')
 
+# ------------------
+# Informational pages
+# ------------------
+
+@bp.route("/how-it-works")
+def how_it_works():
+    """Render a rich, text-heavy explanation of how PPTJet works."""
+    return render_template('how_it_works.html', user=current_user)
+
 @bp.route("/login")
 def login():
     if current_user.is_authenticated:

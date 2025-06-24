@@ -38,6 +38,7 @@
                             <img src="{{ url_for('static', filename='images/logo.png') }}" alt="PPTJet logo" class="h-8 w-8 mr-2"> <span class="font-semibold text-gray-700 text-lg">PPTJet</span>
                         </a>
                     </div>
+                    <a href="{{ url_for('main.how_it_works') }}" class="flex items-center py-4 text-gray-600 hover:text-blue-600">How&nbsp;It&nbsp;Works</a>
                     {% if current_user.is_authenticated %}
                     <a href="{{ url_for('main.dashboard') }}" class="flex items-center py-4 text-gray-600 hover:text-blue-600">Dashboard</a>
                     {% if current_user.is_authenticated and current_user.is_admin %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}How It Works | PPTJet{% endblock %}
+
+{% block content %}
+<div class="prose lg:prose-lg mx-auto">
+    <h1 class="text-4xl font-bold mb-6 text-center">How PPTJet Works</h1>
+
+    <p>
+        PPTJet is an AI-powered presentation generator that converts your ideas into polished
+        Microsoft PowerPoint decks in minutes. Under the hood, we combine OpenAI’s latest
+        language and image models with carefully curated slide templates and smart layout
+        logic. The result: visually compelling slides that would normally take hours to craft—
+        now ready in a few clicks.
+    </p>
+
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">1. You Describe the Presentation</h2>
+    <p>
+        Start on the <a href="{{ url_for('main.generate') }}" class="text-blue-600 hover:underline">Generate</a> page.
+        Pick the number of slides, choose a template style, and type a concise description of
+        what you want to present. Our AI models can interpret topics ranging from “Blockchain
+        Fundamentals” to “Quarterly Marketing KPIs” or even “My Wedding Planning Timeline.”
+    </p>
+
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">2. GPT-4 Crafts Slide Structure & Text</h2>
+    <p>
+        We pass your prompt to OpenAI’s GPT-4 Turbo with a custom instruction set. GPT-4
+        returns a structured JSON describing each slide—titles, bullet points, suggested
+        speaker notes, and (optionally) short image prompts. Our code validates and sanitises
+        this JSON before proceeding, ensuring clean data and preventing rogue prompts.
+    </p>
+
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">3. DALL·E 3 Generates Custom Images (Optional)</h2>
+    <p>
+        If you tick “Include DALL·E 3 Images,” we send the image prompts to OpenAI’s DALL·E 3
+        endpoint. The images are downloaded, temporarily cached, and then embedded directly
+        into the slides—scaled and positioned to avoid overlapping with your text.
+        Prefer to use your own artwork? Simply leave the checkbox unticked.
+    </p>
+
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">4. python-pptx Builds the Deck</h2>
+    <p>
+        The <code class="text-sm">PPTGenerator</code> class assembles everything in real time using the
+        <code class="text-sm">python-pptx</code> library:
+    </p>
+    <ul class="list-disc list-inside">
+        <li>Loads your chosen template (<code>.pptx</code> file)</li>
+        <li>Creates a title slide and one content slide per JSON entry</li>
+        <li>Inserts bullet points, resizes placeholders, and applies the template’s fonts & colours</li>
+        <li>Places DALL·E images into picture placeholders or the right-hand column</li>
+        <li>Saves the finished file into a secure <code>/generated</code> folder</li>
+    </ul>
+
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">5. One-Click Download</h2>
+    <p>
+        When generation is complete, you’ll see a “Download” button. Click it and the deck is
+        streamed straight to your browser. No emails, no waiting. All generated files are
+        auto-deleted after 24 hours for your privacy.
+    </p>
+
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">Why Trust PPTJet?</h2>
+    <p>
+        <strong>Accuracy & Safety.</strong> We validate every AI response, strip unsupported
+        formatting, and escape unsanctioned HTML to keep your presentations clean.
+    </p>
+    <p>
+        <strong>Customization.</strong> Choose from designer templates, toggle AI images, or
+        edit the resulting deck in PowerPoint—every element remains fully editable.
+    </p>
+    <p>
+        <strong>Privacy.</strong> Your prompts and generated slides are never shared. We use
+        OpenAI’s API with data-privacy assurances, and delete files on a rolling basis.
+    </p>
+
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">Next on Our Roadmap</h2>
+    <p>
+        We’re working on a “Data-Driven” mode that prioritises charts, graphs, and tables—ideal
+        for quarterly reports. Follow our blog for updates!
+    </p>
+
+    <div class="text-center mt-12">
+        <a href="{{ url_for('main.generate') }}" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow">
+            Try PPTJet Now →
+        </a>
+    </div>
+</div>
+{% endblock %}
