@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}About Us | PPTJet{% endblock %}
+
+{% block content %}
+<div class="prose lg:prose-lg mx-auto">
+    <h1 class="text-4xl font-bold mb-6 text-center">About Us</h1>
+
+    <p>
+        PPTJet was founded with a simple but powerful mission: <strong>to eliminate the friction of presentation creation.</strong>
+        We understand how time-consuming it can be to design, format, and structure slide decks from scratch.
+        Whether you're a student racing a deadline, a busy professional managing internal updates, or a startup founder prepping a pitch, PPTJet helps you turn ideas into clean, structured presentations in seconds.
+    </p>
+
+    <p>
+        Our team combines the talents of educators, designers, and software engineers who believe that <em>great ideas shouldn’t be held back by design skills.</em>
+        With AI at the core, PPTJet helps you skip the formatting and get straight to the point—making your workflow faster, simpler, and more productive.
+    </p>
+
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">User-Centric Simplicity</h2>
+    <p>
+        We’ve interviewed hundreds of users—from university students to SaaS startup founders—and discovered they value <strong>speed, clarity, and structure</strong> above all else.
+        Every product decision we make, from the layout themes to the export formats, is guided by those needs.
+    </p>
+
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">Automation Without Limitation</h2>
+    <p>
+        While we offer a curated set of four high-quality templates—Aesthetic, Vintage, Creative, and Simple—our real strength lies in the <strong>AI-generated content structure</strong> behind them.
+        You’re not locked into a static template; you’re starting with a smart foundation you can customise and evolve after export.
+        Focus on your message, not the mechanics.
+    </p>
+
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">Our Vision</h2>
+    <p>
+        As we grow, we’re committed to delivering even more intuitive tools that empower creators of all kinds—from educators and marketers to solo founders and enterprise teams.
+        PPTJet is more than a tool—<strong>it’s a smarter way to communicate ideas.</strong>
+    </p>
+
+    <div class="text-center mt-12">
+        <a href="{{ url_for('main.generate') }}" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow">
+            Generate Your First Deck →
+        </a>
+    </div>
+</div>
+{% endblock %}

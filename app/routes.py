@@ -77,6 +77,11 @@ def how_it_works():
     """Render a rich, text-heavy explanation of how PPTJet works."""
     return render_template('how_it_works.html', user=current_user)
 
+@bp.route("/about")
+def about():
+    """Render the About Us page."""
+    return render_template('about_us.html', user=current_user)
+
 @bp.route("/login")
 def login():
     if current_user.is_authenticated:

@@ -39,6 +39,7 @@
                         </a>
                     </div>
                     <a href="{{ url_for('main.how_it_works') }}" class="flex items-center py-4 text-gray-600 hover:text-blue-600">How&nbsp;It&nbsp;Works</a>
+                    <a href="{{ url_for('main.about') }}" class="flex items-center py-4 text-gray-600 hover:text-blue-600">About&nbsp;Us</a>
                     {% if current_user.is_authenticated %}
                     <a href="{{ url_for('main.dashboard') }}" class="flex items-center py-4 text-gray-600 hover:text-blue-600">Dashboard</a>
                     {% if current_user.is_authenticated and current_user.is_admin %}
