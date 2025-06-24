@@ -106,25 +106,25 @@ def blog_index():
             'title': 'The Future of Presentations: Why AI Is Reshaping Slide Creation',
             'description': 'How AI is transforming slide creation and storytelling.',
             'url': url_for('main.blog_future'),
-            'image': 'https://source.unsplash.com/800x600/?presentation,ai'
+            'image': 'https://images.unsplash.com/photo-1551862323-a1a46d3c941c?auto=format&fit=crop&w=800&q=60'
         },
         {
             'title': 'From Idea to Slide: How PPTJet Transforms Presentations with AI',
             'description': 'See how PPTJet turns raw ideas into structured slides in seconds.',
             'url': url_for('main.blog_idea_to_slide'),
-            'image': 'https://source.unsplash.com/800x600/?slides,idea'
+            'image': 'https://images.unsplash.com/photo-1522204509141-8a9f13dd7d9b?auto=format&fit=crop&w=800&q=60'
         },
         {
             'title': 'When the Slides Write Themselves',
             'description': 'Real-world use-cases showing PPTJet saving time for everyone.',
             'url': url_for('main.blog_slides_write_themselves'),
-            'image': 'https://source.unsplash.com/800x600/?presentation,writing'
+            'image': 'https://images.unsplash.com/photo-1517430816045-df4b7de43d59?auto=format&fit=crop&w=800&q=60'
         },
         {
             'title': 'Design Less, Communicate More: Why Minimalism Works',
             'description': 'Minimalist principles that make presentations clear and memorable.',
             'url': url_for('main.blog_minimalism'),
-            'image': 'https://source.unsplash.com/800x600/?minimalist,design'
+            'image': 'https://images.unsplash.com/photo-1499952127939-9bbf5af6c51c?auto=format&fit=crop&w=800&q=60'
         },
     ]
     return render_template('blog_index.html', user=current_user, posts=posts, datetime=datetime)
