@@ -104,6 +104,12 @@ def blog_idea_to_slide():
     from datetime import datetime
     return render_template('blog_idea_to_slide.html', user=current_user, datetime=datetime)
 
+@bp.route("/blog/when-slides-write-themselves")
+def blog_slides_write_themselves():
+    """Render the third blog post page about self-writing slides."""
+    from datetime import datetime
+    return render_template('blog_slides_write_themselves.html', user=current_user, datetime=datetime)
+
 @bp.route("/login")
 def login():
     if current_user.is_authenticated:
