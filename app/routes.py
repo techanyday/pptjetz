@@ -106,19 +106,19 @@ def blog_index():
             'title': 'The Future of Presentations: Why AI Is Reshaping Slide Creation',
             'description': 'How AI is transforming slide creation and storytelling.',
             'url': url_for('main.blog_future'),
-            'image': 'https://images.unsplash.com/photo-1551862323-a1a46d3c941c?auto=format&fit=crop&w=800&q=60'
+            'image': 'https://picsum.photos/id/1037/800/600'
         },
         {
             'title': 'From Idea to Slide: How PPTJet Transforms Presentations with AI',
             'description': 'See how PPTJet turns raw ideas into structured slides in seconds.',
             'url': url_for('main.blog_idea_to_slide'),
-            'image': 'https://images.unsplash.com/photo-1522204509141-8a9f13dd7d9b?auto=format&fit=crop&w=800&q=60'
+            'image': 'https://picsum.photos/id/1057/800/600'
         },
         {
             'title': 'When the Slides Write Themselves',
             'description': 'Real-world use-cases showing PPTJet saving time for everyone.',
             'url': url_for('main.blog_slides_write_themselves'),
-            'image': 'https://images.unsplash.com/photo-1517430816045-df4b7de43d59?auto=format&fit=crop&w=800&q=60'
+            'image': 'https://picsum.photos/id/1074/800/600'
         },
         {
             'title': 'Design Less, Communicate More: Why Minimalism Works',
