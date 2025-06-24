@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Pricing | PPTJet{% endblock %}
+
+{% block content %}
+<div class="text-center mb-12">
+    <h1 class="text-4xl font-bold">Pricing Plans</h1>
+    <p class="mt-2 text-gray-600">Choose the plan that fits your workflow. Upgrade, downgrade or cancel anytime.</p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-6xl mx-auto">
+    <!-- Free Plan -->
+    <div class="border rounded-lg shadow-sm p-6 bg-white flex flex-col">
+        <h2 class="text-2xl font-semibold mb-2">Free</h2>
+        <p class="text-4xl font-bold mb-4">$0<span class="text-base font-normal">/mo</span></p>
+        <ul class="text-left flex-1 list-disc list-inside space-y-2 mb-6">
+            <li>Up to 3 presentations / month</li>
+            <li>Access to all templates</li>
+            <li>Export to PowerPoint</li>
+        </ul>
+        <a href="{{ url_for('main.generate') }}" class="mt-auto inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full text-center">Get Started</a>
+    </div>
+
+    <!-- Creator Plan -->
+    <div class="border rounded-lg shadow-sm p-6 bg-white flex flex-col">
+        <h2 class="text-2xl font-semibold mb-2">Creator</h2>
+        <p class="text-4xl font-bold mb-4">$2.99<span class="text-base font-normal">/mo</span></p>
+        <ul class="text-left flex-1 list-disc list-inside space-y-2 mb-6">
+            <li>30 presentations / month</li>
+            <li>DALL·E 3 image generation</li>
+            <li>Email support</li>
+        </ul>
+        <a href="{{ url_for('main.generate') }}" class="mt-auto inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full text-center">Upgrade</a>
+    </div>
+
+    <!-- Pro Plan -->
+    <div class="border rounded-lg shadow-sm p-6 bg-white flex flex-col">
+        <h2 class="text-2xl font-semibold mb-2">Pro</h2>
+        <p class="text-4xl font-bold mb-4">$4.99<span class="text-base font-normal">/mo</span></p>
+        <ul class="text-left flex-1 list-disc list-inside space-y-2 mb-6">
+            <li>Unlimited presentations</li>
+            <li>Priority image generation</li>
+            <li>Priority support</li>
+        </ul>
+        <a href="{{ url_for('main.generate') }}" class="mt-auto inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full text-center">Upgrade</a>
+    </div>
+
+    <!-- Pay-Per-Use -->
+    <div class="border rounded-lg shadow-sm p-6 bg-white flex flex-col">
+        <h2 class="text-2xl font-semibold mb-2">Pay Per Use</h2>
+        <p class="text-4xl font-bold mb-4">$0.20<span class="text-base font-normal">/presentation</span></p>
+        <ul class="text-left flex-1 list-disc list-inside space-y-2 mb-6">
+            <li>No subscription</li>
+            <li>All features included</li>
+            <li>Only pay when you generate</li>
+        </ul>
+        <a href="{{ url_for('main.generate') }}" class="mt-auto inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full text-center">Generate</a>
+    </div>
+</div>
+{% endblock %}

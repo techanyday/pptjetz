@@ -87,6 +87,11 @@ def faq():
     """Render the Frequently Asked Questions page."""
     return render_template('faq.html', user=current_user)
 
+@bp.route("/pricing")
+def pricing():
+    """Render the Pricing page with package details."""
+    return render_template('pricing.html', user=current_user)
+
 @bp.route("/login")
 def login():
     if current_user.is_authenticated:
