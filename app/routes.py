@@ -92,8 +92,45 @@ def pricing():
     """Render the Pricing page with package details."""
     return render_template('pricing.html', user=current_user)
 
+# ------------------
+# Blog routes
+# ------------------
+
 @bp.route("/blog")
-def blog():
+def blog_index():
+    """Render the blog index page listing all blog posts."""
+    from datetime import datetime
+    # Build the posts metadata list (could later be database-driven)
+    posts = [
+        {
+            'title': 'The Future of Presentations: Why AI Is Reshaping Slide Creation',
+            'description': 'How AI is transforming slide creation and storytelling.',
+            'url': url_for('main.blog_future'),
+            'image': 'https://source.unsplash.com/800x600/?presentation,ai'
+        },
+        {
+            'title': 'From Idea to Slide: How PPTJet Transforms Presentations with AI',
+            'description': 'See how PPTJet turns raw ideas into structured slides in seconds.',
+            'url': url_for('main.blog_idea_to_slide'),
+            'image': 'https://source.unsplash.com/800x600/?slides,idea'
+        },
+        {
+            'title': 'When the Slides Write Themselves',
+            'description': 'Real-world use-cases showing PPTJet saving time for everyone.',
+            'url': url_for('main.blog_slides_write_themselves'),
+            'image': 'https://source.unsplash.com/800x600/?presentation,writing'
+        },
+        {
+            'title': 'Design Less, Communicate More: Why Minimalism Works',
+            'description': 'Minimalist principles that make presentations clear and memorable.',
+            'url': url_for('main.blog_minimalism'),
+            'image': 'https://source.unsplash.com/800x600/?minimalist,design'
+        },
+    ]
+    return render_template('blog_index.html', user=current_user, posts=posts, datetime=datetime)
+
+@bp.route("/blog/future-of-presentations")
+def blog_future():
     """Render the first blog post page."""
     from datetime import datetime
     return render_template('blog_future_ai_presentations.html', user=current_user, datetime=datetime)
@@ -115,6 +152,42 @@ def blog_minimalism():
     """Render the blog post about minimalist design and storytelling."""
     from datetime import datetime
     return render_template('blog_minimalism_presentations.html', user=current_user, datetime=datetime)
+
+# ------------------
+# SEO routes (robots.txt & sitemap.xml)
+# ------------------
+
+@bp.route('/robots.txt')
+def robots_txt():
+    """Serve robots.txt referencing the sitemap."""
+    from flask import Response, url_for
+    sitemap_url = url_for('main.sitemap_xml', _external=True)
+    content = f"User-agent: *\nAllow: /\nSitemap: {sitemap_url}\n"
+    return Response(content, mimetype='text/plain')
+
+@bp.route('/sitemap.xml')
+def sitemap_xml():
+    """Generate a simple static-like sitemap."""
+    from flask import Response, url_for
+    pages = [
+        url_for('main.index', _external=True),
+        url_for('main.how_it_works', _external=True),
+        url_for('main.about', _external=True),
+        url_for('main.faq', _external=True),
+        url_for('main.pricing', _external=True),
+        url_for('main.blog_index', _external=True),
+        url_for('main.blog_future', _external=True),
+        url_for('main.blog_idea_to_slide', _external=True),
+        url_for('main.blog_slides_write_themselves', _external=True),
+        url_for('main.blog_minimalism', _external=True),
+        url_for('main.privacy', _external=True),
+        url_for('main.terms', _external=True),
+    ]
+    xml_lines = ["<?xml version='1.0' encoding='UTF-8'?>", "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>"]
+    for page in pages:
+        xml_lines.append(f"  <url><loc>{page}</loc></url>")
+    xml_lines.append("</urlset>")
+    return Response("\n".join(xml_lines), mimetype='application/xml')
 
 @bp.route("/login")
 def login():
