@@ -110,6 +110,12 @@ def blog_slides_write_themselves():
     from datetime import datetime
     return render_template('blog_slides_write_themselves.html', user=current_user, datetime=datetime)
 
+@bp.route("/blog/design-less-communicate-more")
+def blog_minimalism():
+    """Render the blog post about minimalist design and storytelling."""
+    from datetime import datetime
+    return render_template('blog_minimalism_presentations.html', user=current_user, datetime=datetime)
+
 @bp.route("/login")
 def login():
     if current_user.is_authenticated:
