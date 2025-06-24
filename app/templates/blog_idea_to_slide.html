@@ -5,7 +5,7 @@
 {% block content %}
 <article class="prose lg:prose-xl mx-auto">
     <h1 class="text-4xl font-bold mb-6">From Idea to Slide: How PPTJet Transforms Presentations with AI</h1>
-    <p class="text-gray-500">Published {{ datetime.utcnow().strftime('%B %d, %Y') }}</p>
+    <p class="text-gray-500">By PPTJet Team · Published {{ datetime.utcnow().strftime('%B %d, %Y') }}</p>
 
     <p>Creating a compelling presentation has always been a multi-step process—brainstorming ideas, outlining content, designing slides, formatting visuals, and polishing the final delivery. For professionals and students alike, it’s often a time-consuming effort that distracts from the core message.</p>
 
@@ -53,5 +53,13 @@
         <li>✅ No repetitive formatting work</li>
     </ul>
     <p>It’s especially useful for the “working decks” that professionals build every day—content-heavy, insight-driven presentations meant to inform, align, or persuade.</p>
+<div class="mt-12 border-t pt-6">
+        <h2 class="text-2xl font-semibold mb-4">You might also like</h2>
+        <ul class="list-disc list-inside space-y-1">
+            <li><a href="{{ url_for('main.blog_future') }}" class="text-blue-600 hover:underline">The Future of Presentations</a></li>
+            <li><a href="{{ url_for('main.blog_slides_write_themselves') }}" class="text-blue-600 hover:underline">When the Slides Write Themselves</a></li>
+            <li><a href="{{ url_for('main.blog_minimalism') }}" class="text-blue-600 hover:underline">Design Less, Communicate More</a></li>
+        </ul>
+    </div>
 </article>
 {% endblock %}

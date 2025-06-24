@@ -5,7 +5,7 @@
 {% block content %}
 <article class="prose lg:prose-xl mx-auto">
     <h1 class="text-4xl font-bold mb-6">The Future of Presentations: Why AI Is Reshaping Slide Creation</h1>
-    <p class="text-gray-500">Published {{ datetime.utcnow().strftime('%B %d, %Y') }}</p>
+    <p class="text-gray-500">By PPTJet Team · Published {{ datetime.utcnow().strftime('%B %d, %Y') }}</p>
 
     <p>PowerPoint has been around since 1987. Keynote came along in 2003. Since then, not much has changed—until now. Artificial Intelligence is transforming how we create and deliver presentations. And it’s not just about automating design or formatting slides. AI is redefining the entire process—from ideation to final delivery.</p>
 
@@ -88,5 +88,13 @@
     <p>AI is making presentations smarter, faster, and better looking. But most importantly, it helps people communicate more clearly and persuasively. In a noisy world, clarity and speed win.</p>
 
     <blockquote class="border-l-4 border-blue-600 pl-4 italic">TL;DR: AI automates design, enhances storytelling, and frees you to focus on the message.</blockquote>
+<div class="mt-12 border-t pt-6">
+        <h2 class="text-2xl font-semibold mb-4">You might also like</h2>
+        <ul class="list-disc list-inside space-y-1">
+            <li><a href="{{ url_for('main.blog_idea_to_slide') }}" class="text-blue-600 hover:underline">From Idea to Slide</a></li>
+            <li><a href="{{ url_for('main.blog_slides_write_themselves') }}" class="text-blue-600 hover:underline">When the Slides Write Themselves</a></li>
+            <li><a href="{{ url_for('main.blog_minimalism') }}" class="text-blue-600 hover:underline">Design Less, Communicate More</a></li>
+        </ul>
+    </div>
 </article>
 {% endblock %}

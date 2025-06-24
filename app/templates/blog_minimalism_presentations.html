@@ -5,7 +5,7 @@
 {% block content %}
 <article class="prose lg:prose-xl mx-auto">
     <h1 class="text-4xl font-bold mb-6">Design Less, Communicate More: Why Minimalism Works in Presentations</h1>
-    <p class="text-gray-500">Published {{ datetime.utcnow().strftime('%B %d, %Y') }}</p>
+    <p class="text-gray-500">By PPTJet Team · Published {{ datetime.utcnow().strftime('%B %d, %Y') }}</p>
 
     <p>Presentations aren't judged by how much content they contain, but by how clearly they communicate. Yet too often, people cram in data, visuals, and animations—believing more is more. In reality, <strong>minimalism</strong> is one of the most effective strategies in slide design.</p>
 
@@ -76,5 +76,13 @@
     <p>AI can be a powerful tool for building presentations—but it works best when paired with human intent and judgment. Focus on clarity, structure, and storytelling. Let AI handle the busywork, but make sure the message still sounds like you.</p>
 
     <p>In the end, AI can’t replace human communication. But it can remove the grunt work so you can focus on clarity, connection, and storytelling.</p>
+<div class="mt-12 border-t pt-6">
+        <h2 class="text-2xl font-semibold mb-4">You might also like</h2>
+        <ul class="list-disc list-inside space-y-1">
+            <li><a href="{{ url_for('main.blog_future') }}" class="text-blue-600 hover:underline">The Future of Presentations</a></li>
+            <li><a href="{{ url_for('main.blog_idea_to_slide') }}" class="text-blue-600 hover:underline">From Idea to Slide</a></li>
+            <li><a href="{{ url_for('main.blog_slides_write_themselves') }}" class="text-blue-600 hover:underline">When the Slides Write Themselves</a></li>
+        </ul>
+    </div>
 </article>
 {% endblock %}

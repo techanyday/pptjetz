@@ -5,7 +5,7 @@
 {% block content %}
 <article class="prose lg:prose-xl mx-auto">
     <h1 class="text-4xl font-bold mb-6">When the Slides Write Themselves</h1>
-    <p class="text-gray-500">Published {{ datetime.utcnow().strftime('%B %d, %Y') }}</p>
+    <p class="text-gray-500">By PPTJet Team · Published {{ datetime.utcnow().strftime('%B %d, %Y') }}</p>
 
     <p>Presentations used to mean late nights, blank slides, and way too much time spent tweaking fonts and layouts. Now, thanks to AI, you can skip straight to the part that matters—sharing your ideas. PPTJet is making that possible.</p>
 
@@ -77,5 +77,13 @@
     <p>PPTJet doesn’t just save time. It removes the friction that stops good ideas from becoming great presentations. Whether you’re presenting to a class, a boardroom, or a single client, PPTJet helps you focus on the message—not the mechanics.</p>
 
     <p>When the slides write themselves, what’s left is all you: your voice, your thinking, your story.</p>
+<div class="mt-12 border-t pt-6">
+        <h2 class="text-2xl font-semibold mb-4">You might also like</h2>
+        <ul class="list-disc list-inside space-y-1">
+            <li><a href="{{ url_for('main.blog_future') }}" class="text-blue-600 hover:underline">The Future of Presentations</a></li>
+            <li><a href="{{ url_for('main.blog_idea_to_slide') }}" class="text-blue-600 hover:underline">From Idea to Slide</a></li>
+            <li><a href="{{ url_for('main.blog_minimalism') }}" class="text-blue-600 hover:underline">Design Less, Communicate More</a></li>
+        </ul>
+    </div>
 </article>
 {% endblock %}
