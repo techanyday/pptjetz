@@ -98,6 +98,12 @@ def blog():
     from datetime import datetime
     return render_template('blog_future_ai_presentations.html', user=current_user, datetime=datetime)
 
+@bp.route("/blog/idea-to-slide")
+def blog_idea_to_slide():
+    """Render the second blog post page about PPTJet transformation."""
+    from datetime import datetime
+    return render_template('blog_idea_to_slide.html', user=current_user, datetime=datetime)
+
 @bp.route("/login")
 def login():
     if current_user.is_authenticated:
