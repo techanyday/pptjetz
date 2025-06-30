@@ -258,55 +258,84 @@ class PPTGenerator:
         return prs.slide_layouts[0]
 
     def _add_title_slide(self, prs: Presentation, title: str, presenter: str):
-        """Add title slide"""
+        """Add a robust title slide.
+        Works even when the selected template has no proper title/subtitle placeholders.
+        Removes leftover empty placeholders to avoid slides that just show default prompt text.
+        """
         layout = self._get_title_layout(prs)
         slide = prs.slides.add_slide(layout)
-        
-        # Add title if title placeholder exists
+
+        # -------------------------
+        # Title handling
+        # -------------------------
+        title_shape = None
         if slide.shapes.title:
-            title_frame = slide.shapes.title.text_frame
+            title_shape = slide.shapes.title
+            title_frame = title_shape.text_frame
             title_frame.text = title
             title_frame.word_wrap = True
-            
-            # Adjust font size based on title length
-            if len(title) > 50:
-                font_size = 32
-            elif len(title) > 30:
-                font_size = 40
-            else:
-                font_size = 44
-                
-            for paragraph in title_frame.paragraphs:
-                paragraph.font.size = Pt(font_size)
-        
-        # Add subtitle to the standard subtitle placeholder (type 2)
-        for shape in slide.placeholders:
-            print(f"Debug - Found placeholder: type={shape.placeholder_format.type}, idx={shape.placeholder_format.idx}")
-            # First try standard subtitle placeholder (type 2)
-            if shape.placeholder_format.type == 2 and shape != slide.shapes.title:
-                # Found a standard subtitle placeholder
-                subtitle_frame = shape.text_frame
-                subtitle_frame.text = f"Presented by {presenter}"
-                subtitle_frame.word_wrap = True
-                # Set subtitle font size
-                for paragraph in subtitle_frame.paragraphs:
-                    paragraph.font.size = Pt(24)
-                return  # Exit after finding standard subtitle placeholder
+        else:
+            # No title placeholder – create our own centred textbox
+            width = prs.slide_width * 0.8
+            left = int((prs.slide_width - width) / 2)
+            top = Inches(1.0)
+            height = Inches(1.5)
+            title_shape = slide.shapes.add_textbox(left, top, width, height)
+            title_frame = title_shape.text_frame
+            title_frame.clear()
+            title_frame.text = title
+            title_frame.word_wrap = True
 
-        # Fallback: Look for any empty text placeholder that's not the title
+        # Dynamic font size based on title length
+        length = len(title)
+        font_size = 44 if length <= 30 else 40 if length <= 50 else 32
+        for para in title_frame.paragraphs:
+            para.font.size = Pt(font_size)
+
+        # -------------------------
+        # Subtitle handling
+        # -------------------------
+        subtitle_shape = None
         for shape in slide.placeholders:
-            if (hasattr(shape, 'text') and 
-                not shape.text and 
-                shape != slide.shapes.title and
-                shape.placeholder_format.type != 1):  # Ensure it's not another title placeholder
-                # Found a potential subtitle placeholder
-                subtitle_frame = shape.text_frame
-                subtitle_frame.text = f"Presented by {presenter}"
-                subtitle_frame.word_wrap = True
-                # Set subtitle font size
-                for paragraph in subtitle_frame.paragraphs:
-                    paragraph.font.size = Pt(24)
+            # Standard subtitle placeholder is type 2
+            if shape.placeholder_format.type == 2 and shape != title_shape:
+                subtitle_shape = shape
                 break
+
+        if subtitle_shape is None:
+            # Create textbox just below the title
+            left = title_shape.left
+            top = title_shape.top + title_shape.height + Inches(0.2)
+            width = title_shape.width
+            height = Inches(1.0)
+            subtitle_shape = slide.shapes.add_textbox(left, top, width, height)
+
+        subtitle_frame = subtitle_shape.text_frame
+        subtitle_frame.clear()
+        subtitle_frame.text = f"Presented by {presenter}"
+        for para in subtitle_frame.paragraphs:
+            para.font.size = Pt(24)
+
+        # -------------------------
+        # Clean up stray placeholders
+        # -------------------------
+        for shp in list(slide.shapes):
+            try:
+                if not getattr(shp, "is_placeholder", False):
+                    continue
+                # Keep populated shapes
+                if shp in (title_shape, subtitle_shape):
+                    continue
+                text_ok = False
+                if shp.has_text_frame:
+                    txt = "".join(p.text for p in shp.text_frame.paragraphs).strip()
+                    if txt and not txt.lower().startswith(("click to add", "select this paragraph")):
+                        text_ok = True
+                if not text_ok:
+                    shp._element.getparent().remove(shp._element)
+            except Exception:
+                # If anything goes wrong, skip deletion to avoid crashing
+                continue
 
     def _add_content_slide(self, prs: Presentation, title: str, content: str):
         """Add content slide"""
