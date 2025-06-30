@@ -12,6 +12,7 @@
             <tr class="border-b bg-gray-50">
                 <th class="py-2 px-3">User ID</th>
                 <th class="py-2 px-3">Email</th>
+                <th class="py-2 px-3">Last Presentation</th>
                 <th class="py-2 px-3">Presentations</th>
                 <th class="py-2 px-3">Award Units</th>
             </tr>
@@ -35,6 +36,7 @@ async function loadUsage() {
         tr.innerHTML = `
             <td class="py-2 px-3">${u.user_id}</td>
             <td class="py-2 px-3">${u.email}</td>
+            <td class="py-2 px-3">${u.last_date}</td>
             <td class="py-2 px-3">${u.presentations}</td>
             <td class="py-2 px-3">
                 <input type="number" min="1" value="1" class="w-16 border rounded mr-2" id="units-${u.user_id}">

@@ -767,13 +767,25 @@ def admin_usage():
     # Aggregate usage by user
     from sqlalchemy import func
     usage = (
-        db.session.query(User.id, User.email, func.count(PresentationLog.id))
+        db.session.query(
+            User.id,
+            User.email,
+            func.count(PresentationLog.id).label('presentations'),
+            func.max(PresentationLog.created_at).label('last_date')
+        )
         .join(PresentationLog, PresentationLog.user_id == User.id)
         .group_by(User.id)
         .all()
     )
+
     usage_data = [
-        {"user_id": u[0], "email": u[1], "presentations": u[2]} for u in usage
+        {
+            "user_id": u.id,
+            "email": u.email,
+            "presentations": u.presentations,
+            "last_date": u.last_date.strftime('%Y-%m-%d') if u.last_date else 'N/A'
+        }
+        for u in usage
     ]
     return jsonify({"usage": usage_data})
 
