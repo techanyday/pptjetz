@@ -166,6 +166,18 @@
     </div>
 </div>
 
+<!-- Upgrade Modal -->
+<div id="upgradeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 hidden">
+    <div class="bg-white rounded-lg p-8 max-w-md w-full shadow-lg">
+        <h2 class="text-2xl font-semibold mb-4 text-center">Usage Limit Reached</h2>
+        <p class="text-gray-700 mb-6 text-center">You've reached your current plan's limit. Upgrade to continue creating presentations.</p>
+        <div class="flex justify-center gap-4">
+            <button onclick="closeUpgradeModal()" class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300">Maybe Later</button>
+            <button onclick="openPricingAndCloseModal()" class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">View Plans</button>
+        </div>
+    </div>
+</div>
+
 <script>
 // Toggle pricing plans visibility
 function togglePricingPlans() {
@@ -313,6 +325,9 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (response.status === 402) {
                 // Payment required for pay-per-use
                 await initializePayment();
+            } else if (response.status === 403) {
+                // Usage limit exceeded – show upgrade modal
+                showUpgradeModal();
             } else {
                 alert(data.error || 'Error generating presentation');
             }
@@ -325,5 +340,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+    // Upgrade modal helper functions
+    function showUpgradeModal() {
+        document.getElementById('upgradeModal').classList.remove('hidden');
+    }
+    function closeUpgradeModal() {
+        document.getElementById('upgradeModal').classList.add('hidden');
+    }
+    function openPricingAndCloseModal() {
+        closeUpgradeModal();
+        const pricingPlans = document.getElementById('pricingPlans');
+        if (pricingPlans && pricingPlans.classList.contains('hidden')) {
+            togglePricingPlans();
+        }
+        if (pricingPlans) {
+            pricingPlans.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
 </script>
 {% endblock %}
