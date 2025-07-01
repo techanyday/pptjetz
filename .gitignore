@@ -38,6 +38,8 @@ generated/
 ~$*.pptx
 # Track template PPTX files so they are deployed
 !app/static/presentations/custom_styles/*.pptx
+# Re-ignore Office lock files
+app/static/presentations/custom_styles/~$*.pptx
 
 # Logs
 *.log
