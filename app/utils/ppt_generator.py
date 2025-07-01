@@ -53,7 +53,8 @@ class PPTGenerator:
             "Simple": "Simple.pptx",
 
             "Clean and Neat": "Clean and Neat.pptx",
-            "Neat and Clean": "Clean and Neat.pptx"
+            "Neat and Clean": "Clean and Neat.pptx",
+            "Business": "Business.pptx"
         }
 
         # Define default font styles (fallback)
@@ -113,7 +114,8 @@ class PPTGenerator:
             "Simple": "Simple.pptx",
 
             "Clean and Neat": "Clean and Neat.pptx",
-            "Neat and Clean": "Clean and Neat.pptx"
+            "Neat and Clean": "Clean and Neat.pptx",
+            "Business": "Business.pptx"
         }
         
         # Define font settings (fallback for missing template styles)
