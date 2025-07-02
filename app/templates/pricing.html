@@ -28,7 +28,7 @@
         <p class="text-sm text-gray-500 mb-4">(${{ (plans['creator']['price'] / 10) | round(2) }} USD)</p>
         <ul class="text-left flex-1 list-disc list-inside space-y-2 mb-6">
             <li>20 presentations / month</li>
-            <li>DALL·E 3 image generation</li>
+            <li>Includes image generation</li>
             <li>Email support</li>
         </ul>
         <a href="{{ url_for('main.generate') }}" class="mt-auto inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full text-center">Upgrade</a>
@@ -41,7 +41,7 @@
         <p class="text-sm text-gray-500 mb-4">(${{ (plans['pro']['price'] / 10) | round(2) }} USD)</p>
         <ul class="text-left flex-1 list-disc list-inside space-y-2 mb-6">
             <li>50 presentations / month</li>
-            <li>Priority image generation</li>
+            <li>Includes image generation</li>
             <li>Priority support</li>
         </ul>
         <a href="{{ url_for('main.generate') }}" class="mt-auto inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full text-center">Upgrade</a>
@@ -54,7 +54,7 @@
         <p class="text-sm text-gray-500 mb-4">(${{ plans['pay_per_use']['price'] | round(2) }} USD)</p>
         <ul class="text-left flex-1 list-disc list-inside space-y-2 mb-6">
             <li>No subscription</li>
-            <li>Image generation included</li>
+            <li>Includes image generation</li>
             <li>Only pay when you generate</li>
         </ul>
         <a href="{{ url_for('main.generate') }}" class="mt-auto inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full text-center">Generate</a>
