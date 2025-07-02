@@ -32,13 +32,13 @@ class User(UserMixin, db.Model):
         'pro': {
             'name': 'Monthly Pro',
             'limit': 50,  # 50 presentations per month
-            'price': float(os.getenv('PAYSTACK_PLAN_PRO_MONTHLY_PRICE', 63.50)),
+            'price': float(os.getenv('PAYSTACK_PLAN_PRO_MONTHLY_PRICE', 49.90)),
             'plan_id': os.getenv('PAYSTACK_PLAN_PRO_MONTHLY_ID')
         },
         'creator': {
             'name': 'Monthly Creator',
             'limit': 20,  # 20 presentations per month
-            'price': float(os.getenv('PAYSTACK_PLAN_CREATOR_MONTHLY_PRICE', 35.88)),
+            'price': float(os.getenv('PAYSTACK_PLAN_CREATOR_MONTHLY_PRICE', 29.90)),
             'plan_id': os.getenv('PAYSTACK_PLAN_CREATOR_MONTHLY_ID')
         }
     }
