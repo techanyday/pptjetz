@@ -66,7 +66,8 @@
                 <!-- Creator Plan -->
                 <div class="border rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow">
                     <h3 class="text-xl font-semibold mb-2">Creator</h3>
-                    <p class="text-3xl font-bold mb-4">$2.99</p>
+                    <p class="text-3xl font-bold mb-1">GHS {{ plans['creator']['price'] | round(2) }}</p>
+                    <p class="text-sm text-gray-500 mb-4">(${{ (plans['creator']['price'] / 10) | round(2) }} USD)</p>
                     <ul class="text-gray-600 mb-6 text-center">
                         <li class="mb-2">20 presentations/month</li>
                         <li class="mb-2">All templates</li>
@@ -81,7 +82,8 @@
                 <div class="border-2 {% if user.plan == 'pro' %}border-gray-500{% else %}border-blue-500{% endif %} rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow relative overflow-hidden">
                     <div class="absolute top-0 right-0 bg-blue-500 text-white px-4 py-1 rounded-bl">Popular</div>
                     <h3 class="text-xl font-semibold mb-2">Pro</h3>
-                    <p class="text-3xl font-bold mb-4">$4.99</p>
+                    <p class="text-3xl font-bold mb-1">GHS {{ plans['pro']['price'] | round(2) }}</p>
+                    <p class="text-sm text-gray-500 mb-4">(${{ (plans['pro']['price'] / 10) | round(2) }} USD)</p>
                     <ul class="text-gray-600 mb-6 text-center">
                         <li class="mb-2">50 presentations/month</li>
                         <li class="mb-2">All templates</li>

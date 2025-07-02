@@ -24,7 +24,8 @@
     <!-- Creator Plan -->
     <div class="border rounded-lg shadow-sm p-6 bg-white flex flex-col">
         <h2 class="text-2xl font-semibold mb-2">Creator</h2>
-        <p class="text-4xl font-bold mb-4">$2.99<span class="text-base font-normal">/mo</span></p>
+        <p class="text-4xl font-bold mb-1">GHS {{ plans['creator']['price'] | round(2) }}<span class="text-base font-normal">/mo</span></p>
+        <p class="text-sm text-gray-500 mb-4">(${{ (plans['creator']['price'] / 10) | round(2) }} USD)</p>
         <ul class="text-left flex-1 list-disc list-inside space-y-2 mb-6">
             <li>20 presentations / month</li>
             <li>DALL·E 3 image generation</li>
@@ -36,7 +37,8 @@
     <!-- Pro Plan -->
     <div class="border rounded-lg shadow-sm p-6 bg-white flex flex-col">
         <h2 class="text-2xl font-semibold mb-2">Pro</h2>
-        <p class="text-4xl font-bold mb-4">$4.99<span class="text-base font-normal">/mo</span></p>
+        <p class="text-4xl font-bold mb-1">GHS {{ plans['pro']['price'] | round(2) }}<span class="text-base font-normal">/mo</span></p>
+        <p class="text-sm text-gray-500 mb-4">(${{ (plans['pro']['price'] / 10) | round(2) }} USD)</p>
         <ul class="text-left flex-1 list-disc list-inside space-y-2 mb-6">
             <li>50 presentations / month</li>
             <li>Priority image generation</li>

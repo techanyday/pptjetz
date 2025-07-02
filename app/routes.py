@@ -90,7 +90,7 @@ def faq():
 @bp.route("/pricing")
 def pricing():
     """Render the Pricing page with package details."""
-    return render_template('pricing.html', user=current_user)
+    return render_template('pricing.html', user=current_user, plans=User.PLANS)
 
 # ------------------
 # Blog routes
@@ -427,7 +427,8 @@ def generate():
             user=current_user,
             remaining_presentations=remaining,
             current_plan=current_user.plan,
-            plan_info=plan_info
+            plan_info=plan_info,
+            plans=User.PLANS
         )
 
     try:
