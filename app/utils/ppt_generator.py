@@ -713,17 +713,11 @@ class PPTGenerator:
         """Create PowerPoint presentation using a selected template style"""
         # Generate an intelligent title from the input description
         presentation_title = self.generate_title(title)
-        # Load template
-        template_path = self.get_template_path(template_style)
-        if not os.path.exists(template_path):
-            raise ValueError(f"Template file not found: {template_path}")
-        try:
-            prs = Presentation(template_path)
-            # Remove any existing slides while preserving the template
-            self._remove_all_slides(prs)
-        except Exception as e:
-            print(f"Warning: Could not load template {template_path}. Using blank presentation. Error: {str(e)}")
-            prs = Presentation()
+        # --- Template-free approach ---
+        # Use a fresh blank presentation so we are not constrained by pre-made layouts.
+        # The default Office theme provides basic title/content slide layouts which are
+        # sufficient as building blocks. We no longer rely on custom .pptx templates.
+        prs = Presentation()
 
         # Add slides
         print(f"Debug - Adding title slide with generated title: {presentation_title}")
