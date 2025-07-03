@@ -464,96 +464,19 @@ class PPTGenerator:
                 points = [pt.strip() for pt in content.split('\n') if pt.strip()]
 
                 # -------------------------------------------------------------
-                # Ensure each point has an explainer. If missing, call OpenAI
+                # No sub-explainers needed; points should already be concise
                 # -------------------------------------------------------------
-                missing_idx = [idx for idx, txt in enumerate(points) if not re.search(r"[-–—:]", txt)]
-                if missing_idx:
-                    bullets_needing = [points[i] for i in missing_idx]
-                    try:
-                        msg_system = "You are an expert communicator. For each bullet point provided, craft ONE concise explanatory sentence (max 20 words). Return ONLY a JSON array of strings in the same order."
-                        msg_user = json.dumps(bullets_needing)
-                        resp = self.client.chat.completions.create(
-                            model="gpt-3.5-turbo",
-                            temperature=0.7,
-                            max_tokens=256,
-                            messages=[
-                                {"role": "system", "content": msg_system},
-                                {"role": "user", "content": msg_user}
-                            ]
-                        )
-                        expl_list = json.loads(resp.choices[0].message.content)
-                        if isinstance(expl_list, list) and len(expl_list) == len(bullets_needing):
-                            for j, idx in enumerate(missing_idx):
-                                points[idx] = f"{points[idx]} – {expl_list[j].strip()}"
-                    except Exception as e:
-                        print(f"Warning - could not auto-generate explainers: {e}")
-                        # Fallback: add generic explainer so that layout still shows sub-bullet
-                        for idx in missing_idx:
-                            if not re.search(r"[-–—:]", points[idx]):
-                                points[idx] = f"{points[idx]} – Further explanation and context."
-                        print(f"Warning - could not auto-generate explainers: {e}")
+                mid = (len(points) + 1) // 2
                 icons = ['▸', '‣', '✓', '✦']
                 # Use one bullet style per slide, alternating across slides
                 bullet_icon = icons[slide_index % len(icons)]
+                align_right = (slide_index % 2 == 1)
 
                 def populate_frame(frame, pts, align_right=False):
                     """Populate a textbox with primary bullets and indented explainers"""
                     frame.clear()
                     frame.word_wrap = True
                     frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-                    first_para = True
-                    for txt in pts:
-                        # Remove any leading bullet marker characters
-                        clean_txt = re.sub(r'^\s*[-•‣✓▸]+\s*', '', txt)
-                        # Detect the first dash / en-dash / em-dash / colon appearing after a word
-                        match = re.search(r'(?<=\w)\s*[-–—:]\s+', clean_txt)
-                        if match:
-                            split_idx = match.start()
-                            main_txt = clean_txt[:split_idx].strip()
-                            explainer = clean_txt[match.end():].strip()
-                        else:
-                            main_txt = clean_txt.strip()
-                            explainer = None
-
-                        # Add the main bullet paragraph
-                        p = frame.paragraphs[0] if first_para else frame.add_paragraph()
-                        if first_para:
-                            p.clear()
-                            first_para = False
-                        p.text = f"{bullet_icon} {main_txt}"
-                        p.level = 0
-                        p.space_before = Pt(6)
-                        p.space_after = Pt(2)
-                        p.line_spacing = 1.2
-                        p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
-                        # Color: use template Accent 1 if available, else blue
-                        try:
-                            p.font.color.theme_color = MSO_THEME_COLOR.ACCENT_1
-                        except Exception:
-                            p.font.color.rgb = RGBColor(0, 102, 204)
-
-                        # Add the explainer as a sub-bullet
-                        if explainer:
-                            exp_p = frame.add_paragraph()
-                            exp_p.text = explainer
-                            exp_p.level = 1
-                            exp_p.space_before = Pt(0)
-                            exp_p.space_after = Pt(10)
-                            exp_p.line_spacing = 1.0
-                            exp_p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
-                            try:
-                                exp_p.font.size = Pt(14)
-                                exp_p.font.italic = True
-                                # Use body text color (TEXT_1) so it adapts to theme
-                                exp_p.font.color.theme_color = MSO_THEME_COLOR.TEXT_1
-                            except Exception:
-                                pass
-
-                # Determine alignment based on slide index (alternate)
-                align_right = (slide_index % 2 == 1)
-
-                # Always use two-column layout for better readability
-                mid = (len(points) + 1) // 2
                 left_pts = points[:mid]
                 right_pts = points[mid:]
 
@@ -661,7 +584,7 @@ class PPTGenerator:
                         "{\"slides\": [{\"title\": \"string\", \"content\": [\"string\"]}]}"
                         "\nThe 'slides' array MUST contain exactly the requested number of slides where:"
                         "\n- 'title' is the slide title"
-                        "\n- 'content' is an array of 4-5 strings where each string is a concise bullet point followed by a brief explanatory sentence (max 20 words) separated by a dash (-)"
+                        "\n- 'content' is an array of 4-5 concise, self-contained bullet points (max 15 words each). Do NOT include additional explanatory sentences."
                         ""
 "\n- The FIRST slide must be an 'Agenda' slide outlining the main sections."
 "\n- The LAST slide must be an 'Outro' or 'Conclusion' slide summarizing key takeaways."
@@ -677,7 +600,7 @@ class PPTGenerator:
                       f"1) Agenda slide; "
                       f"(n-1) topic slides; "
                       f"last slide titled 'Conclusion' or 'Outro'. "
-                      f"Each slide must have a unique title and exactly 4-5 bullet points, each followed by a brief explanatory sentence (max 20 words)."
+                      f"Each slide must have a unique title and exactly 4-5 concise, self-explanatory bullet points (max 15 words each). Do NOT include dash-separated explainers."
                 )
                 }
             ]
