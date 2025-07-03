@@ -690,9 +690,29 @@ class PPTGenerator:
             )
         
             # Extract and parse the response
-            response_text = response.choices[0].message.content
+            response_text = response.choices[0].message.content.strip()
             print(f"Debug - OpenAI Response: {response_text}")
-            response_data = json.loads(response_text)
+
+            def _parse_json(text: str):
+                """Attempt to load JSON; if it fails, try to salvage a JSON substring."""
+                try:
+                    return json.loads(text)
+                except json.JSONDecodeError:
+                    # Strip markdown fences if present
+                    if text.startswith("```"):
+                        text = re.sub(r"^```[a-zA-Z]*", "", text).rstrip("`")
+                    # Try to locate the first '{' and last '}'
+                    start = text.find('{')
+                    end = text.rfind('}')
+                    if start != -1 and end != -1 and end > start:
+                        snippet = text[start:end+1]
+                        try:
+                            return json.loads(snippet)
+                        except json.JSONDecodeError:
+                            pass
+                    raise
+
+            response_data = _parse_json(response_text)
             
             if not isinstance(response_data, dict) or 'slides' not in response_data:
                 raise ValueError("Invalid response format from GPT. Expected object with 'slides' array.")
