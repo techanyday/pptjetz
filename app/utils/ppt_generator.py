@@ -477,6 +477,23 @@ class PPTGenerator:
                     frame.clear()
                     frame.word_wrap = True
                     frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                    first_para = True
+                    for txt in pts:
+                        clean_txt = re.sub(r'^\s*[-•‣✓✦▸]+\s*', '', txt)
+                        p = frame.paragraphs[0] if first_para else frame.add_paragraph()
+                        if first_para:
+                            p.clear()
+                            first_para = False
+                        p.text = f"{bullet_icon} {clean_txt}"
+                        p.level = 0
+                        p.space_before = Pt(4)
+                        p.space_after = Pt(8)
+                        p.line_spacing = 1.2
+                        p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
+                        try:
+                            p.font.color.theme_color = MSO_THEME_COLOR.ACCENT_1
+                        except Exception:
+                            p.font.color.rgb = RGBColor(0, 102, 204)
                 left_pts = points[:mid]
                 right_pts = points[mid:]
 
