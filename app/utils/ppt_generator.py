@@ -526,6 +526,11 @@ class PPTGenerator:
                         p.space_after = Pt(2)
                         p.line_spacing = 1.2
                         p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
+                        # Color: use template Accent 1 if available, else blue
+                        try:
+                            p.font.color.theme_color = MSO_THEME_COLOR.ACCENT_1
+                        except Exception:
+                            p.font.color.rgb = RGBColor(0, 102, 204)
 
                         # Add the explainer as a sub-bullet
                         if explainer:
@@ -539,7 +544,8 @@ class PPTGenerator:
                             try:
                                 exp_p.font.size = Pt(14)
                                 exp_p.font.italic = True
-                                exp_p.font.color.rgb = RGBColor(33, 37, 41)
+                                # Use body text color (TEXT_1) so it adapts to theme
+                                exp_p.font.color.theme_color = MSO_THEME_COLOR.TEXT_1
                             except Exception:
                                 pass
 
