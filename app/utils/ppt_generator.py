@@ -353,6 +353,9 @@ class PPTGenerator:
         print(f"Debug - Using layout: {layout.name} for content slide")
         slide = prs.slides.add_slide(layout)
 
+        # Index of the slide (0-based)
+        slide_index = len(prs.slides) - 1
+
         # ------------------------------------------------------------------
         # Visual enhancement for text-only (free tier) slides: accent side bar
         # ------------------------------------------------------------------
@@ -365,6 +368,21 @@ class PPTGenerator:
             bar.line.fill.background()
         except Exception as e:
             print(f"Debug - Could not add sidebar: {e}")
+
+        # ------------------------------------------------------------------
+        # Horizontal rule under title for visual separation
+        # ------------------------------------------------------------------
+        if slide.shapes.title is not None:
+            try:
+                rule_top = slide.shapes.title.top + slide.shapes.title.height + Pt(4)
+                rule = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.8), rule_top,
+                                               prs.slide_width - Inches(1.6), Pt(1.5))
+                rule.fill.solid()
+                rule.fill.fore_color.rgb = RGBColor(0, 0, 0)
+                rule.fill.fore_color.transparency = 0.85
+                rule.line.fill.background()
+            except Exception as e:
+                print(f"Debug - Could not add rule: {e}")
 
         print(f"Debug - Available placeholders in slide: {[f'{ph.placeholder_format.type}:{ph.placeholder_format.idx}' for ph in slide.placeholders]}")
         
@@ -439,20 +457,63 @@ class PPTGenerator:
                 text_frame.word_wrap = True
                 text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
                 
-                # Add bullet points
-                first = True
-                for point in content.split('\n'):
-                    if first:
-                        p = text_frame.paragraphs[0]
-                        first = False
-                    else:
-                        p = text_frame.add_paragraph()
-                    
-                    p.text = point.strip()
-                    p.level = 0
-                    p.space_before = Pt(12)
-                    p.space_after = Pt(12)
-                    p.line_spacing = 1.2
+                # ------------------------------------------------------------------
+                # Build bullet points with stylish icons & optional two-column layout
+                # ------------------------------------------------------------------
+                points = [pt.strip() for pt in content.split('\n') if pt.strip()]
+                icons = ['▸', '‣', '✓', '✦']
+
+                def populate_frame(frame, pts, align_right=False):
+                    frame.clear()
+                    frame.word_wrap = True
+                    frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                    first_local = True
+                    for i, txt in enumerate(pts):
+                        if first_local:
+                            p = frame.paragraphs[0]
+                            first_local = False
+                        else:
+                            p = frame.add_paragraph()
+                        icon = icons[i % len(icons)]
+                        p.text = f"{icon} {txt}"
+                        p.level = 0
+                        p.space_before = Pt(12)
+                        p.space_after = Pt(12)
+                        p.line_spacing = 1.2
+                        p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
+
+                # Determine alignment based on slide index (alternate)
+                align_right = (slide_index % 2 == 1)
+
+                if len(points) >= 6:
+                    # Two-column layout
+                    mid = (len(points) + 1) // 2
+                    left_pts = points[:mid]
+                    right_pts = points[mid:]
+
+                    # Left column textbox
+                    col_width = prs.slide_width * 0.4
+                    col_height = prs.slide_height - Inches(2)
+                    top_margin = Inches(1.5)
+                    left_x = Inches(0.8)
+                    right_x = prs.slide_width - col_width - Inches(0.8)
+
+                    left_box = slide.shapes.add_textbox(left_x, top_margin, col_width, col_height)
+                    right_box = slide.shapes.add_textbox(right_x, top_margin, col_width, col_height)
+
+                    populate_frame(left_box.text_frame, left_pts, align_right=False)
+                    populate_frame(right_box.text_frame, right_pts, align_right=True if align_right else False)
+
+                    # Remove the original placeholder/textbox if we created our own two columns
+                    if not use_placeholder:
+                        slide.shapes._spTree.remove(textbox._element)
+                else:
+                    # Single column—use existing frame
+                    # For alternating alignment, shift textbox to the right if needed
+                    if align_right:
+                        # Reposition textbox to right side
+                        textbox.left = prs.slide_width - textbox.width - Inches(0.8)
+                    populate_frame(text_frame, points, align_right=align_right)
                 print("Debug - Successfully added content to slide")
 
                 # Aggressively remove ALL unused placeholders (empty text) except the ones we filled.
