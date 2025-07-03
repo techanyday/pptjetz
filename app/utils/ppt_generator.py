@@ -9,6 +9,7 @@ import json
 from openai import OpenAI
 import requests
 import uuid
+import re
 from io import BytesIO
 from typing import List, Dict, Optional
 
@@ -476,11 +477,10 @@ class PPTGenerator:
                             first_local = False
                         else:
                             p = frame.add_paragraph()
-                        # Split bullet and explainer if provided with a dash
-                        if ' - ' in txt:
-                            main_txt, explainer = txt.split(' - ', 1)
-                        elif ' – ' in txt:
-                            main_txt, explainer = txt.split(' – ', 1)
+                        # Split main bullet and explainer (first hyphen/en-dash with optional spaces)
+                        parts = re.split(r"\s*[-–]\s+", txt, maxsplit=1)
+                        if len(parts) == 2:
+                            main_txt, explainer = parts
                         else:
                             main_txt, explainer = txt, None
 
