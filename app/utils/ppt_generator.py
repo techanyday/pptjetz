@@ -3,7 +3,7 @@ from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR, PP_PARAGRAPH_ALIGNMENT, MSO_AUTO_SIZE
 from pptx.dml.color import RGBColor
 from pptx.enum.dml import MSO_THEME_COLOR
-from pptx.enum.shapes import PP_PLACEHOLDER
+from pptx.enum.shapes import PP_PLACEHOLDER, MSO_SHAPE
 import os
 import json
 from openai import OpenAI
@@ -352,6 +352,20 @@ class PPTGenerator:
         layout = self._get_content_layout(prs)
         print(f"Debug - Using layout: {layout.name} for content slide")
         slide = prs.slides.add_slide(layout)
+
+        # ------------------------------------------------------------------
+        # Visual enhancement for text-only (free tier) slides: accent side bar
+        # ------------------------------------------------------------------
+        try:
+            sidebar_width = Inches(0.25)
+            bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, sidebar_width, prs.slide_height)
+            bar.fill.solid()
+            bar.fill.fore_color.rgb = RGBColor(0, 102, 204)  # brand blue
+            bar.fill.fore_color.transparency = 0.15  # subtle
+            bar.line.fill.background()
+        except Exception as e:
+            print(f"Debug - Could not add sidebar: {e}")
+
         print(f"Debug - Available placeholders in slide: {[f'{ph.placeholder_format.type}:{ph.placeholder_format.idx}' for ph in slide.placeholders]}")
         
         # Add title if title placeholder exists
