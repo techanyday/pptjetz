@@ -471,33 +471,37 @@ class PPTGenerator:
                     frame.word_wrap = True
                     frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
                     first_local = True
-                    for i, txt in enumerate(pts):
-                        if first_local:
-                            p = frame.paragraphs[0]
-                            first_local = False
-                        else:
-                            p = frame.add_paragraph()
-                        # Split main bullet and explainer (first hyphen/en-dash with optional spaces)
-                        parts = re.split(r"\s*[-–]\s+", txt, maxsplit=1)
+                    for txt in pts:
+                        # Parse main bullet and optional explainer (split on dash, colon, en/em dash)
+                        parts = re.split(r"\s*[-–—:]\s+", txt, maxsplit=1)
                         if len(parts) == 2:
                             main_txt, explainer = parts
                         else:
-                            main_txt, explainer = txt, None
+                            main_txt = txt
+                            explainer = None
+
+                        # Main bullet paragraph
+                        if first_local:
+                            p = frame.paragraphs[0]
+                            p.clear()
+                            first_local = False
+                        else:
+                            p = frame.add_paragraph()
 
                         p.text = f"{bullet_icon} {main_txt.strip()}"
                         p.level = 0
-                        p.space_before = Pt(12)
-                        p.space_after = Pt(12)
+                        p.space_before = Pt(8)
+                        p.space_after = Pt(4)
                         p.line_spacing = 1.2
                         p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
 
-                        # Add explainer as secondary paragraph at level 1, smaller font
+                        # Explainer sub-bullet
                         if explainer:
                             exp_p = frame.add_paragraph()
                             exp_p.text = explainer.strip()
                             exp_p.level = 1
-                            exp_p.space_before = Pt(4)
-                            exp_p.space_after = Pt(8)
+                            exp_p.space_before = Pt(0)
+                            exp_p.space_after = Pt(12)
                             exp_p.line_spacing = 1.0
                             exp_p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
                             try:
