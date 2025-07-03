@@ -462,51 +462,84 @@ class PPTGenerator:
                 # Build bullet points with stylish icons & optional two-column layout
                 # ------------------------------------------------------------------
                 points = [pt.strip() for pt in content.split('\n') if pt.strip()]
+
+                # -------------------------------------------------------------
+                # Ensure each point has an explainer. If missing, call OpenAI
+                # -------------------------------------------------------------
+                missing_idx = [idx for idx, txt in enumerate(points) if not re.search(r"[-–—:]", txt)]
+                if missing_idx:
+                    bullets_needing = [points[i] for i in missing_idx]
+                    try:
+                        msg_system = "You are an expert communicator. For each bullet point provided, craft ONE concise explanatory sentence (max 20 words). Return ONLY a JSON array of strings in the same order."
+                        msg_user = json.dumps(bullets_needing)
+                        resp = self.client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            temperature=0.7,
+                            max_tokens=256,
+                            messages=[
+                                {"role": "system", "content": msg_system},
+                                {"role": "user", "content": msg_user}
+                            ]
+                        )
+                        expl_list = json.loads(resp.choices[0].message.content)
+                        if isinstance(expl_list, list) and len(expl_list) == len(bullets_needing):
+                            for j, idx in enumerate(missing_idx):
+                                points[idx] = f"{points[idx]} – {expl_list[j].strip()}"
+                    except Exception as e:
+                        print(f"Warning - could not auto-generate explainers: {e}")
+                        # Fallback: add generic explainer so that layout still shows sub-bullet
+                        for idx in missing_idx:
+                            if not re.search(r"[-–—:]", points[idx]):
+                                points[idx] = f"{points[idx]} – Further explanation and context."
+                        print(f"Warning - could not auto-generate explainers: {e}")
                 icons = ['▸', '‣', '✓', '✦']
                 # Use one bullet style per slide, alternating across slides
                 bullet_icon = icons[slide_index % len(icons)]
 
                 def populate_frame(frame, pts, align_right=False):
+                    """Populate a textbox with primary bullets and indented explainers"""
                     frame.clear()
                     frame.word_wrap = True
                     frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-                    first_local = True
+                    first_para = True
                     for txt in pts:
-                        # Parse main bullet and optional explainer (split on dash, colon, en/em dash)
-                        parts = re.split(r"\s*[-–—:]\s+", txt, maxsplit=1)
-                        if len(parts) == 2:
-                            main_txt, explainer = parts
+                        # Remove any leading bullet marker characters
+                        clean_txt = re.sub(r'^\s*[-•‣✓▸]+\s*', '', txt)
+                        # Detect the first dash / en-dash / em-dash / colon appearing after a word
+                        match = re.search(r'(?<=\w)\s*[-–—:]\s+', clean_txt)
+                        if match:
+                            split_idx = match.start()
+                            main_txt = clean_txt[:split_idx].strip()
+                            explainer = clean_txt[match.end():].strip()
                         else:
-                            main_txt = txt
+                            main_txt = clean_txt.strip()
                             explainer = None
 
-                        # Main bullet paragraph
-                        if first_local:
-                            p = frame.paragraphs[0]
+                        # Add the main bullet paragraph
+                        p = frame.paragraphs[0] if first_para else frame.add_paragraph()
+                        if first_para:
                             p.clear()
-                            first_local = False
-                        else:
-                            p = frame.add_paragraph()
-
-                        p.text = f"{bullet_icon} {main_txt.strip()}"
+                            first_para = False
+                        p.text = f"{bullet_icon} {main_txt}"
                         p.level = 0
-                        p.space_before = Pt(8)
-                        p.space_after = Pt(4)
+                        p.space_before = Pt(6)
+                        p.space_after = Pt(2)
                         p.line_spacing = 1.2
                         p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
 
-                        # Explainer sub-bullet
+                        # Add the explainer as a sub-bullet
                         if explainer:
                             exp_p = frame.add_paragraph()
-                            exp_p.text = explainer.strip()
+                            exp_p.text = explainer
                             exp_p.level = 1
                             exp_p.space_before = Pt(0)
-                            exp_p.space_after = Pt(12)
+                            exp_p.space_after = Pt(10)
                             exp_p.line_spacing = 1.0
                             exp_p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
                             try:
                                 exp_p.font.size = Pt(14)
                                 exp_p.font.italic = True
+                                exp_p.font.color.rgb = RGBColor(33, 37, 41)
                             except Exception:
                                 pass
 
@@ -530,12 +563,13 @@ class PPTGenerator:
                 populate_frame(left_box.text_frame, left_pts, align_right=False)
                 populate_frame(right_box.text_frame, right_pts, align_right=True if align_right else False)
 
-                # Remove any placeholder/textbox created earlier if not needed
-                if not use_placeholder:
+                # Remove the original content placeholder to avoid overlapping default bullets
+                if content_placeholder is not None:
                     try:
-                        slide.shapes._spTree.remove(textbox._element)
+                        slide.shapes._spTree.remove(content_placeholder._element)
                     except Exception:
                         pass
+
                 print("Debug - Successfully added content to slide")
 
                 # Aggressively remove ALL unused placeholders (empty text) except the ones we filled.
