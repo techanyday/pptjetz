@@ -462,6 +462,8 @@ class PPTGenerator:
                 # ------------------------------------------------------------------
                 points = [pt.strip() for pt in content.split('\n') if pt.strip()]
                 icons = ['▸', '‣', '✓', '✦']
+                # Use one bullet style per slide, alternating across slides
+                bullet_icon = icons[slide_index % len(icons)]
 
                 def populate_frame(frame, pts, align_right=False):
                     frame.clear()
@@ -474,46 +476,62 @@ class PPTGenerator:
                             first_local = False
                         else:
                             p = frame.add_paragraph()
-                        icon = icons[i % len(icons)]
-                        p.text = f"{icon} {txt}"
+                        # Split bullet and explainer if provided with a dash
+                        if ' - ' in txt:
+                            main_txt, explainer = txt.split(' - ', 1)
+                        elif ' – ' in txt:
+                            main_txt, explainer = txt.split(' – ', 1)
+                        else:
+                            main_txt, explainer = txt, None
+
+                        p.text = f"{bullet_icon} {main_txt.strip()}"
                         p.level = 0
                         p.space_before = Pt(12)
                         p.space_after = Pt(12)
                         p.line_spacing = 1.2
                         p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
 
+                        # Add explainer as secondary paragraph at level 1, smaller font
+                        if explainer:
+                            exp_p = frame.add_paragraph()
+                            exp_p.text = explainer.strip()
+                            exp_p.level = 1
+                            exp_p.space_before = Pt(4)
+                            exp_p.space_after = Pt(8)
+                            exp_p.line_spacing = 1.0
+                            exp_p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
+                            try:
+                                exp_p.font.size = Pt(14)
+                                exp_p.font.italic = True
+                            except Exception:
+                                pass
+
                 # Determine alignment based on slide index (alternate)
                 align_right = (slide_index % 2 == 1)
 
-                if len(points) >= 6:
-                    # Two-column layout
-                    mid = (len(points) + 1) // 2
-                    left_pts = points[:mid]
-                    right_pts = points[mid:]
+                # Always use two-column layout for better readability
+                mid = (len(points) + 1) // 2
+                left_pts = points[:mid]
+                right_pts = points[mid:]
 
-                    # Left column textbox
-                    col_width = prs.slide_width * 0.4
-                    col_height = prs.slide_height - Inches(2)
-                    top_margin = Inches(1.5)
-                    left_x = Inches(0.8)
-                    right_x = prs.slide_width - col_width - Inches(0.8)
+                col_width = prs.slide_width * 0.4
+                col_height = prs.slide_height - Inches(2)
+                top_margin = Inches(1.5)
+                left_x = Inches(0.8)
+                right_x = prs.slide_width - col_width - Inches(0.8)
 
-                    left_box = slide.shapes.add_textbox(left_x, top_margin, col_width, col_height)
-                    right_box = slide.shapes.add_textbox(right_x, top_margin, col_width, col_height)
+                left_box = slide.shapes.add_textbox(left_x, top_margin, col_width, col_height)
+                right_box = slide.shapes.add_textbox(right_x, top_margin, col_width, col_height)
 
-                    populate_frame(left_box.text_frame, left_pts, align_right=False)
-                    populate_frame(right_box.text_frame, right_pts, align_right=True if align_right else False)
+                populate_frame(left_box.text_frame, left_pts, align_right=False)
+                populate_frame(right_box.text_frame, right_pts, align_right=True if align_right else False)
 
-                    # Remove the original placeholder/textbox if we created our own two columns
-                    if not use_placeholder:
+                # Remove any placeholder/textbox created earlier if not needed
+                if not use_placeholder:
+                    try:
                         slide.shapes._spTree.remove(textbox._element)
-                else:
-                    # Single column—use existing frame
-                    # For alternating alignment, shift textbox to the right if needed
-                    if align_right:
-                        # Reposition textbox to right side
-                        textbox.left = prs.slide_width - textbox.width - Inches(0.8)
-                    populate_frame(text_frame, points, align_right=align_right)
+                    except Exception:
+                        pass
                 print("Debug - Successfully added content to slide")
 
                 # Aggressively remove ALL unused placeholders (empty text) except the ones we filled.
