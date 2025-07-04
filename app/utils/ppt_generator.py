@@ -596,7 +596,7 @@ class PPTGenerator:
                         "{\"slides\": [{\"title\": \"string\", \"content\": [\"string\"]}]}"
                         "\nThe 'slides' array MUST contain exactly the requested number of slides where:"
                         "\n- 'title' is the slide title"
-                        "\n- 'content' is an array of 4-5 strings where each string is a concise bullet point followed by a brief explanatory sentence (max 20 words) separated by a dash (-)"
+                        "\n- 'content' is an array of 4-5 strings where each string has the format \"Point - Elaboration\". The elaboration must directly explain or provide context about the point, NOT instruct the audience. Avoid leading verbs like 'Explore', 'Discover', 'Learn how', 'Understand', etc. Max 20 words."
                         ""
 "\n- The FIRST slide must be an 'Agenda' slide outlining the main sections."
 "\n- The LAST slide must be an 'Outro' or 'Conclusion' slide summarizing key takeaways."
@@ -612,7 +612,7 @@ class PPTGenerator:
                       f"1) Agenda slide; "
                       f"(n-1) topic slides; "
                       f"last slide titled 'Conclusion' or 'Outro'. "
-                      f"Each slide must have a unique title and exactly 4-5 bullet points, each followed by a brief explanatory sentence (max 20 words)."
+                      f"Each slide must have a unique title and exactly 4-5 bullet points, each followed by a direct elaboration sentence (max 20 words) that explains the point itself. Do not start the elaboration with verbs like 'Explore', 'Discover', 'Learn how', 'Understand'."
                 )
                 }
             ]
