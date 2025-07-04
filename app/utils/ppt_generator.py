@@ -636,10 +636,24 @@ class PPTGenerator:
                 max_tokens=max_token_budget
             )
         
-            # Extract and parse the response
-            response_text = response.choices[0].message.content
-            print(f"Debug - OpenAI Response: {response_text}")
-            response_data = json.loads(response_text)
+                        # Extract and parse the response
+            response_text = response.choices[0].message.content.strip()
+            print(f"Debug - OpenAI Raw Response: {response_text}")
+
+            # Remove Markdown code fences or other extraneous text and extract JSON object
+            import re
+            json_candidate = None
+            try:
+                # Find the first {...} block
+                match = re.search(r"\{[\s\S]*\}", response_text)
+                if match:
+                    json_candidate = match.group(0)
+                else:
+                    json_candidate = response_text  # Fall back to full text
+                response_data = json.loads(json_candidate)
+            except json.JSONDecodeError as parse_err:
+                print(f"Debug - Initial JSON parse fail: {parse_err}")
+                raise
             
             if not isinstance(response_data, dict) or 'slides' not in response_data:
                 raise ValueError("Invalid response format from GPT. Expected object with 'slides' array.")
