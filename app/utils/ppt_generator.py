@@ -511,7 +511,7 @@ class PPTGenerator:
                     right_box = slide.shapes.add_textbox(right_x, top_margin, col_width, col_height)
 
                     populate_frame(left_box.text_frame, left_pts, align_right=False)
-                    populate_frame(right_box.text_frame, right_pts, align_right=True if align_right else False)
+                    populate_frame(right_box.text_frame, right_pts, align_right=False)
 
                     # Remove the original placeholder/textbox we started with to avoid duplicate content
                     try:
