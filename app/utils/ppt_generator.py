@@ -585,7 +585,7 @@ class PPTGenerator:
             print(f"Warning: Could not generate title: {str(e)}. Using description as fallback.")
             return description
 
-    def generate_slide_content(self, prompt: str, num_slides: int) -> List[Dict]:
+    def generate_slide_content(self, prompt: str, num_slides: int, retries: int = 1) -> List[Dict]:
         """Generate slide content using GPT-3.5"""
         try:
             messages = [
@@ -617,11 +617,13 @@ class PPTGenerator:
                 }
             ]
             
+            # Dynamically allocate token budget: ~150 tokens per slide capped to 3500
+            max_token_budget = min(3500, num_slides * 150)
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages,
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=max_token_budget
             )
         
             # Extract and parse the response
@@ -640,7 +642,8 @@ class PPTGenerator:
             
             # Ensure we have the right number of slides and format the content
             if len(slides_data) < num_slides:
-                raise ValueError(f"OpenAI returned only {len(slides_data)} slides, but {num_slides} were requested")
+                # Not enough slides – allow retry if available
+                raise ValueError("INSUFFICIENT_SLIDES")
 
             slides = []
             seen_titles = set()
@@ -669,13 +672,20 @@ class PPTGenerator:
                     break
 
             if len(slides) < num_slides:
-                raise ValueError(f"Could not generate enough unique slides. Got {len(slides)}, needed {num_slides}")
+                raise ValueError("INSUFFICIENT_SLIDES_PARSED")
                 
             return slides
+        except ValueError as e:
+            # If error indicates insufficient slides and we have retries left, retry once
+            if str(e) in ["INSUFFICIENT_SLIDES", "INSUFFICIENT_SLIDES_PARSED"] and retries > 0:
+                print("Debug - Retry due to insufficient slides. Attempts remaining:", retries)
+                return self.generate_slide_content(prompt, num_slides, retries - 1)
+            # Convert to user-friendly message
+            if str(e) in ["INSUFFICIENT_SLIDES", "INSUFFICIENT_SLIDES_PARSED"]:
+                raise Exception("The AI couldn’t generate all slides, please try again or request fewer.")
+            raise Exception(f"Error in response format: {str(e)}")
         except json.JSONDecodeError as e:
             raise Exception(f"Error parsing GPT response: {str(e)}")
-        except ValueError as e:
-            raise Exception(f"Error in response format: {str(e)}")
         except Exception as e:
             raise Exception(f"Error generating content: {str(e)}")
 
