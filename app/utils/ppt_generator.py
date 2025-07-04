@@ -629,12 +629,23 @@ class PPTGenerator:
             
             # Dynamically allocate token budget: ~150 tokens per slide capped to 3500
             max_token_budget = min(3500, num_slides * 150)
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages,
-                temperature=0.7,
-                max_tokens=max_token_budget
-            )
+            try:
+                # Prefer a model version that supports enforced JSON responses
+                response = self.client.chat.completions.create(
+                    model="gpt-3.5-turbo-1106",
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=max_token_budget,
+                    response_format={"type": "json_object"}
+                )
+            except Exception:
+                # Fallback to classic model without enforced response format
+                response = self.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=max_token_budget
+                )
         
             # Extract and parse the response
             response_text = response.choices[0].message.content
