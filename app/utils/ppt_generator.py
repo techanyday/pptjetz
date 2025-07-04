@@ -460,10 +460,7 @@ class PPTGenerator:
                 # ------------------------------------------------------------------
                 # Build bullet points with stylish icons & optional two-column layout
                 # ------------------------------------------------------------------
-                # Split incoming content into points and strip any numeric prefixes (e.g., "1.", "2)") or stray bullet chars
-                raw_points = [pt.strip() for pt in content.split('\n') if pt.strip()]
-                import re
-                points = [re.sub(r'^\s*(?:\d+[\.)]|[•*\-])\s*', '', p).strip() for p in raw_points]
+                points = [pt.strip() for pt in content.split('\n') if pt.strip()]
                 icons = ['▸', '‣', '✓', '✦']
                 icon_for_slide = icons[slide_index % len(icons)]
 
@@ -613,7 +610,7 @@ class PPTGenerator:
                         ""
 "\n- The FIRST slide must be an 'Agenda' slide outlining the main sections."
 "\n- The LAST slide must be an 'Outro' or 'Conclusion' slide summarizing key takeaways."
-                        "\nDo not include any explanation or other text, just the JSON."
+                        "\nDo NOT wrap the JSON in code fences or backticks. Do not include any explanation or other text, just the JSON."
                         "\nEnsure you generate exactly the requested number of unique slides."
                     )
                 },
@@ -625,7 +622,7 @@ class PPTGenerator:
                       f"1) Agenda slide; "
                       f"(n-1) topic slides; "
                       f"last slide titled 'Conclusion' or 'Outro'. "
-                      f"Each slide must have a unique title and exactly 6 bullet points, each followed by a direct elaboration sentence (max 20 words) that explains the point itself. Do not use the \" character inside bullet text. Do not start the elaboration with verbs like 'Explore', 'Discover', 'Learn how', 'Understand'."
+                      f"Each slide must have a unique title and exactly 6 bullet points, each followed by a direct elaboration sentence (max 20 words) that explains the point itself. Do NOT wrap the JSON in backticks or code fences. Do not use the \" character inside bullet text. Do not start the elaboration with verbs like 'Explore', 'Discover', 'Learn how', 'Understand'."
                 )
                 }
             ]
@@ -639,24 +636,10 @@ class PPTGenerator:
                 max_tokens=max_token_budget
             )
         
-                        # Extract and parse the response
-            response_text = response.choices[0].message.content.strip()
-            print(f"Debug - OpenAI Raw Response: {response_text}")
-
-            # Remove Markdown code fences or other extraneous text and extract JSON object
-            import re
-            json_candidate = None
-            try:
-                # Find the first {...} block
-                match = re.search(r"\{[\s\S]*\}", response_text)
-                if match:
-                    json_candidate = match.group(0)
-                else:
-                    json_candidate = response_text  # Fall back to full text
-                response_data = json.loads(json_candidate)
-            except json.JSONDecodeError as parse_err:
-                print(f"Debug - Initial JSON parse fail: {parse_err}")
-                raise
+            # Extract and parse the response
+            response_text = response.choices[0].message.content
+            print(f"Debug - OpenAI Response: {response_text}")
+            response_data = json.loads(response_text)
             
             if not isinstance(response_data, dict) or 'slides' not in response_data:
                 raise ValueError("Invalid response format from GPT. Expected object with 'slides' array.")
@@ -712,6 +695,42 @@ class PPTGenerator:
                 raise Exception("The AI couldn’t generate all slides, please try again or request fewer.")
             raise Exception(f"Error in response format: {str(e)}")
         except json.JSONDecodeError as e:
+            # Attempt to extract JSON fragment and retry parsing once
+            try:
+                start = response_text.find('{')
+                end = response_text.rfind('}')
+                if start != -1 and end != -1 and end > start:
+                    cleaned = response_text[start:end+1]
+                    response_data = json.loads(cleaned)
+                    slides_data = response_data.get('slides', [])
+                    print("Debug - Recovered JSON after cleanup")
+                    # proceed as usual below by reusing parsed slides_data
+                    if not isinstance(slides_data, list):
+                        raise ValueError("Invalid 'slides' format. Expected array.")
+                    # rest of loop duplicated but simplified
+                    slides = []
+                    seen_titles = set()
+                    for slide in slides_data:
+                        if not isinstance(slide, dict) or 'title' not in slide or 'content' not in slide:
+                            continue
+                        if not isinstance(slide['content'], list):
+                            continue
+                        if slide['title'] in seen_titles:
+                            continue
+                        seen_titles.add(slide['title'])
+                        formatted_content = "\n".join(point.strip() for point in slide['content'])
+                        slides.append({"title": slide['title'], "content": formatted_content})
+                        if len(slides) == num_slides:
+                            break
+                    if len(slides) == num_slides:
+                        return slides
+            except Exception:
+                pass
+            # fallback retry if enabled
+            if retries > 0:
+                print(f"Debug - JSON parsing failed ({e}). Retrying... Attempts remaining: {retries}")
+                return self.generate_slide_content(prompt, num_slides, retries - 1)
+            raise Exception(f"Error parsing GPT response: {str(e)}")
             if retries > 0:
                 print(f"Debug - JSON parsing failed ({e}). Retrying... Attempts remaining: {retries}")
                 return self.generate_slide_content(prompt, num_slides, retries - 1)
