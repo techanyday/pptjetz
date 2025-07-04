@@ -460,7 +460,10 @@ class PPTGenerator:
                 # ------------------------------------------------------------------
                 # Build bullet points with stylish icons & optional two-column layout
                 # ------------------------------------------------------------------
-                points = [pt.strip() for pt in content.split('\n') if pt.strip()]
+                # Split incoming content into points and strip any numeric prefixes (e.g., "1.", "2)") or stray bullet chars
+                raw_points = [pt.strip() for pt in content.split('\n') if pt.strip()]
+                import re
+                points = [re.sub(r'^\s*(?:\d+[\.)]|[•*\-])\s*', '', p).strip() for p in raw_points]
                 icons = ['▸', '‣', '✓', '✦']
                 icon_for_slide = icons[slide_index % len(icons)]
 
