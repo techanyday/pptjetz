@@ -486,31 +486,41 @@ class PPTGenerator:
                 # Determine alignment based on slide index (alternate)
                 align_right = (slide_index % 2 == 1)
 
-                # Always use a two-column layout for better visual balance
-                mid = (len(points) + 1) // 2
-                left_pts = points[:mid]
-                right_pts = points[mid:]
+                # Decide layout: single column for Agenda slide, two columns otherwise
+                is_agenda = title.strip().lower() == 'agenda'
 
-                col_width = prs.slide_width * 0.4
-                col_height = prs.slide_height - Inches(2)
-                top_margin = Inches(1.5)
-                left_x = Inches(0.8)
-                right_x = prs.slide_width - col_width - Inches(0.8)
+                # Determine alignment based on slide index (alternate for non-agenda slides)
+                align_right = (slide_index % 2 == 1)
 
-                left_box = slide.shapes.add_textbox(left_x, top_margin, col_width, col_height)
-                right_box = slide.shapes.add_textbox(right_x, top_margin, col_width, col_height)
+                if is_agenda:
+                    # Single wide column using the existing text_frame
+                    populate_frame(text_frame, points, align_right=False)
+                else:
+                    # Two-column layout for better visual balance
+                    mid = (len(points) + 1) // 2
+                    left_pts = points[:mid]
+                    right_pts = points[mid:]
 
-                populate_frame(left_box.text_frame, left_pts, align_right=False)
-                populate_frame(right_box.text_frame, right_pts, align_right=True if align_right else False)
+                    col_width = prs.slide_width * 0.4
+                    col_height = prs.slide_height - Inches(2)
+                    top_margin = Inches(1.5)
+                    left_x = Inches(0.8)
+                    right_x = prs.slide_width - col_width - Inches(0.8)
 
-                # Remove any placeholder/textbox we started with to avoid duplicate content
-                try:
-                    if use_placeholder and content_placeholder is not None:
-                        slide.shapes._spTree.remove(content_placeholder._element)
-                    elif not use_placeholder:
-                        slide.shapes._spTree.remove(textbox._element)
-                except Exception:
-                    pass
+                    left_box = slide.shapes.add_textbox(left_x, top_margin, col_width, col_height)
+                    right_box = slide.shapes.add_textbox(right_x, top_margin, col_width, col_height)
+
+                    populate_frame(left_box.text_frame, left_pts, align_right=False)
+                    populate_frame(right_box.text_frame, right_pts, align_right=True if align_right else False)
+
+                    # Remove the original placeholder/textbox we started with to avoid duplicate content
+                    try:
+                        if use_placeholder and content_placeholder is not None:
+                            slide.shapes._spTree.remove(content_placeholder._element)
+                        elif not use_placeholder and 'textbox' in locals():
+                            slide.shapes._spTree.remove(textbox._element)
+                    except Exception:
+                        pass
                 print("Debug - Successfully added content to slide")
 
                 # Aggressively remove ALL unused placeholders (empty text) except the ones we filled.
@@ -596,7 +606,7 @@ class PPTGenerator:
                         "{\"slides\": [{\"title\": \"string\", \"content\": [\"string\"]}]}"
                         "\nThe 'slides' array MUST contain exactly the requested number of slides where:"
                         "\n- 'title' is the slide title"
-                        "\n- 'content' is an array of 4-5 strings where each string has the format \"Point - Elaboration\". The elaboration must directly explain or provide context about the point, NOT instruct the audience. Avoid leading verbs like 'Explore', 'Discover', 'Learn how', 'Understand', etc. Max 20 words."
+                        "\n- 'content' is an array of 6 strings where each string has the format \"Point - Elaboration\". The elaboration must directly explain or provide context about the point, NOT instruct the audience. Avoid leading verbs like 'Explore', 'Discover', 'Learn how', 'Understand', etc. Max 20 words."
                         ""
 "\n- The FIRST slide must be an 'Agenda' slide outlining the main sections."
 "\n- The LAST slide must be an 'Outro' or 'Conclusion' slide summarizing key takeaways."
@@ -612,7 +622,7 @@ class PPTGenerator:
                       f"1) Agenda slide; "
                       f"(n-1) topic slides; "
                       f"last slide titled 'Conclusion' or 'Outro'. "
-                      f"Each slide must have a unique title and exactly 4-5 bullet points, each followed by a direct elaboration sentence (max 20 words) that explains the point itself. Do not start the elaboration with verbs like 'Explore', 'Discover', 'Learn how', 'Understand'."
+                      f"Each slide must have a unique title and exactly 6 bullet points, each followed by a direct elaboration sentence (max 20 words) that explains the point itself. Do not start the elaboration with verbs like 'Explore', 'Discover', 'Learn how', 'Understand'."
                 )
                 }
             ]
