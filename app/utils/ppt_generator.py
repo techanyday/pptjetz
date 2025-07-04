@@ -415,7 +415,7 @@ class PPTGenerator:
                 # Ensure content placeholder sits below the title to avoid overlap
                 if slide.shapes.title is not None:
                     title_bottom = slide.shapes.title.top + slide.shapes.title.height
-                    margin = Pt(20)  # Increased gap below title
+                    margin = Pt(10)
                     if content_placeholder.top < title_bottom + margin:
                         # Move content placeholder just below title
                         delta = (title_bottom + margin) - content_placeholder.top
@@ -441,7 +441,7 @@ class PPTGenerator:
                 if not use_placeholder:
                     # Create our own horizontal textbox on left side
                     left_margin = Inches(0.8)
-                    top_margin = Inches(1.8)  # Increased top margin for content
+                    top_margin = Inches(1.5)
                     box_width = prs.slide_width * 0.45  # ~45% of slide width
                     box_height = prs.slide_height - top_margin - Inches(1.0)
                     textbox = slide.shapes.add_textbox(left_margin, top_margin, box_width, box_height)
@@ -465,84 +465,52 @@ class PPTGenerator:
                 icon_for_slide = icons[slide_index % len(icons)]
 
                 def populate_frame(frame, pts, align_right=False):
-                    """Populate a text frame with stylish bullet points and explanatory sentences.
-
-                    Parameters
-                    ----------
-                    frame : pptx.text.text.TextFrame
-                        The text frame to populate.
-                    pts : List[str]
-                        List of bullet strings. Each item should be in the format
-                        "<main bullet> - <explanatory sentence>" but the dash is optional.
-                    align_right : bool, optional
-                        Whether to right-align paragraphs (used for right column), by default False.
-                    """
-                    # Reset text frame
                     frame.clear()
                     frame.word_wrap = True
                     frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-
-                    first_local = True  # Re-use the initial paragraph once, then add new ones
-                    for txt in pts:
-                        # Split main bullet text and its explanatory sentence
-                        if " - " in txt:
-                            bullet_txt, expl_txt = map(str.strip, txt.split(" - ", 1))
-                        else:
-                            bullet_txt, expl_txt = txt.strip(), ""
-
-                        # Obtain or create the paragraph for the main bullet
+                    first_local = True
+                    for i, txt in enumerate(pts):
                         if first_local:
-                            bullet_p = frame.paragraphs[0]
+                            p = frame.paragraphs[0]
                             first_local = False
                         else:
-                            bullet_p = frame.add_paragraph()
+                            p = frame.add_paragraph()
+                        icon = icon_for_slide
+                        p.text = f"{icon} {txt}"
+                        p.level = 0
+                        p.space_before = Pt(12)
+                        p.space_after = Pt(12)
+                        p.line_spacing = 1.2
+                        p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
 
-                        # Configure main bullet paragraph (level 0)
-                        bullet_p.text = f"{icon_for_slide} {bullet_txt}"
-                        bullet_p.level = 0
-                        bullet_p.font.size = Pt(17)
-                        bullet_p.font.bold = True
-                        bullet_p.space_before = Pt(4)
-                        bullet_p.space_after = Pt(0)
-                        bullet_p.line_spacing = 1.05
-                        if align_right:
-                            bullet_p.alignment = PP_ALIGN.RIGHT
+                # Determine alignment based on slide index (alternate)
+                align_right = (slide_index % 2 == 1)
 
-                        # Add explanatory sub-bullet if present
-                        if expl_txt:
-                            sub_p = frame.add_paragraph()
-                            sub_p.text = expl_txt
-                            sub_p.level = 1
-                            sub_p.font.size = Pt(14)
-                            sub_p.font.bold = False
-                            sub_p.space_before = Pt(0)
-                            sub_p.space_after = Pt(0)
-                            sub_p.line_spacing = 1.05
-                            if align_right:
-                                sub_p.alignment = PP_ALIGN.RIGHT
-
-
-                # Always use two-column layout
-                mid = (len(points) + 1) // 2 if len(points) > 1 else len(points)
+                # Always use a two-column layout for better visual balance
+                mid = (len(points) + 1) // 2
                 left_pts = points[:mid]
                 right_pts = points[mid:]
 
                 col_width = prs.slide_width * 0.4
                 col_height = prs.slide_height - Inches(2)
-                top_margin = Inches(1.8)  # Increased top margin for content
+                top_margin = Inches(1.5)
                 left_x = Inches(0.8)
                 right_x = prs.slide_width - col_width - Inches(0.8)
 
-                # Create left and right column text boxes
                 left_box = slide.shapes.add_textbox(left_x, top_margin, col_width, col_height)
                 right_box = slide.shapes.add_textbox(right_x, top_margin, col_width, col_height)
 
                 populate_frame(left_box.text_frame, left_pts, align_right=False)
                 populate_frame(right_box.text_frame, right_pts, align_right=True if align_right else False)
 
-                # Remove the original placeholder/textbox if we created custom columns
-                if not use_placeholder:
-                    slide.shapes._spTree.remove(textbox._element)
+                # Remove any placeholder/textbox we started with to avoid duplicate content
+                try:
+                    if use_placeholder and content_placeholder is not None:
+                        slide.shapes._spTree.remove(content_placeholder._element)
+                    elif not use_placeholder:
+                        slide.shapes._spTree.remove(textbox._element)
+                except Exception:
+                    pass
                 print("Debug - Successfully added content to slide")
 
                 # Aggressively remove ALL unused placeholders (empty text) except the ones we filled.
