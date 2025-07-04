@@ -9,7 +9,6 @@ import json
 from openai import OpenAI
 import requests
 import uuid
-import re
 from io import BytesIO
 from typing import List, Dict, Optional
 
@@ -416,7 +415,7 @@ class PPTGenerator:
                 # Ensure content placeholder sits below the title to avoid overlap
                 if slide.shapes.title is not None:
                     title_bottom = slide.shapes.title.top + slide.shapes.title.height
-                    margin = Pt(10)
+                    margin = Pt(20)  # Increased gap below title
                     if content_placeholder.top < title_bottom + margin:
                         # Move content placeholder just below title
                         delta = (title_bottom + margin) - content_placeholder.top
@@ -442,7 +441,7 @@ class PPTGenerator:
                 if not use_placeholder:
                     # Create our own horizontal textbox on left side
                     left_margin = Inches(0.8)
-                    top_margin = Inches(1.5)
+                    top_margin = Inches(1.8)  # Increased top margin for content
                     box_width = prs.slide_width * 0.45  # ~45% of slide width
                     box_height = prs.slide_height - top_margin - Inches(1.0)
                     textbox = slide.shapes.add_textbox(left_margin, top_margin, box_width, box_height)
@@ -462,60 +461,96 @@ class PPTGenerator:
                 # Build bullet points with stylish icons & optional two-column layout
                 # ------------------------------------------------------------------
                 points = [pt.strip() for pt in content.split('\n') if pt.strip()]
-
-                # -------------------------------------------------------------
-                # No sub-explainers needed; points should already be concise
-                # -------------------------------------------------------------
-                mid = (len(points) + 1) // 2
                 icons = ['▸', '‣', '✓', '✦']
-                # Use one bullet style per slide, alternating across slides
-                bullet_icon = icons[slide_index % len(icons)]
-                align_right = (slide_index % 2 == 1)
+                icon_for_slide = icons[slide_index % len(icons)]
 
                 def populate_frame(frame, pts, align_right=False):
-                    """Populate a textbox with primary bullets and indented explainers"""
+                    """Populate a text frame with stylish bullet points and explanatory sentences.
+
+                    Parameters
+                    ----------
+                    frame : pptx.text.text.TextFrame
+                        The text frame to populate.
+                    pts : List[str]
+                        List of bullet strings. Each item should be in the format
+                        "<main bullet> - <explanatory sentence>" but the dash is optional.
+                    align_right : bool, optional
+                        Whether to right-align paragraphs (used for right column), by default False.
+                    """
+                    # Reset text frame
                     frame.clear()
                     frame.word_wrap = True
                     frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-                    first_para = True
+
+                    first_local = True  # Re-use the initial paragraph once, then add new ones
                     for txt in pts:
-                        clean_txt = re.sub(r'^\s*[-•‣✓✦▸]+\s*', '', txt)
-                        p = frame.paragraphs[0] if first_para else frame.add_paragraph()
-                        if first_para:
-                            p.clear()
-                            first_para = False
-                        p.text = f"{bullet_icon} {clean_txt}"
-                        p.level = 0
-                        p.space_before = Pt(4)
-                        p.space_after = Pt(8)
-                        p.line_spacing = 1.2
-                        p.alignment = PP_ALIGN.RIGHT if align_right else PP_ALIGN.LEFT
-                        try:
-                            p.font.color.theme_color = MSO_THEME_COLOR.ACCENT_1
-                        except Exception:
-                            p.font.color.rgb = RGBColor(0, 102, 204)
+                        # Split main bullet text and its explanatory sentence
+                        if " - " in txt:
+                            bullet_txt, expl_txt = map(str.strip, txt.split(" - ", 1))
+                        else:
+                            bullet_txt, expl_txt = txt.strip(), ""
+
+                        # Obtain or create the paragraph for the main bullet
+                        if first_local:
+                            bullet_p = frame.paragraphs[0]
+                            first_local = False
+                        else:
+                            bullet_p = frame.add_paragraph()
+
+                        # Configure main bullet paragraph (level 0)
+                        bullet_p.text = f"{icon_for_slide} {bullet_txt}"
+                        bullet_p.level = 0
+                        bullet_p.font.size = Pt(17)
+                        bullet_p.font.bold = True
+                        bullet_p.space_before = Pt(4)
+                        bullet_p.space_after = Pt(0)
+                        bullet_p.line_spacing = 1.05
+                        if align_right:
+                            bullet_p.alignment = PP_ALIGN.RIGHT
+
+                        # Add explanatory sub-bullet if present
+                        if expl_txt:
+                            sub_p = frame.add_paragraph()
+                            sub_p.text = expl_txt
+                            sub_p.level = 1
+                            sub_p.font.size = Pt(14)
+                            sub_p.font.bold = False
+                            sub_p.space_before = Pt(0)
+                            sub_p.space_after = Pt(0)
+                            sub_p.line_spacing = 1.05
+                            if align_right:
+                                sub_p.alignment = PP_ALIGN.RIGHT
+
+            {
+                "role": "system",
+                "content": (
+                    "You are a presentation content generator. Generate a JSON object with exactly this structure:\n"
+                    "{\"slides\": [{\"title\": \"string\", \"content\": [\"string\"]}]}"
+                    "\nThe 'slides' array MUST contain exactly the requested number of slides where:"
+                    "\n- 'title' is the slide title"
+                    "\n- 'content' is an array of 4-5 strings where each string is a concise bullet point followed by a brief explanatory sentence (max 20 words) separated by a dash (-)"
+                    ""
+                # Always use two-column layout
+                mid = (len(points) + 1) // 2 if len(points) > 1 else len(points)
                 left_pts = points[:mid]
                 right_pts = points[mid:]
 
                 col_width = prs.slide_width * 0.4
                 col_height = prs.slide_height - Inches(2)
-                top_margin = Inches(1.5)
+                top_margin = Inches(1.8)  # Increased top margin for content
                 left_x = Inches(0.8)
                 right_x = prs.slide_width - col_width - Inches(0.8)
 
+                # Create left and right column text boxes
                 left_box = slide.shapes.add_textbox(left_x, top_margin, col_width, col_height)
                 right_box = slide.shapes.add_textbox(right_x, top_margin, col_width, col_height)
 
                 populate_frame(left_box.text_frame, left_pts, align_right=False)
                 populate_frame(right_box.text_frame, right_pts, align_right=True if align_right else False)
 
-                # Remove the original content placeholder to avoid overlapping default bullets
-                if content_placeholder is not None:
-                    try:
-                        slide.shapes._spTree.remove(content_placeholder._element)
-                    except Exception:
-                        pass
-
+                # Remove the original placeholder/textbox if we created custom columns
+                if not use_placeholder:
+                    slide.shapes._spTree.remove(textbox._element)
                 print("Debug - Successfully added content to slide")
 
                 # Aggressively remove ALL unused placeholders (empty text) except the ones we filled.
@@ -601,7 +636,7 @@ class PPTGenerator:
                         "{\"slides\": [{\"title\": \"string\", \"content\": [\"string\"]}]}"
                         "\nThe 'slides' array MUST contain exactly the requested number of slides where:"
                         "\n- 'title' is the slide title"
-                        "\n- 'content' is an array of 4-5 concise, self-contained bullet points (max 15 words each). Do NOT include additional explanatory sentences."
+                        "\n- 'content' is an array of 4-5 strings where each string is a concise bullet point followed by a brief explanatory sentence (max 20 words) separated by a dash (-)"
                         ""
 "\n- The FIRST slide must be an 'Agenda' slide outlining the main sections."
 "\n- The LAST slide must be an 'Outro' or 'Conclusion' slide summarizing key takeaways."
@@ -617,7 +652,7 @@ class PPTGenerator:
                       f"1) Agenda slide; "
                       f"(n-1) topic slides; "
                       f"last slide titled 'Conclusion' or 'Outro'. "
-                      f"Each slide must have a unique title and exactly 4-5 concise, self-explanatory bullet points (max 15 words each). Do NOT include dash-separated explainers."
+                      f"Each slide must have a unique title and exactly 4-5 bullet points, each followed by a brief explanatory sentence (max 20 words)."
                 )
                 }
             ]
@@ -630,29 +665,9 @@ class PPTGenerator:
             )
         
             # Extract and parse the response
-            response_text = response.choices[0].message.content.strip()
+            response_text = response.choices[0].message.content
             print(f"Debug - OpenAI Response: {response_text}")
-
-            def _parse_json(text: str):
-                """Attempt to load JSON; if it fails, try to salvage a JSON substring."""
-                try:
-                    return json.loads(text)
-                except json.JSONDecodeError:
-                    # Strip markdown fences if present
-                    if text.startswith("```"):
-                        text = re.sub(r"^```[a-zA-Z]*", "", text).rstrip("`")
-                    # Try to locate the first '{' and last '}'
-                    start = text.find('{')
-                    end = text.rfind('}')
-                    if start != -1 and end != -1 and end > start:
-                        snippet = text[start:end+1]
-                        try:
-                            return json.loads(snippet)
-                        except json.JSONDecodeError:
-                            pass
-                    raise
-
-            response_data = _parse_json(response_text)
+            response_data = json.loads(response_text)
             
             if not isinstance(response_data, dict) or 'slides' not in response_data:
                 raise ValueError("Invalid response format from GPT. Expected object with 'slides' array.")
@@ -713,11 +728,17 @@ class PPTGenerator:
         """Create PowerPoint presentation using a selected template style"""
         # Generate an intelligent title from the input description
         presentation_title = self.generate_title(title)
-        # --- Template-free approach ---
-        # Use a fresh blank presentation so we are not constrained by pre-made layouts.
-        # The default Office theme provides basic title/content slide layouts which are
-        # sufficient as building blocks. We no longer rely on custom .pptx templates.
-        prs = Presentation()
+        # Load template
+        template_path = self.get_template_path(template_style)
+        if not os.path.exists(template_path):
+            raise ValueError(f"Template file not found: {template_path}")
+        try:
+            prs = Presentation(template_path)
+            # Remove any existing slides while preserving the template
+            self._remove_all_slides(prs)
+        except Exception as e:
+            print(f"Warning: Could not load template {template_path}. Using blank presentation. Error: {str(e)}")
+            prs = Presentation()
 
         # Add slides
         print(f"Debug - Adding title slide with generated title: {presentation_title}")
