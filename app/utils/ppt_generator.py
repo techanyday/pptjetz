@@ -521,15 +521,7 @@ class PPTGenerator:
                             if align_right:
                                 sub_p.alignment = PP_ALIGN.RIGHT
 
-            {
-                "role": "system",
-                "content": (
-                    "You are a presentation content generator. Generate a JSON object with exactly this structure:\n"
-                    "{\"slides\": [{\"title\": \"string\", \"content\": [\"string\"]}]}"
-                    "\nThe 'slides' array MUST contain exactly the requested number of slides where:"
-                    "\n- 'title' is the slide title"
-                    "\n- 'content' is an array of 4-5 strings where each string is a concise bullet point followed by a brief explanatory sentence (max 20 words) separated by a dash (-)"
-                    ""
+
                 # Always use two-column layout
                 mid = (len(points) + 1) // 2 if len(points) > 1 else len(points)
                 left_pts = points[:mid]
