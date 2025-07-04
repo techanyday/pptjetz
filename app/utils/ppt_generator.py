@@ -606,7 +606,7 @@ class PPTGenerator:
                         "{\"slides\": [{\"title\": \"string\", \"content\": [\"string\"]}]}"
                         "\nThe 'slides' array MUST contain exactly the requested number of slides where:"
                         "\n- 'title' is the slide title"
-                        "\n- 'content' is an array of 6 strings where each string has the format \"Point - Elaboration\". The elaboration must directly explain or provide context about the point, NOT instruct the audience. Avoid leading verbs like 'Explore', 'Discover', 'Learn how', 'Understand', etc. Max 20 words."
+                        "\n- 'content' is an array of 6 strings where each string has the format \"Point - Elaboration\". The elaboration must directly explain or provide context about the point, NOT instruct the audience. Avoid leading verbs like 'Explore', 'Discover', 'Learn how', 'Understand', etc. Max 20 words. DO NOT use the double quote character (\") inside bullet content; use apostrophes (') instead if needed."
                         ""
 "\n- The FIRST slide must be an 'Agenda' slide outlining the main sections."
 "\n- The LAST slide must be an 'Outro' or 'Conclusion' slide summarizing key takeaways."
@@ -622,7 +622,7 @@ class PPTGenerator:
                       f"1) Agenda slide; "
                       f"(n-1) topic slides; "
                       f"last slide titled 'Conclusion' or 'Outro'. "
-                      f"Each slide must have a unique title and exactly 6 bullet points, each followed by a direct elaboration sentence (max 20 words) that explains the point itself. Do not start the elaboration with verbs like 'Explore', 'Discover', 'Learn how', 'Understand'."
+                      f"Each slide must have a unique title and exactly 6 bullet points, each followed by a direct elaboration sentence (max 20 words) that explains the point itself. Do not use the \" character inside bullet text. Do not start the elaboration with verbs like 'Explore', 'Discover', 'Learn how', 'Understand'."
                 )
                 }
             ]
@@ -695,6 +695,9 @@ class PPTGenerator:
                 raise Exception("The AI couldn’t generate all slides, please try again or request fewer.")
             raise Exception(f"Error in response format: {str(e)}")
         except json.JSONDecodeError as e:
+            if retries > 0:
+                print(f"Debug - JSON parsing failed ({e}). Retrying... Attempts remaining: {retries}")
+                return self.generate_slide_content(prompt, num_slides, retries - 1)
             raise Exception(f"Error parsing GPT response: {str(e)}")
         except Exception as e:
             raise Exception(f"Error generating content: {str(e)}")
