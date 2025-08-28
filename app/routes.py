@@ -119,12 +119,12 @@ def login() -> Any:
     # Build the authorization URL
     authorization_endpoint = "https://accounts.google.com/o/oauth2/v2/auth"
     redirect_uri = url_for("main.login_callback", _external=True)
+    # Request only non-sensitive scopes to avoid verification prompts.
+    # The app does not call Drive/Slides APIs anymore; PPTX export is local.
     scopes = [
         "openid",
         "email",
         "profile",
-        "https://www.googleapis.com/auth/presentations",
-        "https://www.googleapis.com/auth/drive",
     ]
     # Remember where to go after login; default to generator page
     session["post_login_redirect"] = request.args.get("next") or url_for("main.generate_page")
