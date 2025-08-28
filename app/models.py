@@ -2,6 +2,7 @@ from flask_login import UserMixin
 from datetime import datetime
 import os
 from app import db
+from app.core.config import settings
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -56,8 +57,16 @@ class User(UserMixin, db.Model):
     @property
     def presentations_remaining(self):
         """Calculate remaining presentations for the current month"""
-        # Admins always have unlimited presentations
-        if getattr(self, 'is_admin', False):
+        # Global switch
+        if getattr(settings, 'DISABLE_LIMITS', False):
+            return None
+        # Admins or whitelisted emails always have unlimited presentations
+        unlimited_list = set(
+            e.strip().lower()
+            for e in (settings.UNLIMITED_USERS.split(',') if settings.UNLIMITED_USERS else [])
+            if e.strip()
+        )
+        if getattr(self, 'is_admin', False) or self.email.lower() in unlimited_list:
             return None  # Treat as unlimited
 
         plan_info = self.PLANS.get(self.plan)

@@ -55,3 +55,11 @@ Thumbs.db
 # Include template images
 !app/static/img/templates/
 !app/static/img/templates/*.png
+
+.env
+.env.*
+!.env.example
+creds/
+tmp_previews/
+app/static/previews/
+*.pptx

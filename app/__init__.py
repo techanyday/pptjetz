@@ -7,7 +7,7 @@ print("Loading .env from:", os.path.abspath(env_path))
 load_dotenv(env_path)
 
 from flask import Flask
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
@@ -67,13 +67,19 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
     
-    # Load OpenAI API key
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if api_key:
-        print(f"Debug - API Key loaded: {api_key[:10]}...")
-    else:
-        print("WARNING: No OpenAI API key found!")
+    # Optional: Log presence of Hugging Face token (masked for safety)
+    hf_token = os.environ.get('HF_API_TOKEN')
+    tg_key = os.environ.get('TOGETHER_API_KEY')
+    if hf_token:
+        print(f"Debug - Hugging Face token detected ({hf_token[:8]}…)")
+    elif tg_key:
+        print("Debug - Using Together AI key detected for text generation.")
+    # If neither key is present, remain silent to avoid misleading warnings.
     
+    # Store OAuth client creds in config for downstream helpers
+    app.config["GOOGLE_OAUTH_CLIENT_ID"] = GOOGLE_CLIENT_ID
+    app.config["GOOGLE_OAUTH_CLIENT_SECRET"] = GOOGLE_CLIENT_SECRET
+
     # Configure OAuth client
     client_secrets = {
         "web": {
@@ -109,6 +115,11 @@ def create_app():
     # Register blueprint with URL prefix
     from .routes import bp as main_bp
     app.register_blueprint(main_bp, url_prefix='/')
+    
+    # Make `user` available in templates for compatibility with existing HTML
+    @app.context_processor
+    def inject_user():
+        return {"user": current_user}
     
     # Add debug prints for template loading
     print(f"Template folder path: {app.template_folder}")

@@ -4,124 +4,24 @@
 <style>
 .template-option{display:none !important;}
 </style>
+<script>
+  // Rendered by server: true when global limits are disabled
+  // Wrap in string + JSON.parse so IDE JS linter doesn't choke on template braces
+  const DISABLE_LIMITS = JSON.parse('{{ disable_limits | tojson | safe }}');
+  console.log('DISABLE_LIMITS:', DISABLE_LIMITS);
+  // When DISABLE_LIMITS is true, we will not show upgrade modal on 403
+</script>
 <div class="max-w-4xl mx-auto">
     <div class="bg-white shadow-xl rounded-lg p-6">
         <h1 class="text-3xl font-bold text-center mb-4">AI PowerPoint Generator</h1>
         
-        <div class="text-center mb-8">
-            <p class="text-gray-600">
-                {% if current_plan == 'pay_per_use' %}
-                    Pay per use (GHS {{ (plans['pay_per_use']['price'] * 10) | round(2) }} / ${{ plans['pay_per_use']['price'] | round(2) }} per presentation)
-                {% elif current_plan == 'pro' %}
-                    50 presentations remaining (Pro plan)
-                {% else %}
-                    {{ remaining_presentations }} presentations remaining this month
-                    <br>
-                    <span class="text-sm">({{ current_plan|title }} plan)</span>
-                {% endif %}
-            </p>
-        </div>
         
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-900">AI PowerPoint Generator</h1>
-            <div class="mt-4 flex items-center justify-center gap-4">
-                <div class="bg-white px-4 py-2 rounded-lg shadow-sm border">
-                    <span class="font-semibold">{{ current_plan|title }} Plan</span>
-                    {% if current_plan == 'free' or current_plan == 'creator' %}
-                        <span class="block text-sm text-gray-600">{{ remaining_presentations }} presentations remaining</span>
-                    {% elif current_plan == 'pro' %}
-                        <span class="block text-sm text-gray-600">50 presentations per month</span>
-                    {% else %}
-                        <span class="block text-sm text-gray-600">Pay per use</span>
-                    {% endif %}
-                </div>
-                <button onclick="togglePricingPlans()" class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 transition-colors">
-                    Switch Plan
-                </button>
-            </div>
-        </div>
         
-        <!-- Pricing Plans (Hidden by default) -->
-        <div id="pricingPlans" class="mb-8 bg-white p-6 rounded-lg shadow-md hidden">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">Choose Your Plan</h2>
-                <button onclick="togglePricingPlans()" class="text-gray-500 hover:text-gray-700">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <!-- Free Plan -->
-                <div class="border rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow">
-                    <h3 class="text-xl font-semibold mb-2">Free</h3>
-                    <p class="text-3xl font-bold mb-4">$0</p>
-                    <ul class="text-gray-600 mb-6 text-center">
-                        <li class="mb-2">3 presentations/month</li>
-                        <li class="mb-2">Basic templates</li>
-                        <li class="mb-2">Standard support</li>
-                    </ul>
-                    <button onclick="switchPlan('free')" class="w-full {% if user.plan == 'free' %}bg-gray-500{% else %}bg-blue-500{% endif %} text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
-                        {% if user.plan == 'free' %}Current Plan{% else %}Choose Free{% endif %}
-                    </button>
-                </div>
-
-                <!-- Creator Plan -->
-                <div class="border rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow">
-                    <h3 class="text-xl font-semibold mb-2">Creator</h3>
-                    <p class="text-3xl font-bold mb-1">GHS {{ plans['creator']['price'] | round(2) }}</p>
-                    <p class="text-sm text-gray-500 mb-4">(${{ (plans['creator']['price'] / 10) | round(2) }} USD)</p>
-                    <ul class="text-gray-600 mb-6 text-center">
-                        <li class="mb-2">20 presentations/month</li>
-                        <li class="mb-2">Includes image generation</li>
-                        <li class="mb-2">All templates</li>
-                        <li class="mb-2">Priority support</li>
-                    </ul>
-                    <button onclick="switchPlan('creator')" class="w-full {% if user.plan == 'creator' %}bg-gray-500{% else %}bg-blue-500{% endif %} text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
-                        {% if user.plan == 'creator' %}Current Plan{% else %}Choose Creator{% endif %}
-                    </button>
-                </div>
-
-                <!-- Pro Plan -->
-                <div class="border-2 {% if user.plan == 'pro' %}border-gray-500{% else %}border-blue-500{% endif %} rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow relative overflow-hidden">
-                    <div class="absolute top-0 right-0 bg-blue-500 text-white px-4 py-1 rounded-bl">Popular</div>
-                    <h3 class="text-xl font-semibold mb-2">Pro</h3>
-                    <p class="text-3xl font-bold mb-1">GHS {{ plans['pro']['price'] | round(2) }}</p>
-                    <p class="text-sm text-gray-500 mb-4">(${{ (plans['pro']['price'] / 10) | round(2) }} USD)</p>
-                    <ul class="text-gray-600 mb-6 text-center">
-                        <li class="mb-2">50 presentations/month</li>
-                        <li class="mb-2">Includes image generation</li>
-                        <li class="mb-2">All templates</li>
-                        <li class="mb-2">Premium support</li>
-                    </ul>
-                    <button onclick="switchPlan('pro')" class="w-full {% if user.plan == 'pro' %}bg-gray-500{% else %}bg-blue-500{% endif %} text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
-                        {% if user.plan == 'pro' %}Current Plan{% else %}Choose Pro{% endif %}
-                    </button>
-                </div>
-
-                <!-- Pay per Use Plan -->
-                <div class="border rounded-lg p-6 flex flex-col items-center hover:shadow-lg transition-shadow">
-                    <h3 class="text-xl font-semibold mb-2">Pay per Use</h3>
-                    <p class="text-3xl font-bold mb-1">GHS {{ (plans['pay_per_use']['price'] * 10) | round(2) }}</p>
-                    <p class="text-sm text-gray-500 mb-4">(${{ plans['pay_per_use']['price'] | round(2) }} USD)</p>
-                    <ul class="text-gray-600 mb-6 text-center">
-                        <li class="mb-2">Pay as you go</li>
-                        <li class="mb-2">Includes image generation</li>
-                        <li class="mb-2">All templates</li>
-                        <li class="mb-2">Standard support</li>
-                    </ul>
-                    <button onclick="showPayPerUseModal()" class="w-full {% if user.plan == 'pay_per_use' %}bg-gray-500{% else %}bg-blue-500{% endif %} text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors">
-                        {% if user.plan == 'pay_per_use' %}Current Plan{% else %}Choose Pay per Use{% endif %}
-                    </button>
-                </div>
-            </div>
-        </div>
+        <!-- Removed duplicate caption and plan label UI -->
         
         <form id="presentationForm" class="space-y-6">
-            <div>
-                <label for="num_slides" class="block text-sm font-medium text-gray-700 mb-2">Number of Slides</label>
-                <input type="number" id="num_slides" name="num_slides" min="1" max="20" value="7" class="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-            </div>
+            <!-- Number of Slides control hidden to preserve logic -->
+            <input type="hidden" id="num_slides" name="num_slides" value="7">
             
             <div>
                 <label for="prompt" class="block text-sm font-medium text-gray-700 mb-2">What should the presentation be about?</label>
@@ -164,19 +64,21 @@
                         <img src="{{ url_for('static', filename='img/templates/Clean and Neat.png') }}" alt="Clean and Neat template" class="w-full h-32 object-cover rounded-lg" />
                         <p class="text-center mt-2">Neat and Clean</p>
                     </div>
-<input type="hidden" id="template_style" name="template_style" value="">
+<div>
+                <label for="theme" class="block text-sm font-medium text-gray-700 mb-2">Choose Theme</label>
+                <select id="theme" name="theme" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <option value="SLEEK">SLEEK</option>
+                    <option value="PULSE">PULSE</option>
+                    <option value="MINIMAL FLUX">MINIMAL FLUX</option>
+                    <option value="BLUE HORIZON">BLUE HORIZON</option>
+                </select>
+            </div>
             
-            {% if current_plan in ['creator', 'pro', 'pay_per_use'] %}
-            <div class="flex items-center mb-4">
-                <input type="checkbox" id="include_images" class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                <label for="include_images" class="text-sm font-medium text-gray-700">Include Images</label>
+            <!-- Include Images control visually hidden to preserve logic (JS reads .checked) -->
+            <div class="hidden">
+                <input type="checkbox" id="include_images" class="mr-2 h-4 w-4" checked>
+                <label for="include_images">Include Images</label>
             </div>
-            {% else %}
-            <div class="flex items-center mb-4 opacity-50">
-                <input type="checkbox" id="include_images" disabled class="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded">
-                <label for="include_images" class="text-sm font-medium text-gray-700">Include Images (Paid Feature)</label>
-            </div>
-            {% endif %}
             
             <div class="text-center">
                 <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
@@ -187,123 +89,188 @@
     </div>
 </div>
 
-<!-- Upgrade Modal -->
-<div id="upgradeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 hidden">
-    <div class="bg-white rounded-lg p-8 max-w-md w-full shadow-lg">
-        <h2 class="text-2xl font-semibold mb-4 text-center">Usage Limit Reached</h2>
-        <p class="text-gray-700 mb-6 text-center">You've reached your current plan's limit. Upgrade to continue creating presentations.</p>
-        <div class="flex justify-center gap-4">
-            <button onclick="closeUpgradeModal()" class="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300">Maybe Later</button>
-            <button onclick="openPricingAndCloseModal()" class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">View Plans</button>
-        </div>
+<!-- Preview Section -->
+<div id="previewSection" class="max-w-4xl mx-auto mt-8 hidden">
+  <div class="bg-white shadow-xl rounded-lg p-6">
+    <h2 class="text-2xl font-bold mb-4">Preview</h2>
+    <div id="slidesPreview" class="space-y-4"></div>
+    <div class="text-center mt-6">
+      <button id="exportBtn" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">Export PPTX</button>
     </div>
+  </div>
 </div>
 
 <script>
-// Toggle pricing plans visibility
-function togglePricingPlans() {
-    const pricingPlans = document.getElementById('pricingPlans');
-    if (pricingPlans.classList.contains('hidden')) {
-        // Show pricing plans with animation
-        pricingPlans.classList.remove('hidden');
-        pricingPlans.classList.add('animate-fade-in');
-        // Scroll to pricing plans
-        pricingPlans.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-        // Hide pricing plans
-        pricingPlans.classList.add('hidden');
-        pricingPlans.classList.remove('animate-fade-in');
-    }
+// Skeletons
+// Globals to share state between generate and export handlers
+let lastSlides = null;
+let lastThemeName = null;
+let lastTitle = 'Generated Presentation';
+function showSkeletons(count = 6) {
+    const container = document.getElementById('slidesPreview');
+    const cards = Array.from({length: count}).map(() => `
+      <div class="border rounded-lg p-2 animate-pulse">
+        <div class="h-4 w-24 bg-gray-200 rounded mb-2"></div>
+        <div class="w-full h-40 bg-gray-200 rounded"></div>
+      </div>
+    `).join('');
+    container.innerHTML = `<div class="grid grid-cols-1 gap-4 md:grid-cols-2">${cards}</div>`;
+    const section = document.getElementById('previewSection');
+    section.classList.remove('hidden');
 }
 
-// Payment initialization function
-async function initializePayment() {
+function showEmptyState() {
+    const container = document.getElementById('slidesPreview');
+    container.innerHTML = `<div class="text-gray-600 text-center py-8">No previews yet. Click <span class="font-semibold">Export PPTX</span> to generate.</div>`;
+    const section = document.getElementById('previewSection');
+    section.classList.remove('hidden');
+}
+
+function renderPreview(slides) {
+    const container = document.getElementById('slidesPreview');
+    const section = document.getElementById('previewSection');
+    if (!slides || !Array.isArray(slides) || slides.length === 0) {
+        section.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+    }
+    const html = slides.map((s, idx) => {
+        const title = s.title || s.type || `Slide ${idx+1}`;
+        const bullets = (s.content && (s.content.bullets || s.content.points)) || [];
+        const bulletHtml = Array.isArray(bullets) ? bullets.map(b => `<li class=\"list-disc ml-5\">${b}</li>`).join('') : '';
+        return `
+          <div class=\"border rounded-lg p-4\">\n                <div class=\"text-sm text-gray-500\">${idx+1}</div>\n                <h3 class=\"text-lg font-semibold\">${title}</h3>\n                ${bulletHtml ? `<ul class=\"mt-2\">${bulletHtml}</ul>` : ''}\n              </div>`;
+    }).join('');
+    container.innerHTML = html;
+    section.classList.remove('hidden');
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Thumbnails rendering
+function renderThumbnails(slideList) {
+    const container = document.getElementById('slidesPreview');
+    if (!Array.isArray(slideList) || slideList.length === 0) {
+        showEmptyState();
+        return;
+    }
+    const now = Date.now();
+    const grid = slideList.map((s) => {
+      const url = s.url ? `${s.url}${s.url.includes('?') ? '&' : '?'}v=${now}-${s.n || ''}` : '';
+      return `
+      <div class="border rounded-lg p-2 cursor-pointer group" data-index="${s.n}">
+        <div class="text-xs text-gray-500 mb-1">Slide ${s.n}</div>
+        <div class="w-full bg-gray-50 rounded border overflow-hidden">
+          <img loading="lazy" src="${url}" alt="Slide ${s.n}" class="w-full h-48 object-contain bg-gray-100 group-hover:opacity-95 transition" />
+        </div>
+      </div>
+    `}).join('');
+    container.innerHTML = `<div class="grid grid-cols-1 gap-4 md:grid-cols-2">${grid}</div>`;
+
+    // Click handlers for lightbox
+    container.querySelectorAll('[data-index]').forEach(el => {
+        el.addEventListener('click', () => openLightbox(parseInt(el.getAttribute('data-index'))));
+    });
+    document.getElementById('previewSection').classList.remove('hidden');
+}
+
+async function fetchAndRenderPreviews(deckId) {
+    showSkeletons();
     try {
-        const response = await fetch('/initialize_payment', {
+        const resp = await fetch(`/api/previews/${deckId}`);
+        if (resp.status === 404) { console.warn('API previews 404 for deck', deckId); showEmptyState(); return; }
+        const data = await resp.json();
+        console.log('API previews count:', data && data.count);
+        renderThumbnails(data.slides || []);
+    } catch (e) {
+        console.error('Failed to load previews', e);
+        showEmptyState();
+    }
+}
+
+// Lightbox modal
+const lightbox = document.createElement('div');
+lightbox.id = 'lightboxModal';
+lightbox.className = 'fixed inset-0 z-50 hidden';
+lightbox.innerHTML = `
+  <div class="absolute inset-0 bg-black/70"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="relative bg-white rounded-lg shadow-xl max-w-5xl w-full p-4">
+      <button id="lbClose" class="absolute top-2 right-2 text-gray-600 hover:text-black" aria-label="Close">✕</button>
+      <div class="flex items-center gap-4">
+        <button id="lbPrev" class="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200" aria-label="Previous">◀</button>
+        <img id="lbImage" src="" alt="Slide" class="max-h-[70vh] w-full object-contain border rounded" />
+        <button id="lbNext" class="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200" aria-label="Next">▶</button>
+      </div>
+      <div id="lbCaption" class="mt-2 text-center text-sm text-gray-600"></div>
+    </div>
+  </div>`;
+document.body.appendChild(lightbox);
+
+let lbIndex = 1;
+let lbSlides = [];
+function setLightbox(n) {
+    if (!lbSlides.length) return;
+    lbIndex = Math.max(1, Math.min(n, lbSlides.length));
+    const s = lbSlides[lbIndex - 1];
+    document.getElementById('lbImage').src = s.url;
+    document.getElementById('lbCaption').textContent = `Slide ${s.n}`;
+}
+function openLightbox(n) {
+    setLightbox(n);
+    lightbox.classList.remove('hidden');
+}
+function closeLightbox() { lightbox.classList.add('hidden'); }
+document.getElementById('lbClose').addEventListener('click', closeLightbox);
+document.getElementById('lbPrev').addEventListener('click', () => setLightbox(lbIndex - 1));
+document.getElementById('lbNext').addEventListener('click', () => setLightbox(lbIndex + 1));
+lightbox.addEventListener('click', (e) => { if (e.target === lightbox.firstChild) closeLightbox(); });
+document.addEventListener('keydown', (e) => { if (!lightbox.classList.contains('hidden') && e.key === 'Escape') closeLightbox(); });
+
+document.getElementById('exportBtn').addEventListener('click', async function() {
+    if (!lastSlides) {
+        alert('Generate slides first.');
+        return;
+    }
+    try {
+        const resp = await fetch('/export', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deck_title: lastTitle, slides: lastSlides, theme_name: lastThemeName || document.getElementById('theme').value })
         });
-        
-        const data = await response.json();
-        if (data.success) {
-            // Redirect to Paystack payment page
-            window.location.href = data.authorization_url;
+        const data = await resp.json();
+        if (data && data.ok) {
+            const url = data.download_url;
+            if (url) {
+                // Auto-trigger download
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'presentation.pptx';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                // Also show a persistent link below preview
+                const dl = `<div class="text-center mt-6"><a href="${url}" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700" download>Download PPTX</a></div>`;
+                const container = document.getElementById('slidesPreview');
+                container.insertAdjacentHTML('beforeend', dl);
+                document.getElementById('previewSection').classList.remove('hidden');
+                document.getElementById('previewSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                alert('Export succeeded but no download URL returned');
+            }
         } else {
-            alert(data.error || 'Error initializing payment');
+            const detail = data && data.details ? `\nDetails: ${data.details}` : '';
+            const stderr = data && data.stderr ? `\nLog: ${data.stderr}` : '';
+            alert((data && data.error ? data.error : 'Export failed') + detail + stderr);
         }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error initializing payment');
+    } catch (e) {
+        console.error(e);
+        alert('Export failed');
     }
-}
+});
 
-// Plan switching functionality
-async function switchPlan(planType) {
-    if (confirm(`Switch to ${planType.charAt(0).toUpperCase() + planType.slice(1)} Plan?`)) {
-        try {
-            console.log(`Switching to plan: ${planType}`);
-            const response = await fetch(`/switch_plan/${planType}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'same-origin'
-            });
-            
-            const data = await response.json();
-            console.log('Response:', data);
-            
-            if (data.success) {
-                console.log('Plan switch successful, reloading...');
-                window.location.reload();
-            } else if (data.payment_url) {
-                console.log('Redirecting to payment:', data.payment_url);
-                window.location.href = data.payment_url;
-            } else {
-                console.error('Error:', data.error);
-                alert(data.error || 'Error switching plans');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error switching plans');
-        }
-    }
-}
 
-// Pay per use modal functionality
-function showPayPerUseModal() {
-    const ghsPrice = {{ (plans['pay_per_use']['price'] * 10) | round(2) }};
-    const usdPrice = {{ plans['pay_per_use']['price'] | round(2) }};
-    const message = `Switch to Pay-per-Presentation Plan?\n\nPricing:\n- GHS ${ghsPrice} / $${usdPrice} per presentation\n- No monthly limits\n- Pay only for what you use\n\nWould you like to switch to this plan?`;
-    if (confirm(message)) {
-        // Send request to switch to pay-per-use plan
-        fetch('/switch_plan/pay_per_use', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                window.location.reload();
-            } else {
-                alert(data.error || 'Error switching plans');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error switching plans');
-        });
-    }
-}
-
+// Form submission
 document.addEventListener('DOMContentLoaded', function() {
-
-
-    // Form submission
     document.getElementById('presentationForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         
@@ -313,11 +280,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const formData = {
             title: 'Generated Presentation',
+            subtitle: '',
             presenter: '{{ user.name }}',
-            prompt: document.getElementById('prompt').value,
+            date: '',
+            input_text: document.getElementById('prompt').value,
             num_slides: parseInt(document.getElementById('num_slides').value),
-            template_style: document.getElementById('template_style').value,
-             include_images: document.getElementById('include_images').checked
+            theme_name: document.getElementById('theme').value,
+            include_images: document.getElementById('include_images').checked
         };
 
         try {
@@ -330,17 +299,20 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             const data = await response.json();
-            
-            if (data.success) {
-                window.location.href = data.download_url;
-            } else if (response.status === 402) {
-                // Payment required for pay-per-use
-                await initializePayment();
-            } else if (response.status === 403) {
-                // Usage limit exceeded – show upgrade modal
-                showUpgradeModal();
+            console.log('Generate response:', response.status, data);
+
+            if ((data && data.ok) || (data && Array.isArray(data.slides) && data.slides.length)) {
+                console.log('Slides generated:', data.slides);
+                lastSlides = data.slides;
+                lastThemeName = data.theme_name || document.getElementById('theme').value;
+                lastTitle = formData.title;
+                renderPreview(lastSlides);
             } else {
-                alert(data.error || 'Error generating presentation');
+                if (data && Array.isArray(data.errors) && data.errors.length) {
+                    alert(`Slide issues:\n- ${data.errors.join('\n- ')}`);
+                } else {
+                    alert(data && data.error ? data.error : 'Error generating presentation');
+                }
             }
         } catch (error) {
             console.error('Error:', error);
@@ -351,22 +323,5 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
-    // Upgrade modal helper functions
-    function showUpgradeModal() {
-        document.getElementById('upgradeModal').classList.remove('hidden');
-    }
-    function closeUpgradeModal() {
-        document.getElementById('upgradeModal').classList.add('hidden');
-    }
-    function openPricingAndCloseModal() {
-        closeUpgradeModal();
-        const pricingPlans = document.getElementById('pricingPlans');
-        if (pricingPlans && pricingPlans.classList.contains('hidden')) {
-            togglePricingPlans();
-        }
-        if (pricingPlans) {
-            pricingPlans.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    }
 </script>
 {% endblock %}

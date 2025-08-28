@@ -1,28 +1,25 @@
-# PPTJet: AI-Powered PowerPoint Generator
+# PPTJetX: AI-Powered Google Slides Generator
 
-PPTJet is a modern web application that leverages OpenAI's GPT models to automatically generate professional PowerPoint presentations. With a selection of beautiful templates and AI-driven content generation, create engaging presentations in minutes.
+PPTJetX is a modern web application that leverages Hugging Face’s Mistral-7B-Instruct model to automatically generate compelling slide content, then builds a complete presentation through the Google Slides API.  Generate a beautifully-designed deck in seconds – ready to share or download – without touching PowerPoint.
 
 ## 🌟 Features
 
-- **AI-Powered Content Generation**: Automatically generates slide content based on your prompt
-- **Multiple Template Styles**:
-  - 🎨 Aesthetic: Modern and creative design
-  - 👔 Professional: Business-ready presentation
-  - 🕰️ Vintage: Classic and elegant style
+- **AI-Powered Content Generation**: Hugging Face Mistral-7B-Instruct writes concise, engaging slide text from your prompt
+- **Minimalist, Responsive Themes**: Clean design optimised for readability and Google Slides
 - **Customization Options**:
   - Number of slides
   - Presenter information
   - Optional image integration
 - **Responsive Web Interface**: Modern UI with real-time template preview
-- **Download Ready**: Get your presentation in .pptx format instantly
+- **Instant Google Slides Export**: Receive a shareable Google Slides URL and optional PPTX download link
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- Python 3.8+
-- OpenAI API key
-- PowerPoint (for template customization)
+- Python 3.9+
+- A free Hugging Face Inference API token (`HF_API_TOKEN`)
+- A Google Cloud service-account JSON key with Slides & Drive scope (`GOOGLE_APPLICATION_CREDENTIALS`)
 
 ### Installation
 
@@ -43,19 +40,20 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Create a .env file with your API keys:
-```
-OPENAI_API_KEY=your_openai_api_key
-FLASK_SECRET_KEY=your_secret_key
-PEXELS_API_KEY=your_pexels_api_key  # Optional, for image support
+4. Create a `.env` file with the following keys (example):
+```dotenv
+HF_API_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/your-service-account.json
+FLASK_SECRET_KEY=super-secret-key
+PAYSTACK_SECRET_KEY=pk_test_xxx    # Only required for pay-per-use payments
 ```
 
-5. Run the application:
+5. Run the application locally:
 ```bash
 python -m flask --app run.py run --debug
 ```
 
-Visit `http://127.0.0.1:5000` in your browser to start using PPTJet.
+Visit `http://127.0.0.1:5000` in your browser to start using PPTJetX.
 
 ## 🎯 Usage
 
@@ -74,10 +72,10 @@ Visit `http://127.0.0.1:5000` in your browser to start using PPTJet.
 ## 🛠️ Technical Stack
 
 - **Backend**: Flask (Python)
-- **Frontend**: HTML, JavaScript, TailwindCSS
-- **PowerPoint Generation**: python-pptx
-- **AI Integration**: OpenAI API
-- **Image Support**: Pexels API (optional)
+- **AI Integration**: ChatGPT 3.5 Turbo (via `CHATGPT_API_TOKEN`)
+- **Slides Generation**: Google Slides REST API & Drive export
+- **Auth & Payments**: Google OAuth 2.0, Paystack (optional)
+- **Frontend**: HTML / TailwindCSS / Alpine.js
 
 ## 📁 Project Structure
 
@@ -85,16 +83,14 @@ Visit `http://127.0.0.1:5000` in your browser to start using PPTJet.
 PPTJet/
 ├── app/
 │   ├── static/
-│   │   ├── img/                    # Template previews
-│   │   └── presentations/
-│   │       └── custom_styles/      # Template files
 │   ├── templates/                  # HTML templates
 │   └── utils/
-│       └── ppt_generator.py        # PowerPoint generation logic
+│       ├── chatgpt_client.py       # ChatGPT 3.5 Turbo client
+│       └── slides_api.py           # Google Slides helpers (batchUpdate)
 ├── generated/                      # Output directory
-├── .env                           # Environment variables
-├── requirements.txt               # Python dependencies
-└── run.py                        # Application entry point
+├── .env                            # Environment variables
+├── requirements.txt                # Python dependencies
+└── run.py                          # Application entry point
 ```
 
 ## 🤝 Contributing
@@ -107,7 +103,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🙏 Acknowledgments
 
-- OpenAI for their powerful GPT models
-- python-pptx for PowerPoint generation capabilities
+- Hugging Face for open access to powerful language models
+- Google for the Slides & Drive APIs
 - Flask team for the excellent web framework
-- Pexels for image integration support

@@ -1,885 +1,471 @@
-import os
-import json
-import requests
-import secrets
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
-from functools import wraps
-from flask import Blueprint, request, render_template, send_from_directory, jsonify, url_for, redirect, current_app, flash, session
-import requests
-from flask_login import login_required, login_user, logout_user, current_user
-from app.utils.ppt_generator import PPTGenerator
-from app.models import User
-from app.presentation_log import PresentationLog
-from app import db
-from datetime import datetime
+from __future__ import annotations
 
-# Google OAuth 2.0 endpoints
-GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
+from typing import Any, Dict, List
+import re
+import os
+import requests
+
+from flask import Blueprint, jsonify, request, render_template, redirect, url_for, current_app, session, send_from_directory
+from flask_login import login_user, logout_user, current_user
+
+from app.services.ai_content import create_deck_slides
+# Preview PNG generation is removed; only PPTX export remains
+from app.services.pptx_builder import build_pptx_from_positions
+from app import db
+from app.models import User
+
 
 bp = Blueprint("main", __name__)
 
-# Template image routes
-@bp.route('/static/images/templates/<template>.jpg')
-def serve_template_image(template):
-    image_path = os.path.join('images', 'templates', f'{template}.jpg')
-    return send_from_directory(current_app.static_folder, image_path, mimetype='image/jpeg')
 
-# Get the absolute path to the generated directory
-GENERATED_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'generated'))
-os.makedirs(GENERATED_FOLDER, exist_ok=True)
+THEME_OPTIONS = [
+    "SLEEK",
+    "PULSE",
+    "MINIMAL FLUX",
+    "BLUE HORIZON",
+]
 
-# ====================
-# Download token serializer (signed, timed)
-# ====================
+# Root directory for per-request preview images (legacy temp + static web-served)
+PREVIEW_ROOT = os.path.join(os.getcwd(), "tmp_previews")
+os.makedirs(PREVIEW_ROOT, exist_ok=True)
 
-def _get_serializer():
-    """Return a URLSafeTimedSerializer using the app's secret key."""
-    secret_key = current_app.config.get('SECRET_KEY')
-    return URLSafeTimedSerializer(secret_key, salt='download-token')
-
-# ------------------
-# Admin decorator
-# ------------------
-
-def admin_required(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if not current_user.is_authenticated or not getattr(current_user, 'is_admin', False):
-            flash('Admin privileges required', 'error')
-            return redirect(url_for('main.index'))
-        return f(*args, **kwargs)
-    return wrapper
-
-# In-memory download_tokens dict deprecated – using signed tokens now
-
-def get_google_provider_cfg():
-    return requests.get(GOOGLE_DISCOVERY_URL).json()
+# Static previews removed; we only serve PPTX files from PREVIEW_ROOT
 
 
-@bp.route("/")
-def index():
-    return render_template('index.html', user=current_user)
+# Legacy static previews endpoint removed
 
-@bp.route("/privacy")
-def privacy():
-    return render_template('privacy.html', user=current_user, current_date='May 13, 2025')
 
-@bp.route("/terms")
-def terms():
-    return render_template('terms.html', user=current_user, current_date='May 13, 2025')
+@bp.get("/download/<folder>/<fname>")
+def download_file(folder: str, fname: str):
+    """Serve the generated PPTX for download from PREVIEW_ROOT."""
+    return send_from_directory(os.path.join(PREVIEW_ROOT, folder), fname, as_attachment=True)
 
-# ------------------
-# Informational pages
-# ------------------
+# Note: Google Slides template IDs are no longer used; export is local PPTX via python-pptx.
 
-@bp.route("/how-it-works")
-def how_it_works():
-    """Render a rich, text-heavy explanation of how PPTJet works."""
-    return render_template('how_it_works.html', user=current_user)
 
-@bp.route("/about")
-def about():
-    """Render the About Us page."""
-    return render_template('about_us.html', user=current_user)
+@bp.get("/")
+def home() -> Any:
+    """Render a minimal UI to generate and export decks."""
+    return render_template("index.html", themes=THEME_OPTIONS)
 
-@bp.route("/faq")
-def faq():
-    """Render the Frequently Asked Questions page."""
-    return render_template('faq.html', user=current_user)
 
-@bp.route("/pricing")
-def pricing():
-    """Render the Pricing page with package details."""
-    return render_template('pricing.html', user=current_user, plans=User.PLANS)
+@bp.get("/themes")
+def themes() -> Any:
+    """Return available theme names."""
+    return jsonify({"ok": True, "themes": [{"name": n} for n in THEME_OPTIONS]})
 
-# ------------------
-# Blog routes
-# ------------------
 
-@bp.route("/blog")
-def blog_index():
-    """Render the blog index page listing all blog posts."""
-    from datetime import datetime
-    # Build the posts metadata list (could later be database-driven)
-    posts = [
-        {
-            'title': 'The Future of Presentations: Why AI Is Reshaping Slide Creation',
-            'description': 'How AI is transforming slide creation and storytelling.',
-            'url': url_for('main.blog_future'),
-            'image': None
-        },
-        {
-            'title': 'From Idea to Slide: How PPTJet Transforms Presentations with AI',
-            'description': 'See how PPTJet turns raw ideas into structured slides in seconds.',
-            'url': url_for('main.blog_idea_to_slide'),
-            'image': None
-        },
-        {
-            'title': 'When the Slides Write Themselves',
-            'description': 'Real-world use-cases showing PPTJet saving time for everyone.',
-            'url': url_for('main.blog_slides_write_themselves'),
-            'image': None
-        },
-        {
-            'title': 'Design Less, Communicate More: Why Minimalism Works',
-            'description': 'Minimalist principles that make presentations clear and memorable.',
-            'url': url_for('main.blog_minimalism'),
-            'image': None
-        },
+# Simple static page routes to satisfy existing template links
+@bp.get("/how-it-works")
+def how_it_works() -> Any:
+    return render_template("how_it_works.html")
+
+
+# Pricing page removed for free app
+
+
+@bp.get("/faq")
+def faq() -> Any:
+    return render_template("faq.html")
+
+
+@bp.get("/privacy")
+def privacy() -> Any:
+    return render_template("privacy.html")
+
+
+@bp.get("/terms")
+def terms() -> Any:
+    return render_template("terms.html")
+
+
+@bp.get("/about")
+def about() -> Any:
+    return render_template("about_us.html")
+
+
+@bp.get("/blog")
+def blog_index() -> Any:
+    return render_template("blog_index.html")
+
+
+@bp.get("/dashboard")
+def dashboard() -> Any:
+    return render_template("dashboard.html")
+
+
+@bp.get("/admin")
+def admin_dashboard_page() -> Any:
+    return render_template("admin/dashboard.html")
+
+
+@bp.get("/generate")
+def generate_page() -> Any:
+    """Render generator UI; app is free with unlimited usage."""
+    disable_limits = True
+    return render_template(
+        "generate.html",
+        disable_limits=disable_limits,
+        user=current_user,
+    )
+
+@bp.get("/login")
+def login() -> Any:
+    """Start Google OAuth2 login by redirecting to Google's consent screen."""
+    client = current_app.config.get("OAUTH_CLIENT")
+    if client is None:
+        return redirect(url_for("main.home"))
+
+    # Build the authorization URL
+    authorization_endpoint = "https://accounts.google.com/o/oauth2/v2/auth"
+    redirect_uri = url_for("main.login_callback", _external=True)
+    scopes = [
+        "openid",
+        "email",
+        "profile",
+        "https://www.googleapis.com/auth/presentations",
+        "https://www.googleapis.com/auth/drive",
     ]
-    return render_template('blog_index.html', user=current_user, posts=posts, datetime=datetime)
+    # Remember where to go after login; default to generator page
+    session["post_login_redirect"] = request.args.get("next") or url_for("main.generate_page")
 
-@bp.route("/blog/future-of-presentations")
-def blog_future():
-    """Render the first blog post page."""
-    from datetime import datetime
-    return render_template('blog_future_ai_presentations.html', user=current_user, datetime=datetime)
-
-@bp.route("/blog/idea-to-slide")
-def blog_idea_to_slide():
-    """Render the second blog post page about PPTJet transformation."""
-    from datetime import datetime
-    return render_template('blog_idea_to_slide.html', user=current_user, datetime=datetime)
-
-@bp.route("/blog/when-slides-write-themselves")
-def blog_slides_write_themselves():
-    """Render the third blog post page about self-writing slides."""
-    from datetime import datetime
-    return render_template('blog_slides_write_themselves.html', user=current_user, datetime=datetime)
-
-@bp.route("/blog/design-less-communicate-more")
-def blog_minimalism():
-    """Render the blog post about minimalist design and storytelling."""
-    from datetime import datetime
-    return render_template('blog_minimalism_presentations.html', user=current_user, datetime=datetime)
-
-# ------------------
-# SEO routes (robots.txt & sitemap.xml)
-# ------------------
-
-@bp.route('/robots.txt')
-def robots_txt():
-    """Serve robots.txt referencing the sitemap."""
-    from flask import Response, url_for
-    sitemap_url = url_for('main.sitemap_xml', _external=True)
-    content = f"User-agent: *\nAllow: /\nSitemap: {sitemap_url}\n"
-    return Response(content, mimetype='text/plain')
-
-@bp.route('/sitemap.xml')
-def sitemap_xml():
-    """Generate a simple static-like sitemap."""
-    from flask import Response, url_for
-    pages = [
-        url_for('main.index', _external=True),
-        url_for('main.how_it_works', _external=True),
-        url_for('main.about', _external=True),
-        url_for('main.faq', _external=True),
-        url_for('main.pricing', _external=True),
-        url_for('main.blog_index', _external=True),
-        url_for('main.blog_future', _external=True),
-        url_for('main.blog_idea_to_slide', _external=True),
-        url_for('main.blog_slides_write_themselves', _external=True),
-        url_for('main.blog_minimalism', _external=True),
-        url_for('main.privacy', _external=True),
-        url_for('main.terms', _external=True),
-    ]
-    xml_lines = ["<?xml version='1.0' encoding='UTF-8'?>", "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>"]
-    for page in pages:
-        xml_lines.append(f"  <url><loc>{page}</loc></url>")
-    xml_lines.append("</urlset>")
-    return Response("\n".join(xml_lines), mimetype='application/xml')
-
-@bp.route("/login")
-def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('main.index'))
-    
-    # Get Google's OAuth 2.0 endpoints
-    google_provider_cfg = get_google_provider_cfg()
-    authorization_endpoint = google_provider_cfg["authorization_endpoint"]
-    
-    # OAuth client
-    client = current_app.config['OAUTH_CLIENT']
-
-    # Build redirect URI dynamically based on current host
-    redirect_uri = url_for('main.callback', _external=True)
-
-    # Allow insecure transport when running on localhost
-    if request.host.startswith('localhost') or request.host.startswith('127.0.0.1'):
-        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-    
-    print(f"Debug - Login redirect URI: {redirect_uri}")
-    
     request_uri = client.prepare_request_uri(
         authorization_endpoint,
         redirect_uri=redirect_uri,
-        scope=["openid", "email", "profile"],
+        scope=scopes,
+        access_type="offline",
+        prompt="consent",
     )
     return redirect(request_uri)
 
-@bp.route("/login/callback")
-def callback():
-    try:
-        # Get the authorization code from the request
-        code = request.args.get("code")
-        if not code:
-            return "Error: No code provided", 400
 
-        # Prepare token endpoint
-        google_provider_cfg = get_google_provider_cfg()
-        token_endpoint = google_provider_cfg["token_endpoint"]
+@bp.get("/login/callback")
+def login_callback() -> Any:
+    """Handle Google's OAuth2 callback, exchange code, fetch user info, and log in."""
+    client = current_app.config.get("OAUTH_CLIENT")
+    if client is None:
+        return redirect(url_for("main.home"))
 
-        # Reconstruct redirect_uri based on current host
-        redirect_uri = url_for('main.callback', _external=True)
-        if request.host.startswith('localhost') or request.host.startswith('127.0.0.1'):
-            os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-        
-        print(f"Debug - Callback redirect URI: {redirect_uri}")
+    code = request.args.get("code")
+    if not code:
+        return redirect(url_for("main.home"))
 
-        # Prepare the token request
-        client = current_app.config['OAUTH_CLIENT']
-        token_url, headers, body = client.prepare_token_request(
-            token_endpoint,
-            authorization_response=request.url,
-            redirect_url=redirect_uri,
-            code=code
-        )
+    token_endpoint = "https://oauth2.googleapis.com/token"
+    redirect_uri = url_for("main.login_callback", _external=True)
+    client_id = current_app.config.get("GOOGLE_OAUTH_CLIENT_ID") or os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+    client_secret = current_app.config.get("GOOGLE_OAUTH_CLIENT_SECRET") or os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 
-        # Get client credentials from the OAuth client config
-        client_secrets = {
-            "web": {
-                "client_id": os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
-                "client_secret": os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
-            }
-        }
-
-        # Build the token payload including client credentials
-        import urllib.parse
-        token_payload = dict(urllib.parse.parse_qsl(body))
-        token_payload["client_id"] = client_secrets["web"]["client_id"]
-        token_payload["client_secret"] = client_secrets["web"]["client_secret"]
-
-        # --- Debug: Token Request ---
-        print("\n--- GOOGLE OAUTH TOKEN REQUEST ---")
-        print("URL:", token_url)
-        print("Payload:", token_payload)
-        print("----------------------------------")
-
-        token_response = requests.post(
-            token_url,
-            headers=headers,
-            data=token_payload,
-        )
-
-        # Check if the token request was successful
-        if not token_response.ok:
-            error_data = token_response.json()
-            print(f"Token Error Response: {error_data}")
-            return f"Error getting token: {error_data.get('error_description', 'Unknown error')}", 400
-
-        # Parse the tokens
-        token_data = token_response.json()
-        if 'error' in token_data:
-            print(f"Token Error: {token_data}")
-            return f"Error in token response: {token_data.get('error_description', 'Unknown error')}", 400
-
-        client.parse_request_body_response(json.dumps(token_data))
-
-        # Get user info from Google
-        print("Debug - Getting user info from Google...")
-        userinfo_endpoint = google_provider_cfg["userinfo_endpoint"]
-        uri, headers, body = client.add_token(userinfo_endpoint)
-        print(f"Debug - User info request: URI={uri}, Headers={headers}")
-        
-        userinfo_response = requests.get(uri, headers=headers, data=body)
-        print(f"Debug - User info response status: {userinfo_response.status_code}")
-        print(f"Debug - User info response: {userinfo_response.json()}")
-
-        if userinfo_response.json().get("email_verified"):
-            unique_id = userinfo_response.json()["sub"]
-            users_email = userinfo_response.json()["email"]
-            users_name = userinfo_response.json()["given_name"]
-            picture = userinfo_response.json()["picture"]
-            # Determine if the logged-in user is an admin based on configured admin emails
-            is_admin_user = users_email.lower() in current_app.config.get('ADMIN_EMAILS', [])
-            print(f"Debug - Admin status for {users_email}: {is_admin_user}")
-
-            # Create or update user
-            user = User.query.get(unique_id)
-            if not user:
-                user = User(id_=unique_id, email=users_email, name=users_name, profile_pic=picture, is_admin=is_admin_user)
-                db.session.add(user)
-            else:
-                user.email = users_email
-                user.name = users_name
-                user.profile_pic = picture
-                user.is_admin = is_admin_user
-            
-            db.session.commit()
-            login_user(user)
-            return redirect(url_for('main.index'))
-        else:
-            return "User email not verified by Google.", 400
-            
-    except Exception as e:
-        print(f"Error in callback: {str(e)}")
-        return f"Error processing callback: {str(e)}", 400
-    
-        # Build the token payload including client credentials
-        import urllib.parse
-        token_payload = dict(urllib.parse.parse_qsl(body))
-        token_payload["client_id"] = client_secrets["web"]["client_id"]
-        token_payload["client_secret"] = client_secrets["web"]["client_secret"]
-
-        # --- Debug: Token Request ---
-        print("\n--- GOOGLE OAUTH TOKEN REQUEST ---")
-        print("URL:", token_url)
-        print("Payload:", token_payload)
-        print("----------------------------------")
-
-        token_response = requests.post(
-            token_url,
-            headers=headers,
-            data=token_payload,
-        )
-
-        # Check if the token request was successful
-        if not token_response.ok:
-            error_data = token_response.json()
-            print(f"Token Error Response: {error_data}")
-            return f"Error getting token: {error_data.get('error_description', 'Unknown error')}", 400
-
-        # Parse the tokens
-        token_data = token_response.json()
-        if 'error' in token_data:
-            print(f"Token Error: {token_data}")
-            return f"Error in token response: {token_data.get('error_description', 'Unknown error')}", 400
-
-        client.parse_request_body_response(json.dumps(token_data))
-
-    # Get user info from Google
-    userinfo_endpoint = google_provider_cfg["userinfo_endpoint"]
-    uri, headers, body = client.add_token(userinfo_endpoint)
-    userinfo_response = requests.get(uri, headers=headers, data=body)
-
-    if userinfo_response.json().get("email_verified"):
-        unique_id = userinfo_response.json()["sub"]
-        users_email = userinfo_response.json()["email"]
-        users_name = userinfo_response.json()["given_name"]
-        picture = userinfo_response.json()["picture"]
-
-        # Create or update user in our db with the information provided by Google
-        # Get or create user
-        user = User.query.get(unique_id)
-        if not user:
-            is_admin_user = users_email in ADMIN_EMAILS
-            user = User(
-                id_=unique_id,
-                name=users_name,
-                email=users_email,
-                profile_pic=picture,
-                is_admin=is_admin_user
-            )
-            db.session.add(user)
-            db.session.commit()
-
-        # Begin user session by logging the user in
-        login_user(user)
-
-        # Send user back to homepage
-        return redirect(url_for('main.index'))
-    else:
-        return "User email not available or not verified by Google.", 400
-
-@bp.route("/logout")
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('main.login'))
-
-
-@bp.route("/generate", methods=["GET", "POST"])
-@login_required
-def generate():
-    if request.method == "GET":
-        # Check if we need to reset the monthly count
-        if current_user.last_reset and (datetime.now() - current_user.last_reset).days >= 30:
-            current_user.presentations_count = 0
-            current_user.last_reset = datetime.utcnow()
-            db.session.commit()
-        
-        # Calculate remaining presentations
-        plan_info = User.PLANS.get(current_user.plan)
-        remaining = None
-        
-        if current_user.plan == 'pay_per_use':
-            remaining = 'Pay per use'
-        elif plan_info:
-            if plan_info['limit'] is None:
-                remaining = 'Unlimited'
-            else:
-                remaining = max(0, plan_info['limit'] - current_user.presentations_count)
-        else:
-            remaining = 'Unknown'
-        
-        return render_template(
-            'generate.html',
-            user=current_user,
-            remaining_presentations=remaining,
-            current_plan=current_user.plan,
-            plan_info=plan_info,
-            plans=User.PLANS
-        )
-
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "No JSON data received"}), 400
-
-        # Extract and validate required fields
-        title = data.get("title")
-        presenter = data.get("presenter")
-        prompt = data.get("prompt")
-        
-        if not all([title, presenter, prompt]):
-            return jsonify({"error": "Missing required fields: title, presenter, or prompt"}), 400
-
-        # Extract optional fields with defaults
-        num_slides = int(data.get("num_slides", 5))
-        template_style = data.get("template_style", "Professional")
-        include_images = bool(data.get("include_images", False))
-
-        # Initialize PPT generator
-        try:
-            # For pay-per-use, check payment first
-            if current_user.plan == 'pay_per_use':
-                if not session.get('payment_verified'):
-                    return jsonify({
-                        'error': 'Payment required',
-                        'payment_required': True
-                    }), 402
-                # Clear payment verification after use
-                session.pop('payment_verified', None)
-            else:
-                # For other plans, check presentation limits
-                # Skip limit check for admins
-                if not current_user.is_admin:
-                    plan_limit = User.PLANS[current_user.plan]['limit']
-                    if plan_limit and current_user.presentations_count >= plan_limit:
-                        return jsonify({
-                            'error': f'You have reached your {User.PLANS[current_user.plan]["name"]} plan limit. Please upgrade to continue.'
-                        }), 403
-
-            # Initialize PPT generator
-            try:
-                ppt_generator = PPTGenerator()
-            except ValueError as e:
-                return jsonify({"error": str(e)}), 400
-            except Exception as e:
-                return jsonify({"error": f"Error initializing presentation generator: {str(e)}"}), 500
-
-            # Generate slide content
-            try:
-                slides_content = ppt_generator.generate_slide_content(prompt, num_slides)
-            except Exception as e:
-                return jsonify({"error": f"Error generating slide content: {str(e)}"}), 500
-            
-            # Create presentation
-            try:
-                # Use the prompt as both the title and the first slide title
-                filepath = ppt_generator.create_presentation(
-                    title=prompt,  # Use prompt as title instead of the generic title
-                    presenter=presenter,
-                    slides_content=slides_content,
-                    template_style=template_style,
-                    include_images=include_images
-                )
-            except Exception as e:
-                return jsonify({"error": f"Error creating presentation: {str(e)}"}), 500
-            
-            # Increment presentation count and log usage
-            current_user.presentations_count += 1
-            # Create presentation log entry
-            log_entry = PresentationLog(
-                user_id=current_user.id,
-                title=prompt,
-                num_slides=num_slides,
-                units_used=1
-            )
-            db.session.add(log_entry)
-            db.session.commit()
-
-            # Get filename from path
-            filename = os.path.basename(filepath)
-            
-            return jsonify({
-                'success': True,
-                'filename': filename,
-                'download_url': url_for('main.download_page', filename=filename)
-            })
-            
-        except Exception as e:
-            return jsonify({"error": f"Error generating presentation: {str(e)}"}), 500
-
-    except Exception as e:
-        return jsonify({"error": f"Server error: {str(e)}"}), 500
-
-
-@bp.route("/download/page/<filename>")
-@login_required
-def download_page(filename):
-    # Calculate remaining presentations
-    plan_limit = User.PLANS[current_user.plan]['limit']
-    remaining = plan_limit - current_user.presentations_count if plan_limit else 'Pay per use'
-    
-    # Generate a signed download token (valid for 1 hour)
-    serializer = _get_serializer()
-    token = serializer.dumps(filename)
-    
-    return render_template('download.html',
-                           user=current_user,
-                           download_url=url_for('main.download_file', token=token),
-                           remaining_presentations=remaining)
-
-@bp.route("/download/file/<token>")
-@login_required
-def download_file(token):
-    # Verify token and get filename using signed token
-    try:
-        filename = _get_serializer().loads(token, max_age=3600)  # Expires in 1 hour
-    except SignatureExpired:
-        error_msg = "Download link expired"
-        filename = None
-    except BadSignature:
-        error_msg = "Invalid download link"
-        filename = None
-
-    if not filename:
-        # Refund the presentation unit since the link is invalid/expired
-        try:
-            if current_user.is_authenticated and current_user.presentations_count > 0:
-                current_user.presentations_count -= 1
-                db.session.commit()
-        except Exception as e:
-            # Log any issues but don't block the response
-            print(f"Error refunding presentation unit: {str(e)}")
-        return error_msg, 400
-    
-
-    # Set cache control headers to prevent caching
-    response = send_from_directory(GENERATED_FOLDER, filename, as_attachment=True)
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    
-    return response
-
-@bp.route('/switch_plan/<plan_type>', methods=['POST'])
-@login_required
-def switch_plan(plan_type):
-    try:
-        print(f"Debug - Switch plan request received for plan: {plan_type}")
-        
-        # Validate plan type (including pay_per_use)
-        valid_plans = list(User.PLANS.keys()) + ['pay_per_use']
-        if plan_type not in valid_plans:
-            print(f"Debug - Invalid plan type: {plan_type}")
-            return jsonify({
-                'success': False,
-                'error': 'Invalid plan type'
-            }), 400
-
-        # For paid plans (pro and creator), initialize payment
-        if plan_type in ['pro', 'creator']:
-            print(f"Debug - Initializing payment for paid plan: {plan_type}")
-            
-            # Get plan details
-            plan = User.PLANS[plan_type]
-            amount = plan['price']
-            plan_id = plan.get('plan_id')
-            
-            print(f"Debug - Plan details: amount={amount}, plan_id={plan_id}")
-
-            # Initialize Paystack payment
-            url = "https://api.paystack.co/transaction/initialize"
-            headers = {
-                "Authorization": f"Bearer {os.getenv('PAYSTACK_SECRET_KEY')}",
-                "Content-Type": "application/json"
-            }
-            
-            callback_url = url_for('main.payment_callback', _external=True, _scheme='http')
-            print(f"Debug - Callback URL: {callback_url}")
-            
-            data = {
-                "email": current_user.email,
-                "amount": int(amount * 100),  # Convert to pesewas
-                "currency": "GHS",
-                "callback_url": callback_url,
-                "metadata": {
-                    "user_id": current_user.id,
-                    "plan": plan_type,
-                    "plan_id": plan_id
-                }
-            }
-            
-            print(f"Debug - Payment request data: {data}")
-            response = requests.post(url, headers=headers, json=data)
-            print(f"Debug - Paystack response status: {response.status_code}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                print(f"Debug - Paystack response: {result}")
-                
-                if result.get('status'):
-                    # Store payment reference in session
-                    session['payment_reference'] = result['data']['reference']
-                    payment_url = result['data']['authorization_url']
-                    print(f"Debug - Payment initialized, redirecting to: {payment_url}")
-                    
-                    return jsonify({
-                        'success': False,  # Set to false to ensure frontend redirects
-                        'payment_url': payment_url
-                    })
-                else:
-                    print(f"Debug - Payment initialization failed: {result}")
-            else:
-                print(f"Debug - Payment request failed: {response.text}")
-
-            return jsonify({
-                'success': False,
-                'error': 'Failed to initialize payment'
-            }), 400
-
-        # For free plan or pay-per-use, switch immediately
-        print(f"Debug - Switching to {plan_type} plan immediately")
-        if plan_type in ['free', 'pay_per_use']:
-            # Store the old plan and count in case we need to revert
-            old_plan = current_user.plan
-            old_count = current_user.presentations_count
-            old_reset = current_user.last_reset
-            
-            current_user.plan = plan_type
-            current_user.presentations_count = 0  # Reset count on plan change
-            current_user.last_reset = datetime.utcnow()  # Reset the monthly counter
-            db.session.commit()
-            
-            # Store the old plan info in session in case payment fails
-            session['previous_plan'] = old_plan
-            session['previous_count'] = old_count
-            session['previous_reset'] = old_reset.isoformat() if old_reset else None
-        
-        return jsonify({
-            'success': True,
-            'message': f'Successfully switched to {plan_type} plan'
-        })
-        
-    except Exception as e:
-        print(f"Debug - Error in switch_plan: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@bp.route('/initialize_payment', methods=['POST'])
-@login_required
-def initialize_payment():
-    try:
-        # Calculate amount in pesewas (Paystack uses smallest currency unit)
-        usd_amount = 0.20  # Price in USD
-        usd_to_ghs_rate = 12  # Exchange rate
-        ghs_amount = round(usd_amount * usd_to_ghs_rate, 2)  # Convert to GHS
-        pesewas_amount = int(ghs_amount * 100)  # Convert to pesewas
-        
-        # Initialize Paystack payment
-        url = "https://api.paystack.co/transaction/initialize"
-        headers = {
-            "Authorization": f"Bearer {os.getenv('PAYSTACK_SECRET_KEY')}",
-            "Content-Type": "application/json"
-        }
-        data = {
-            "email": current_user.email,
-            "amount": pesewas_amount,  # Amount in pesewas
-            "currency": "GHS",  # Specify Ghana Cedis
-            "callback_url": url_for('main.payment_callback', _external=True),
-            "metadata": {
-                "user_id": current_user.id,
-                "plan": "pay_per_use",
-                "usd_amount": usd_amount,
-                "exchange_rate": usd_to_ghs_rate
-            }
-        }
-        
-        response = requests.post(url, headers=headers, json=data)
-        if response.status_code == 200:
-            result = response.json()
-            if result['status']:
-                # Store payment reference in session
-                session['payment_reference'] = result['data']['reference']
-                return jsonify({
-                    'success': True,
-                    'authorization_url': result['data']['authorization_url']
-                })
-        
-        return jsonify({
-            'success': False,
-            'error': 'Failed to initialize payment'
-        }), 400
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-# ------------------
-# User Dashboard
-# ------------------
-@bp.route('/dashboard')
-@login_required
-def dashboard():
-    plan_info = User.PLANS.get(current_user.plan)
-    used = current_user.presentations_count
-    remaining = 'Unlimited' if current_user.is_admin or not plan_info or plan_info['limit'] is None else max(0, plan_info['limit'] - used)
-    logs = PresentationLog.query.filter_by(user_id=current_user.id).order_by(PresentationLog.created_at.desc()).limit(20).all()
-    return render_template('dashboard.html', user=current_user, used=used, remaining=remaining, logs=logs)
-
-# ------------------
-# Admin Dashboard Page
-# ------------------
-@bp.route('/admin')
-@admin_required
-def admin_dashboard_page():
-    # HTML template fetches usage via JS
-    return render_template('admin/dashboard.html', user=current_user)
-
-# ------------------
-# Admin endpoints
-# ------------------
-@bp.route('/admin/usage')
-@admin_required
-def admin_usage():
-    # Aggregate usage by user
-    from sqlalchemy import func
-    usage = (
-        db.session.query(
-            User.id,
-            User.email,
-            func.count(PresentationLog.id).label('presentations'),
-            func.max(PresentationLog.created_at).label('last_date')
-        )
-        .join(PresentationLog, PresentationLog.user_id == User.id)
-        .group_by(User.id)
-        .all()
+    token_url, headers, body = client.prepare_token_request(
+        token_endpoint,
+        authorization_response=request.url,
+        redirect_url=redirect_uri,
+        code=code,
     )
+    token_response = requests.post(
+        token_url,
+        headers=headers,
+        data=body,
+        auth=(client_id, client_secret),
+        timeout=20,
+    )
+    client.parse_request_body_response(token_response.text)
+    tokens = token_response.json()
+    # Persist tokens in session for downstream Google API use
+    session["google_access_token"] = tokens.get("access_token")
+    if tokens.get("refresh_token"):
+        session["google_refresh_token"] = tokens.get("refresh_token")
 
-    usage_data = [
-        {
-            "user_id": u.id,
-            "email": u.email,
-            "presentations": u.presentations,
-            "last_date": u.last_date.strftime('%Y-%m-%d') if u.last_date else 'N/A'
-        }
-        for u in usage
-    ]
-    return jsonify({"usage": usage_data})
+    # Fetch userinfo
+    userinfo_endpoint = "https://www.googleapis.com/oauth2/v3/userinfo"
+    uri, headers, body = client.add_token(userinfo_endpoint)
+    userinfo_resp = requests.get(uri, headers=headers, timeout=20)
+    profile = userinfo_resp.json()
 
-@bp.route('/admin/award_units', methods=['POST'])
-@admin_required
-def admin_award_units():
-    data = request.get_json() or {}
-    user_id = data.get('user_id')
-    units = int(data.get('units', 0))
-    if not user_id or units <= 0:
-        return jsonify({'success': False, 'error': 'Invalid parameters'}), 400
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'success': False, 'error': 'User not found'}), 404
-    user.presentations_count = max(0, user.presentations_count - units)
+    # Build or update user
+    user_id = profile.get("sub") or profile.get("id")
+    name = profile.get("name") or "User"
+    email = (profile.get("email") or "").lower()
+    picture = profile.get("picture")
+    is_admin = email in (current_app.config.get("ADMIN_EMAILS") or [])
+
+    user = User.get(user_id)
+    if user:
+        user.name = name
+        user.email = email
+        user.profile_pic = picture
+        user.is_admin = is_admin
+    else:
+        user = User(id_=user_id, name=name, email=email, profile_pic=picture, is_admin=is_admin)
+        db.session.add(user)
     db.session.commit()
-    return jsonify({'success': True, 'presentations_count': user.presentations_count})
 
-@bp.route('/payment/callback')
-@login_required
-def payment_callback():
-    reference = request.args.get('reference')
-    print(f"Debug - Payment callback received with reference: {reference}")
-    print(f"Debug - Session reference: {session.get('payment_reference')}")
-    
-    if not reference or reference != session.get('payment_reference'):
-        flash('Invalid payment reference', 'error')
-        return redirect(url_for('main.generate'))
-    
+    login_user(user)
+    dest = session.pop("post_login_redirect", None) or url_for("main.generate_page")
+    return redirect(dest)
+
+
+@bp.get("/logout")
+def logout() -> Any:
+    """Log out the current user and clear session tokens."""
     try:
-        # Verify payment with Paystack
-        url = f"https://api.paystack.co/transaction/verify/{reference}"
-        headers = {
-            "Authorization": f"Bearer {os.getenv('PAYSTACK_SECRET_KEY')}"
-        }
-        print(f"Debug - Verifying payment with Paystack")
-        response = requests.get(url, headers=headers)
-        
-        if response.status_code == 200:
-            result = response.json()
-            print(f"Debug - Paystack response: {result}")
-            
-            if result['status'] and result['data']['status'] == 'success':
-                # Get metadata from payment
-                metadata = result['data'].get('metadata', {})
-                plan_type = metadata.get('plan')
-                print(f"Debug - Plan type from metadata: {plan_type}")
+        logout_user()
+    except Exception:
+        pass
+    session.pop("google_access_token", None)
+    session.pop("google_refresh_token", None)
+    return redirect(url_for("main.home"))
 
-                if plan_type in ['pro', 'creator']:
-                    # Update user's subscription plan
-                    print(f"Debug - Updating user plan from {current_user.plan} to {plan_type}")
-                    current_user.plan = plan_type
-                    current_user.presentations_count = 0  # Reset count on plan change
-                    current_user.last_reset = datetime.utcnow()  # Reset the monthly counter
-                    db.session.commit()
-                    print(f"Debug - Plan updated in database and counters reset")
-                    flash(f'Payment successful! Your plan has been upgraded to {plan_type}.', 'success')
-                    
-                    # Clear the previous plan info from session
-                    session.pop('previous_plan', None)
-                    session.pop('previous_count', None)
-                    session.pop('previous_reset', None)
-                else:
-                    # For pay-per-use, mark payment as verified
-                    session['payment_verified'] = True
-                    flash('Payment successful! You can now generate your presentation.', 'success')
 
-                # Clear the payment reference from session
-                session.pop('payment_reference', None)
-                return redirect(url_for('main.generate'))
-            else:
-                print(f"Debug - Payment not successful: {result}")
-        else:
-            print(f"Debug - Paystack verification failed with status code: {response.status_code}")
-        
-        # Revert to previous plan if payment failed
-        if 'previous_plan' in session:
-            current_user.plan = session['previous_plan']
-            current_user.presentations_count = session['previous_count']
-            if session['previous_reset']:
-                current_user.last_reset = datetime.fromisoformat(session['previous_reset'])
-            db.session.commit()
-            
-            # Clear the previous plan info from session
-            session.pop('previous_plan', None)
-            session.pop('previous_count', None)
-            session.pop('previous_reset', None)
-        
-        flash('Payment verification failed - your previous plan has been restored', 'error')
-        return redirect(url_for('main.generate'))
-        
-    except Exception as e:
-        print(f"Debug - Error in payment callback: {str(e)}")
-        flash('Error verifying payment', 'error')
-        return redirect(url_for('main.generate'))
+@bp.route("/generate", methods=["POST"])
+def generate() -> Any:
+    """Generate slides via ChatGPT 3.5 Turbo (strict JSON, no fallback).
 
+    Request JSON body:
+    {
+      "title": str,
+      "subtitle": str | null,
+      "presenter": str | null,
+      "date": str | null,
+      "theme": str,  # theme name
+      "input_text": str,  # prompt/content
+      "num_slides": int
+    }
+    """
+    payload = request.get_json(silent=True) or {}
+    title = (payload.get("title") or "").strip()
+    subtitle = (payload.get("subtitle") or "").strip() or None
+    presenter = (payload.get("presenter") or "").strip() or None
+    date = (payload.get("date") or "").strip() or None
+    # New template-driven themes: SLEEK, PULSE, MINIMAL FLUX, BLUE HORIZON
+    theme_name = (payload.get("theme") or payload.get("theme_name") or "SLEEK").strip()
+    input_text = str(payload.get("input_text") or "").strip()
+    try:
+        num_slides = int(payload.get("num_slides") or 6)
+    except Exception:  # noqa: BLE001
+        num_slides = 6
+
+    # Default presenter to logged-in user's Google profile name if absent
+    if not presenter and getattr(current_user, "is_authenticated", False):
+        try:
+            presenter = (current_user.name or "").strip() or None
+        except Exception:
+            presenter = None
+
+    slides, errors = create_deck_slides(
+        title=title,
+        subtitle=subtitle,
+        presenter=presenter,
+        date=date,
+        theme_name=theme_name,
+        input_text=input_text,
+        num_slides=num_slides,
+    )
+    if errors or not slides:
+        return jsonify({"ok": False, "errors": errors or ["No slides generated"]}), 422
+
+    # Echo selected theme name so the client can carry it to /export
+    return jsonify({"ok": True, "slides": slides, "theme_name": theme_name})
+
+
+@bp.route("/export", methods=["POST"])
+def export_presentation() -> Any:
+    """Create a local PPTX presentation from slide content and theme.
+
+    Request JSON body:
+    {
+      "deck_title": str,
+      "slides": [ ... AI slides array ... ],
+      "theme_name": "SLEEK"|"PULSE"|"MINIMAL FLUX"|"BLUE HORIZON"
+    }
+    """
+    data = request.get_json(silent=True) or {}
+    deck_title = (data.get("deck_title") or "Untitled").strip()
+    slides = data.get("slides") or []
+    theme_name = (data.get("theme_name") or "SLEEK").strip()
+    # Sanitization helpers
+    BANNED = {"tbd", "metric 1", "metric 2", "metric 3", "step 1", "step 2", "step 3", "step 4"}
+
+    def clean_list(items):
+        out, seen = [], set()
+        for s in items or []:
+            t = (s or "").strip()
+            if not t:
+                continue
+            low = t.lower()
+            if low in BANNED:
+                continue
+            if low in seen:
+                continue
+            seen.add(low)
+            out.append(t)
+        return out
+
+    def ensure_min(items, n, filler="(to be refined)"):
+        items = list(items or [])
+        while len(items) < n:
+            items.append(filler)
+        return items
+
+    def meaningful_headers(h1, h2, d1="Traditional", d2="AI-Driven"):
+        h1 = (h1 or "").strip() or d1
+        h2 = (h2 or "").strip() or d2
+        if re.fullmatch(r"option\s*[ab]", h1.lower()):
+            h1 = d1
+        if re.fullmatch(r"option\s*[ab]", h2.lower()):
+            h2 = d2
+        return h1, h2
+
+    def sanitize_steps(steps):
+        steps = [d.get("label") if isinstance(d, dict) else str(d) for d in (steps or [])]
+        steps = [re.sub(r"(?i)^step\s*\d+\s*$", "", (s or "").strip()) for s in steps]
+        steps = clean_list(steps)
+        return ensure_min(steps[:6], 4)
+
+    def sanitize_for_takeaways(labels, fallback_sources):
+        labels = clean_list(labels)
+        if len(labels) < 4:
+            for src in fallback_sources:
+                labels += [x for x in clean_list(src) if x not in labels]
+                if len(labels) >= 4:
+                    break
+        labels = ensure_min(labels[:5], 4)[:5]
+        labels = [re.sub(r"(?i)^step\s*\d+\s*$", "(to be refined)", x).strip() for x in labels]
+        return labels
+
+    # Build 1..10 positions from AI slides with sanitization
+    def _ctype(sl: Dict[str, Any]) -> str:
+        return (sl.get("type") or "").strip().lower()
+
+    def _find_first(*types: str) -> Dict[str, Any] | None:
+        types_l = [t.lower() for t in types]
+        for sl in slides:
+            if isinstance(sl, dict) and _ctype(sl) in types_l:
+                return sl
+        return None
+
+    def _content(sl: Dict[str, Any]) -> Dict[str, Any]:
+        return (sl.get("content") or {}) if isinstance(sl.get("content"), dict) else {}
+
+    # Position 1: Title
+    pos: Dict[int, Dict[str, Any]] = {}
+    s1 = _find_first("title") or {}
+    pos[1] = {
+        "title": (s1.get("title") if isinstance(s1.get("title"), str) else data.get("deck_title")) or deck_title,
+        "subtitle": (s1.get("subtitle") if isinstance(s1.get("subtitle"), str) else "") or (data.get("subtitle") or ""),
+    }
+    # Position 2: Agenda
+    s2 = _find_first("agenda") or {}
+    c2 = _content(s2)
+    bullets2 = clean_list([str(x) for x in (c2.get("bullets") or [])])
+    bullets2 = ensure_min(bullets2[:6], 4)
+    pos[2] = {"title": "Agenda", "bullets": bullets2}
+
+    # Position 3: Intro/Background
+    s3 = _find_first("background", "overview", "intro", "timeline", "bullets") or {}
+    c3 = _content(s3)
+    bullets3 = clean_list([str(x) for x in (c3.get("bullets") or [])])
+    bullets3 = ensure_min(bullets3[:4], 2)
+    # Use first bullet as a sentence if paragraph empty
+    paragraph3 = (s3.get("paragraph") or "").strip()
+    if not paragraph3 and bullets3:
+        paragraph3 = bullets3[0]
+        bullets3 = bullets3[1:]
+    pos[3] = {"title": "Background", "paragraph": str(paragraph3), "bullets": bullets3}
+
+    # Position 4: Key Insights (two-column)
+    s4 = _find_first("double_column", "deep_dive", "bullets") or {}
+    c4 = _content(s4)
+    left_points = clean_list([str(x) for x in (c4.get("left_points") or [])])
+    right_points = clean_list([str(x) for x in (c4.get("right_points") or [])])
+    if not (left_points or right_points):
+        # Try table-style content
+        table = c4.get("table") or {}
+        left_points = clean_list([str(x) for x in (table.get("left", {}).get("points") or [])])
+        right_points = clean_list([str(x) for x in (table.get("right", {}).get("points") or [])])
+    left_points = ensure_min(left_points[:6], 4)
+    right_points = ensure_min(right_points[:6], 4)
+    pos[4] = {"title": "Key Concepts", "left": {"heading": "", "points": left_points}, "right": {"heading": "", "points": right_points}}
+
+    # Position 5: Comparison / Breakdown
+    s5 = _find_first("comparison", "table") or {}
+    c5 = _content(s5)
+    table5 = c5.get("table") or {}
+    left5 = table5.get("left") or {"heading": s5.get("left_title") or "Option A", "points": c5.get("left_points") or []}
+    right5 = table5.get("right") or {"heading": s5.get("right_title") or "Option B", "points": c5.get("right_points") or []}
+    # Sanitize headers
+    lh, rh = meaningful_headers(left5.get("heading"), right5.get("heading"))
+    lpts = ensure_min(clean_list([str(x) for x in (left5.get("points") or [])])[:6], 3)
+    rpts = ensure_min(clean_list([str(x) for x in (right5.get("points") or [])])[:6], 3)
+    pos[5] = {
+        "title": "Comparison",
+        "headers": [lh, rh],
+        "left": {"heading": lh, "points": lpts},
+        "right": {"heading": rh, "points": rpts},
+    }
+
+    # Position 6: Infographic Summary
+    s6 = _find_first("infographic", "key_takeaways", "bullets") or {}
+    c6 = _content(s6)
+    bullets6 = ensure_min(clean_list([str(x) for x in (c6.get("bullets") or [])])[:6], 3)
+    pos[6] = {"title": "KPI Snapshot", "bullets": bullets6}
+
+    # Position 7: Thank You / Final
+    s7 = _find_first("thank_you", "cta") or {}
+    # Steps come from either provided steps or bullets
+    steps_src = s7.get("steps") or s7.get("bullets") or []
+    steps_clean = sanitize_steps(steps_src)
+    pos[7] = {"title": "Process", "steps": steps_clean}
+
+    try:
+        # Extend positions to 10 slides expected by python-pptx builder
+        # Slide 8 (Use Cases): cards (synthesize if thin)
+        pos[8] = pos.get(8) or {"title": "Use Cases", "cards": []}
+        uc_raw = pos[8].get("cards") or []
+        uc_cards = clean_list([str(x) for x in uc_raw])
+        if len(uc_cards) < 4:
+            # borrow from agenda and two-column bullets
+            donors = [pos[2]["bullets"], pos[4]["left"]["points"], pos[4]["right"]["points"]]
+            for src in donors:
+                for x in clean_list(src):
+                    if x not in uc_cards:
+                        uc_cards.append(x)
+                        if len(uc_cards) >= 6:
+                            break
+                if len(uc_cards) >= 4:
+                    break
+        uc_cards = ensure_min(uc_cards[:6], 4)
+        pos[8]["cards"] = uc_cards
+        # Slide 9 (Takeaways): points
+        # Takeaways: ensure captions available
+        pos[9] = pos.get(9) or {"title": "Takeaways", "points": []}
+        pos[9]["points"] = sanitize_for_takeaways(
+            pos[9].get("points") or [],
+            fallback_sources=[pos[4]["left"]["points"], pos[4]["right"]["points"], pos[2]["bullets"]],
+        )
+        # Slide 10 (Thank You)
+        pos[10] = pos.get(10) or {"title": "Thank You", "cta": (data.get("cta") or "")}
+
+        # Build PPTX locally
+        import uuid
+        folder = uuid.uuid4().hex[:8]
+        out_dir = os.path.join(PREVIEW_ROOT, folder)
+        os.makedirs(out_dir, exist_ok=True)
+        pptx_name = f"deck_{folder}.pptx"
+        pptx_path = os.path.join(out_dir, pptx_name)
+        build_pptx_from_positions(pos, pptx_path, theme_name=theme_name)
+
+        download_url = url_for("main.download_file", folder=folder, fname=pptx_name, _external=True)
+
+        return jsonify({
+            "ok": True,
+            "download_url": download_url,
+            "pptx_path": pptx_name,
+            "folder": folder,
+            # deck_id retained for future features but not used for previews anymore
+            "deck_id": folder
+        })
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+# Preview-related endpoints removed

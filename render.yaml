@@ -15,7 +15,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: OPENAI_API_KEY
+      - key: HF_API_TOKEN
         sync: false
       - key: FLASK_ENV
         value: development
@@ -38,7 +38,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: OPENAI_API_KEY
+      - key: HF_API_TOKEN
         sync: false
       - key: FLASK_ENV
         value: production
