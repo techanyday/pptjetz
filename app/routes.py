@@ -79,6 +79,12 @@ def terms() -> Any:
     return render_template("terms.html")
 
 
+@bp.get("/ads.txt")
+def ads_txt() -> Any:
+    """Serve ads.txt from the static directory at the site root."""
+    return send_from_directory(current_app.static_folder, "ads.txt")
+
+
 @bp.get("/about")
 def about() -> Any:
     return render_template("about_us.html")
