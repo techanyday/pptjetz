@@ -43,6 +43,40 @@ THEME_PALETTES: Dict[str, Dict[str, Tuple[int, int, int]]] = {
     },
 }
 
+
+# --- Topic-aware Background/Evolution heuristics ---
+def _derive_evolution_stages_for_topic(topic: str, agenda: List[str], intro: str) -> List[str]:
+    """Return 3–5 neutral, topic-aware evolution labels.
+    Avoid AI-biased labels like 'Manual → Assisted' unless clearly relevant.
+    """
+    text = " ".join([str(topic or ""), intro or ""] + [str(a) for a in (agenda or [])]).lower()
+    # Clear AI/automation contexts
+    if any(k in text for k in ["ai", "automation", "automate", "ml", "machine learning"]):
+        return ["Manual → Assisted", "Rules-Based → Data-Driven", "Predictive → Adaptive"]
+    # Mental health / wellbeing
+    if any(k in text for k in ["mental health", "wellbeing", "well-being", "well being", "psycholog", "awareness"]):
+        return ["Awareness & Stigma", "Access & Support", "Community & Policy"]
+    # Education / training
+    if any(k in text for k in ["education", "learning", "curriculum", "training", "school", "students"]):
+        return ["Foundational Literacy", "Blended Learning", "Personalized & Inclusive"]
+    # Marketing / campaigns
+    if any(k in text for k in ["marketing", "campaign", "brand", "growth", "funnel", "channels"]):
+        return ["Brand Awareness", "Acquisition", "Retention & Advocacy"]
+    # Healthcare / public health
+    if any(k in text for k in ["healthcare", "public health", "screening", "care", "clinic"]):
+        return ["Screening", "Early Intervention", "Integrated Care"]
+    # Policy / government / public sector
+    if any(k in text for k in ["policy", "government", "public sector", "regulation", "compliance"]):
+        return ["Policy Drafting", "Pilot Programs", "Nationwide Rollout"]
+    # COVID / crisis
+    if any(k in text for k in ["covid", "pandemic", "lockdown", "recovery", "resilience"]):
+        return ["Pre-COVID", "Crisis Response", "Recovery & Resilience"]
+    # Regional / market evolution
+    if any(k in text for k in ["market", "region", "expansion", "entry"]):
+        return ["Entry", "Expansion", "Maturity"]
+    # Generic neutral fallback
+    return ["Foundational Phase", "Growth & Adoption", "Maturity"]
+
 # Guard: never render titles like "Concept 1/2/..."
 TITLE_BANNED_RE = re.compile(r"^\s*concepts?\s*\d+\s*$", re.I)
 
@@ -95,7 +129,22 @@ def _add_textbox(slide, x, y, w, h, text: str, *, font_size_pt: int = 24, bold=F
     return box
 
 
-def _add_bullets(slide, x, y, w, h, bullets: List[str], *, font_size_pt: int = 20, min_items: int = 0, synth_fill: str = "TBD", color: Tuple[int, int, int] | None = None):
+def _split_head_tail(txt: str) -> Tuple[str, str]:
+    t = (txt or "").strip()
+    if not t:
+        return "", ""
+    import re as _re
+    m = _re.search(r"[:;\u2013\u2014\-\.\,]", t)
+    if m and m.start() > 0:
+        return t[:m.start()].strip(), t[m.start():].lstrip()
+    # fallback: first 4 words bold
+    parts = t.split()
+    head = " ".join(parts[:4])
+    tail = " ".join(parts[4:])
+    return head, tail
+
+
+def _add_bullets(slide, x, y, w, h, bullets: List[str], *, font_size_pt: int = 20, min_items: int = 0, synth_fill: str = "TBD", color: Tuple[int, int, int] | None = None, word_wrap: bool = True, auto_fit: bool = False, line_spacing: float = 1.45, bold_first_phrase: bool = False, space_before_pt: int = 2, space_after_pt: int = 12):
     items = [s.strip() for s in (bullets or []) if str(s).strip()]
     while len(items) < min_items:
         items.append(synth_fill)
@@ -103,6 +152,10 @@ def _add_bullets(slide, x, y, w, h, bullets: List[str], *, font_size_pt: int = 2
     box = slide.shapes.add_textbox(left, top, width, height)
     tf = box.text_frame
     tf.clear()
+    if word_wrap:
+        tf.word_wrap = True
+    if auto_fit:
+        tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
     first = True
     for txt in items:
         if first:
@@ -110,10 +163,31 @@ def _add_bullets(slide, x, y, w, h, bullets: List[str], *, font_size_pt: int = 2
             first = False
         else:
             p = tf.add_paragraph()
-        p.text = txt
+        p.clear()
+        # add bullet symbol
+        r0 = p.add_run(); r0.text = "• "
+        if bold_first_phrase:
+            head, tail = _split_head_tail(txt)
+            if head:
+                r1 = p.add_run(); r1.text = head + (" " if tail else "")
+                r1.font.bold = True
+            if tail:
+                r2 = p.add_run(); r2.text = tail
+        else:
+            r = p.add_run(); r.text = txt
         p.level = 0
+        try:
+            p.space_before = Pt(space_before_pt)
+            p.space_after = Pt(space_after_pt)
+        except Exception:
+            pass
+        try:
+            p.line_spacing = line_spacing
+        except Exception:
+            pass
         for r in p.runs:
             r.font.size = Pt(font_size_pt)
+            r.font.bold = True if (bold_first_phrase and r is not r0 and p.runs.index(r) == 1) else False
             if color is not None:
                 r.font.color.rgb = RGBColor(*color)
     return box
@@ -552,11 +626,19 @@ def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, 
     d3 = pos.get(3, {})
     stages: List[str] = []
     intro = (d3.get("paragraph") or "").strip()
-    if intro:
-        stages.append("Manual → Assisted")
     stages += (d3.get("bullets") or d3.get("left_points") or [])
     if not stages and d3.get("right_points"):
         stages = d3["right_points"][:4]
+    # Ensure topic-aware seeds if we have < 3 items
+    if len(stages) < 3:
+        topic1 = (pos.get(1, {}) or {}).get("title") or ""
+        agenda = (pos.get(2, {}) or {}).get("bullets") or []
+        derived = _derive_evolution_stages_for_topic(topic1, agenda, intro)
+        for lab in derived:
+            if len(stages) >= 3:
+                break
+            if isinstance(lab, str) and lab.strip():
+                stages.append(lab.strip())
 
     overflow_bg = _render_background_timeline_autofit(prs, s3, stages, pal=pal, title="Background — Evolution", is_cont=False)
     while overflow_bg:
@@ -723,6 +805,37 @@ def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, 
     if len(headers) < 2:
         headers = (headers + ["Option B"])[:2]
 
+    # Guardrail: if headers are the generic 'Traditional' vs 'AI-Driven' but the topic is NOT about AI,
+    # rewrite them to a topic-appropriate pair based on the agenda/topic.
+    topic1 = (pos.get(1, {}) or {}).get("title") or ""
+    agenda_bullets = (pos.get(2, {}) or {}).get("bullets") or []
+
+    def _needs_ai_traditional_rewrite(hdrs: List[str]) -> bool:
+        a = (hdrs[0] or "").strip().lower()
+        b = (hdrs[1] or "").strip().lower()
+        is_ai_pair = a == "traditional" and b in {"ai-driven", "ai driven", "ai"}
+        topic_mentions_ai = "ai" in (topic1 or "").lower()
+        agenda_mentions_ai = any("ai" in str(x).lower() for x in (agenda_bullets or []))
+        return is_ai_pair and not (topic_mentions_ai or agenda_mentions_ai)
+
+    def _derive_headers_for_topic() -> List[str]:
+        text = " ".join([str(topic1)] + [str(x) for x in (agenda_bullets or [])]).lower()
+        # Mental health awareness heuristics
+        if any(k in text for k in ["mental health", "wellbeing", "well-being", "well being"]):
+            # Use a neutral, accurate dimension for awareness topics
+            return ["Awareness & Education", "Support & Services"]
+        if "marketing" in text or "campaign" in text:
+            return ["Organic Channels", "Paid Channels"]
+        if "covid" in text or "pandemic" in text:
+            return ["Pre-COVID", "Post-COVID"]
+        if "markets" in text or "regions" in text:
+            return ["Developed Markets", "Emerging Markets"]
+        # Fallback neutral labels
+        return ["Option A", "Option B"]
+
+    if _needs_ai_traditional_rewrite(headers):
+        headers = _derive_headers_for_topic()
+
     # Smart title derived from headers
     def _clean_label(s: str) -> str:
         t = str(s or "").strip()
@@ -817,13 +930,470 @@ def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, 
     # Render as chevron roadmap (python-pptx only)
     render_takeaways_chevrons(s6, labels, title="Key Takeaways", kicker="At-a-glance summary")
 
-    # Slide 7 – Thank You / CTA
-    s7 = prs.slides.add_slide(blank)
-    apply_bg(s7)
+    # Capture Thank You content source early; render it at the very end
     d7 = pos.get(7, {})
-    _add_textbox(s7, 1.0, 2.8, 11.3, 1.2, slide_heading(7), font_size_pt=40, bold=True, align="center", color=pal["primary"])
+
+    # --- Extra Slides (8+) Intelligent Rendering ---
+    def _render_two_col_bullets(slide, left_pts: List[str], right_pts: List[str]):
+        left_pts = [p for p in (left_pts or []) if str(p).strip()]
+        right_pts = [p for p in (right_pts or []) if str(p).strip()]
+        _add_bullets(slide, 1.0, 2.0, 5.3, 4.2, left_pts, font_size_pt=18, color=pal["text"])  # left
+        _add_bullets(slide, 6.0, 2.0, 5.3, 4.2, right_pts, font_size_pt=18, color=pal["text"])  # right
+
+    def _render_comparison_table(slide, headers: List[str], left_pts: List[str], right_pts: List[str]):
+        body_rows = max(3, min(max(len(left_pts), len(right_pts)), 6))
+        total_rows = body_rows + 1
+        table = _add_table(slide, 1.6665, 2.2, 10.0, 3.0, rows=total_rows, cols=2)
+        # headers
+        if len(headers) < 2:
+            headers = (headers + ["Option B"])[:2]
+        for c in range(2):
+            cell = table.cell(0, c)
+            cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(*pal["primary"])
+            _set_cell_text(cell, headers[c] or ("Option A" if c == 0 else "Option B"), size=20, bold=True, align_center=True, color=(255, 255, 255))
+        for r in range(body_rows):
+            li = left_pts[r] if r < len(left_pts) else ""
+            ri = right_pts[r] if r < len(right_pts) else ""
+            _set_cell_text(table.cell(r + 1, 0), str(li), size=18, color=pal["text"])
+            _set_cell_text(table.cell(r + 1, 1), str(ri), size=18, color=pal["text"])
+            if r % 2 == 1:
+                for c in range(2):
+                    table.cell(r + 1, c).fill.solid(); table.cell(r + 1, c).fill.fore_color.rgb = RGBColor(*pal["secondary"])
+
+    extra_keys = sorted([k for k in pos.keys() if isinstance(k, int) and k >= 8])
+    for i in extra_keys:
+        data = pos.get(i, {}) or {}
+        # Normalize content sources
+        content = data.get("content") or data
+        left = (content.get("left") or {}) if isinstance(content, dict) else {}
+        right = (content.get("right") or {}) if isinstance(content, dict) else {}
+        table_obj = content.get("table") if isinstance(content, dict) else None
+
+        def _has_text(x) -> bool:
+            if isinstance(x, str):
+                return bool(x.strip())
+            if isinstance(x, list):
+                return any(str(v).strip() for v in x)
+            if isinstance(x, dict):
+                return any(_has_text(v) for v in x.values())
+            return False
+
+        meaningful = False
+        if isinstance(content, dict):
+            meaningful = any([
+                _has_text(content.get("bullets")),
+                _has_text(content.get("left_points")),
+                _has_text(content.get("right_points")),
+                _has_text(content.get("paragraph")),
+                _has_text((content.get("table") or {}).get("left")),
+                _has_text((content.get("table") or {}).get("right")),
+            ])
+        if not meaningful:
+            # Skip creating a blank extra slide
+            continue
+
+        s = prs.slides.add_slide(blank)
+        apply_bg(s)
+        title = (data.get("title") or slide_heading(i) or f"Slide {i}")
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=pal["primary"])
+
+        # 1) Table-style comparison if available
+        if isinstance(table_obj, dict) and table_obj.get("left") and table_obj.get("right"):
+            headers = [
+                (table_obj.get("left") or {}).get("heading") or left.get("heading") or "Option A",
+                (table_obj.get("right") or {}).get("heading") or right.get("heading") or "Option B",
+            ]
+            left_pts = (table_obj.get("left") or {}).get("points") or left.get("points") or []
+            right_pts = (table_obj.get("right") or {}).get("points") or right.get("points") or []
+            _render_comparison_table(s, headers, left_pts, right_pts)
+            continue
+
+        # 2) Double-column bullets
+        lp = content.get("left_points") if isinstance(content, dict) else None
+        rp = content.get("right_points") if isinstance(content, dict) else None
+        if isinstance(lp, list) or isinstance(rp, list):
+            _render_two_col_bullets(s, lp or [], rp or [])
+            continue
+
+        # 3) Single-column bullets
+        bullets = content.get("bullets") if isinstance(content, dict) else None
+        if isinstance(bullets, list) and bullets:
+            _add_bullets(s, 1.0, 2.0, 11.0, 4.5, bullets, font_size_pt=20, color=pal["text"]) 
+            continue
+
+        # 4) Paragraph fallback
+        para = str(content.get("paragraph") or "").strip() if isinstance(content, dict) else ""
+        if para:
+            _add_textbox(s, 1.0, 2.0, 11.0, 4.5, para, font_size_pt=20, color=pal["text"], word_wrap=True, auto_fit=True)
+
+    # Finally, render Thank You / CTA as the last slide
+    s_last = prs.slides.add_slide(blank)
+    apply_bg(s_last)
+    _add_textbox(s_last, 1.0, 2.8, 11.3, 1.2, "Thank You", font_size_pt=40, bold=True, align="center", color=pal["primary"])
     if d7.get("cta"):
-        _add_textbox(s7, 3.0, 4.2, 7.3, 0.8, d7.get("cta", ""), font_size_pt=18, align="center", color=pal["text"])
+        _add_textbox(s_last, 3.0, 4.2, 7.3, 0.8, d7.get("cta", ""), font_size_pt=18, align="center", color=pal["text"])
+
+    prs.save(out_path)
+    return out_path
+
+
+def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme_name: str | None = None) -> str:
+    """
+    Build a PPTX deck following the provided AI outline order.
+    Ensures the deck includes these layouts at least once:
+      - Title slide
+      - Agenda slide
+      - Double column slide
+      - Table slide (comparison)
+      - Infographic slide (key takeaways)
+      - Thank You slide (last)
+    Does NOT add Background/Evolution unless present in the outline.
+    """
+    prs = Presentation()
+    prs.slide_width = Inches(SLIDE_W_IN)
+    prs.slide_height = Inches(SLIDE_H_IN)
+
+    blank = prs.slide_layouts[6]
+    pal = _theme(theme_name)
+
+    def apply_bg(slide):
+        bg = slide.background
+        fill = bg.fill
+        fill.solid()
+        fill.fore_color.rgb = RGBColor(*pal["bg"])
+
+    # Normalize and check required types
+    def _ctype(sl: Dict[str, Any]) -> str:
+        return (sl.get("type") or "").strip().lower()
+
+    def _content(sl: Dict[str, Any]) -> Dict[str, Any]:
+        c = sl.get("content")
+        return c if isinstance(c, dict) else {}
+
+    def _synthesize_topic_bullets(title: str) -> List[str]:
+        t = (title or "").strip()
+        if not t:
+            return []
+        # Deterministic, topic-injected bullets to avoid generic placeholders
+        base = [
+            f"Definition and scope of {t}",
+            f"Key drivers influencing {t}",
+            f"Opportunities and challenges in {t}",
+            f"Recent examples or case studies in {t}",
+            f"KPIs/metrics to track for {t}",
+        ]
+        # Ensure uniqueness and trim
+        seen, out = set(), []
+        for b in base:
+            b2 = re.sub(r"\s{2,}", " ", b).strip()
+            if b2 and b2.lower() not in seen:
+                out.append(b2)
+                seen.add(b2.lower())
+        return out[:5]
+
+    types = [(_ctype(s) or "") for s in (slides or [])]
+    # If any slide carries `_render_exact`, we will not auto-pattern or synthesize
+    render_exact = any(bool(getattr(s, "get", lambda *_: None)("_render_exact")) for s in (slides or []))
+    has_title = any(t == "title" for t in types)
+    has_agenda = any(t == "agenda" for t in types)
+    has_double = any(t in {"double_column", "deep_dive"} for t in types)
+    has_table = any(t in {"comparison", "table"} for t in types)
+    has_info = any(t in {"infographic", "key_takeaways"} for t in types)
+    has_thanks = any(t in {"thank_you", "cta"} for t in types)
+
+    slides_norm = list(slides or [])
+
+    # Titles from outline to inform synthesized content
+    def outline_titles(max_n: int | None = None) -> List[str]:
+        keep_types = {"title", "agenda", "thank_you", "cta"}
+        titles = []
+        for s in slides_norm:
+            if _ctype(s) in keep_types:
+                continue
+            t = (s.get("title") or "").strip()
+            if t:
+                titles.append(t)
+        return titles[:max_n] if max_n else titles
+
+    # Ensure first slide is Title
+    if not has_title:
+        # Try infer from first slide title, else generic placeholder
+        first_title = (slides_norm[0].get("title") if slides_norm else None) or "Presentation Title"
+        slides_norm.insert(0, {"type": "title", "title": first_title, "subtitle": ""})
+        has_title = True
+
+    # Ensure/augment Agenda based on outline titles
+    def _is_generic_agenda(items: List[str]) -> bool:
+        vals = [re.sub(r"\W+", "", s).lower() for s in items]
+        generic = {"overview", "discussion", "nextsteps"}
+        return 0 < len(vals) <= 3 and set(vals).issubset(generic)
+
+    if has_agenda:
+        # If agenda exists but has empty or generic bullets, replace with outline titles
+        ag_idx = next(i for i, s in enumerate(slides_norm) if _ctype(s) == "agenda")
+        ag = slides_norm[ag_idx]
+        c = _content(ag)
+        bullets = [str(x) for x in (c.get("bullets") or []) if str(x).strip()]
+        if not bullets or _is_generic_agenda(bullets):
+            new_bullets = _clean_agenda_items(outline_titles(max_n=12), limit=12)
+            ag["content"] = {"bullets": new_bullets}
+    else:
+        # Prefer AI outline slide titles as agenda items
+        agenda_src: List[str] = outline_titles(max_n=12)
+        if not agenda_src:
+            # Fallback: collect any bullets already present
+            for s in slides_norm:
+                c = _content(s)
+                if isinstance(c.get("bullets"), list):
+                    agenda_src += [str(x) for x in c.get("bullets")]
+        agenda_src = _clean_agenda_items(agenda_src, limit=12)
+        # Insert after first title slide
+        insert_idx = 1 if _ctype(slides_norm[0]) == "title" else 0
+        slides_norm.insert(insert_idx, {"type": "agenda", "content": {"bullets": agenda_src}})
+        has_agenda = True
+
+    if not render_exact:
+        # Ensure at least one of each required content layout via pattern
+        ag_idx = next((i for i, s in enumerate(slides_norm) if _ctype(s) == "agenda"), None)
+        titles_seq = _content(slides_norm[ag_idx]).get("bullets", []) if ag_idx is not None else outline_titles(max_n=50)
+        # Build a fresh list retaining pre-agenda slides
+        prefix = slides_norm[:ag_idx + 1] if ag_idx is not None else slides_norm[:1]
+        topic_slides: List[Dict[str, Any]] = []
+        for i, t in enumerate(titles_seq, start=1):
+            topic = str(t).strip()
+            if not topic:
+                continue
+            synth = _synthesize_topic_bullets(topic)
+            pat = (i - 1) % 7  # 0..6
+            if pat in {0, 1}:  # Topic 1 -> DC, Topic 2 -> DC
+                left = synth[::2][:6]
+                right = synth[1::2][:6]
+                topic_slides.append({"type": "double_column", "title": topic, "content": {"left_points": left, "right_points": right}})
+            elif pat in {2, 3}:  # Topic 3 -> Table, Topic 4 -> Table
+                mid = max(1, len(synth)//2)
+                left_pts = synth[:mid][:6]
+                right_pts = synth[mid:][:6]
+                topic_slides.append({
+                    "type": "comparison",
+                    "title": topic,
+                    "content": {"table": {"left": {"heading": "Aspects", "points": left_pts}, "right": {"heading": "Implications", "points": right_pts}}}
+                })
+            elif pat in {4, 5}:  # Topic 5 -> Cards, Topic 6 -> Cards
+                topic_slides.append({"type": "cards", "title": topic, "content": {"cards": synth[:6]}})
+            else:  # pat == 6 -> Infographic
+                topic_slides.append({"type": "infographic", "title": topic, "content": {"bullets": synth[:5]}})
+
+        # Replace everything after agenda with pattern-generated topic slides
+        if ag_idx is not None:
+            slides_norm = prefix + topic_slides
+        else:
+            slides_norm = prefix + topic_slides
+
+    # Ensure Thank You as last slide
+    if not has_thanks:
+        slides_norm.append({"type": "thank_you", "title": "Thank You", "cta": ""})
+        has_thanks = True
+    else:
+        # Move any thank you to the end
+        thanks = [s for s in slides_norm if _ctype(s) in {"thank_you", "cta"}]
+        slides_norm = [s for s in slides_norm if _ctype(s) not in {"thank_you", "cta"}] + thanks[-1:]
+
+    # --- Render in order ---
+    def render_title(sl):
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        title = (sl.get("title") or "Presentation Title").strip()
+        subtitle = (sl.get("subtitle") or sl.get("presenter") or "").strip()
+        _add_textbox(s, 1.0, 1.0, 11.3, 2.0, title, font_size_pt=46, bold=True, align="center", color=pal["primary"], word_wrap=True, auto_fit=True)
+        # Add ~0.5" (~48px) vertical padding below the title before the presenter/subtitle
+        _add_textbox(s, 1.0, 3.5, 11.3, 0.8, subtitle, font_size_pt=20, color=pal["text"], align="center", word_wrap=True, auto_fit=True)
+
+    def render_agenda(sl):
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        c = _content(sl)
+        overflow = _render_agenda_zebra_autofit(prs, s, c.get("bullets", [])[:32], pal=pal, title="Agenda", is_cont=False)
+        while overflow:
+            sc = prs.slides.add_slide(blank); apply_bg(sc)
+            overflow = _render_agenda_zebra_autofit(prs, sc, overflow, pal=pal, title="Agenda", is_cont=True)
+
+    def render_double(sl):
+        c = _content(sl)
+        lp_all = [str(x) for x in (c.get("left_points") or [])]
+        rp_all = [str(x) for x in (c.get("right_points") or [])]
+
+        # Pagination: 4 bullets max per column per slide
+        def chunks(lst: List[str], n: int) -> List[List[str]]:
+            return [lst[i:i+n] for i in range(0, len(lst), n)]
+
+        left_pages = chunks(lp_all, 4) or [[]]
+        right_pages = chunks(rp_all, 4) or [[]]
+        pages = max(len(left_pages), len(right_pages))
+
+        for page in range(pages):
+            s = prs.slides.add_slide(blank); apply_bg(s)
+            title = (sl.get("title") or "Key Concepts").strip()
+            if page > 0:
+                title = f"{title} (cont.)"
+            _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=pal["primary"])
+
+            # Layout metrics
+            gutter = 0.6
+            margin = 1.0
+            col_w = (SLIDE_W_IN - 2 * margin - gutter) / 2.0
+            left_x = margin
+            right_x = margin + col_w + gutter
+
+            lp = left_pages[page] if page < len(left_pages) else []
+            rp = right_pages[page] if page < len(right_pages) else []
+
+            # Subtle vertical divider
+            divider_w = 0.06
+            divider_x = left_x + col_w + (gutter - divider_w) / 2.0
+            divider_top = 2.0
+            divider_h = 4.6
+            div = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(divider_x), Inches(divider_top), Inches(divider_w), Inches(divider_h))
+            div.fill.solid(); div.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            div.line.fill.background()
+
+            _add_bullets(s, left_x, 2.1, col_w, 4.3, lp, font_size_pt=18, color=pal["text"], word_wrap=True, auto_fit=True, line_spacing=1.45, bold_first_phrase=False, space_before_pt=4, space_after_pt=14)
+            _add_bullets(s, right_x, 2.1, col_w, 4.3, rp, font_size_pt=18, color=pal["text"], word_wrap=True, auto_fit=True, line_spacing=1.45, bold_first_phrase=False, space_before_pt=4, space_after_pt=14)
+
+    def render_table(sl):
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        c = _content(sl)
+        table_obj = c.get("table") or {}
+        left = table_obj.get("left") or {}
+        right = table_obj.get("right") or {}
+        headers = [left.get("heading") or "Option A", right.get("heading") or "Option B"]
+        left_pts = [str(x) for x in (left.get("points") or [])]
+        right_pts = [str(x) for x in (right.get("points") or [])]
+        # Title uses the provided slide title (topic-aligned)
+        comp_title = sl.get("title") or "Comparison"
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, comp_title, font_size_pt=32, bold=True, color=pal["primary"])
+        body_rows = max(3, min(max(len(left_pts), len(right_pts)), 6))
+        table = _add_table(s, 1.6665, 2.2, 10.0, 3.0, rows=body_rows + 1, cols=2)
+        # header row
+        for cidx in range(2):
+            cell = table.cell(0, cidx)
+            cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(*pal["primary"])
+            _set_cell_text(cell, headers[cidx] or ("Option A" if cidx == 0 else "Option B"), size=20, bold=True, align_center=True, color=(255, 255, 255))
+        # rows
+        for r in range(body_rows):
+            li = left_pts[r] if r < len(left_pts) else ""
+            ri = right_pts[r] if r < len(right_pts) else ""
+            _set_cell_text(table.cell(r + 1, 0), str(li), size=18, color=pal["text"])
+            _set_cell_text(table.cell(r + 1, 1), str(ri), size=18, color=pal["text"])
+            if r % 2 == 1:
+                for cidx in range(2):
+                    table.cell(r + 1, cidx).fill.solid(); table.cell(r + 1, cidx).fill.fore_color.rgb = RGBColor(*pal["secondary"])
+
+    def render_infographic(sl):
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        c = _content(sl)
+        labels = _clean_takeaways(c.get("bullets") or c.get("takeaways") or [], limit=5)
+        if not labels:
+            labels = ["Summary", "Outcomes", "Next Steps", "Owners"]
+        render_takeaways_chevrons(s, labels, title=(sl.get("title") or "Key Takeaways"), kicker="At-a-glance summary")
+
+    def render_cards(sl):
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        c = _content(sl)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, (sl.get("title") or "Overview"), font_size_pt=32, bold=True, color=pal["primary"])
+        items = [str(x) for x in (c.get("cards") or c.get("bullets") or []) if str(x).strip()]
+        # Layout grid 3x2 with generous spacing
+        cols, rows = 3, 2
+        card_w, card_h = 3.7, 1.8
+        gap_x, gap_y = 0.35, 0.5
+        start_x, start_y = 0.7, 2.0
+        pad_x, pad_y = 0.28, 0.24
+        for i, text in enumerate(items[: cols * rows]):
+            r = i // cols
+            col = i % cols
+            x = start_x + col * (card_w + gap_x)
+            y = start_y + r * (card_h + gap_y)
+
+            # Card background with rounded corners
+            bg = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(card_w), Inches(card_h))
+            use_alt = (i % 2 == 1)
+            bg.fill.solid()
+            bg.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"])) if use_alt else RGBColor(*pal.get("bg", (255,255,255)))
+            bg.line.color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            # subtle shadow
+            try:
+                bg.shadow.inherit = False
+                bg.shadow.visible = True
+                bg.shadow.blur = 3
+                bg.shadow.distance = 1
+            except Exception:
+                pass
+
+            # Inner text box for padding
+            tb = s.shapes.add_textbox(Inches(x + pad_x), Inches(y + pad_y), Inches(card_w - 2*pad_x), Inches(card_h - 2*pad_y)).text_frame
+            tb.word_wrap = True
+            tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            # Typography hierarchy: bold first phrase then normal body
+            head, tail = _split_head_tail(text)
+            p = tb.paragraphs[0]
+            p.clear()
+            if head:
+                r1 = p.add_run(); r1.text = head + (" " if tail else "")
+                r1.font.bold = True; r1.font.size = Pt(16); r1.font.color.rgb = RGBColor(*pal["text"]) if isinstance(pal["text"], tuple) else r1.font.color.rgb
+            if tail:
+                r2 = p.add_run(); r2.text = tail
+                r2.font.size = Pt(14); r2.font.color.rgb = RGBColor(*pal.get("muted", pal["text"])) if isinstance(pal.get("muted", pal["text"]), tuple) else r2.font.color.rgb
+            try:
+                p.line_spacing = 1.35
+            except Exception:
+                pass
+
+    def render_thanks(sl):
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 2.8, 11.3, 1.2, "Thank You", font_size_pt=40, bold=True, align="center", color=pal["primary"])
+        cta = (sl.get("cta") or _content(sl).get("cta") or "").strip()
+        if cta:
+            _add_textbox(s, 3.0, 4.2, 7.3, 0.8, cta, font_size_pt=18, align="center", color=pal["text"])
+
+    def render_bullets(sl):
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, (sl.get("title") or "Slide"), font_size_pt=32, bold=True, color=pal["primary"])
+        c = _content(sl)
+        _add_bullets(s, 1.0, 2.0, 11.0, 4.5, [str(x) for x in (c.get("bullets") or [])], font_size_pt=20, color=pal["text"], word_wrap=True, auto_fit=True)
+
+    # Pre-pass: avoid empty bullets only if we are not in render_exact mode
+    if not render_exact:
+        for sl in slides_norm:
+            if _ctype(sl) == "bullets":
+                c = _content(sl)
+                bs = [str(x).strip() for x in (c.get("bullets") or []) if str(x).strip()]
+                if not bs:
+                    c["bullets"] = _synthesize_topic_bullets(sl.get("title") or "")
+                    sl["content"] = c
+
+    for sl in slides_norm:
+        t = _ctype(sl)
+        if t == "title":
+            render_title(sl)
+        elif t == "agenda":
+            render_agenda(sl)
+        elif t in {"double_column", "deep_dive"}:
+            render_double(sl)
+        elif t in {"comparison", "table"}:
+            render_table(sl)
+        elif t in {"infographic", "key_takeaways"}:
+            render_infographic(sl)
+        elif t in {"cards", "card", "card_style"}:
+            render_cards(sl)
+        elif t in {"thank_you", "cta"}:
+            # skip for now; rendered at end to guarantee last
+            continue
+        else:
+            # Fallback: bullets slide if bullets available
+            if _content(sl).get("bullets"):
+                render_bullets(sl)
+            # Ignore unsupported types silently
+
+    # Always ensure a Thank You at the end
+    thanks_sl = next((s for s in slides_norm if _ctype(s) in {"thank_you", "cta"}), None)
+    render_thanks(thanks_sl or {"type": "thank_you", "cta": ""})
 
     prs.save(out_path)
     return out_path

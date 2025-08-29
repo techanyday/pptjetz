@@ -8,9 +8,9 @@ import requests
 from flask import Blueprint, jsonify, request, render_template, redirect, url_for, current_app, session, send_from_directory
 from flask_login import login_user, logout_user, current_user
 
-from app.services.ai_content import create_deck_slides
+from app.services.ai_content import create_deck_slides, derive_topic_bullets
 # Preview PNG generation is removed; only PPTX export remains
-from app.services.pptx_builder import build_pptx_from_positions
+from app.services.pptx_builder import build_pptx_from_positions, build_pptx_from_slides
 from app import db
 from app.models import User
 
@@ -288,6 +288,7 @@ def export_presentation() -> Any:
     deck_title = (data.get("deck_title") or "Untitled").strip()
     slides = data.get("slides") or []
     theme_name = (data.get("theme_name") or "SLEEK").strip()
+    input_text = (data.get("input_text") or "").strip() or None
     # Sanitization helpers
     BANNED = {"tbd", "metric 1", "metric 2", "metric 3", "step 1", "step 2", "step 3", "step 4"}
 
@@ -338,7 +339,7 @@ def export_presentation() -> Any:
         labels = [re.sub(r"(?i)^step\s*\d+\s*$", "(to be refined)", x).strip() for x in labels]
         return labels
 
-    # Build 1..10 positions from AI slides with sanitization
+    # Utilities over provided slides
     def _ctype(sl: Dict[str, Any]) -> str:
         return (sl.get("type") or "").strip().lower()
 
@@ -352,104 +353,145 @@ def export_presentation() -> Any:
     def _content(sl: Dict[str, Any]) -> Dict[str, Any]:
         return (sl.get("content") or {}) if isinstance(sl.get("content"), dict) else {}
 
-    # Position 1: Title
-    pos: Dict[int, Dict[str, Any]] = {}
-    s1 = _find_first("title") or {}
-    pos[1] = {
-        "title": (s1.get("title") if isinstance(s1.get("title"), str) else data.get("deck_title")) or deck_title,
-        "subtitle": (s1.get("subtitle") if isinstance(s1.get("subtitle"), str) else "") or (data.get("subtitle") or ""),
-    }
-    # Position 2: Agenda
-    s2 = _find_first("agenda") or {}
-    c2 = _content(s2)
-    bullets2 = clean_list([str(x) for x in (c2.get("bullets") or [])])
-    bullets2 = ensure_min(bullets2[:6], 4)
-    pos[2] = {"title": "Agenda", "bullets": bullets2}
-
-    # Position 3: Intro/Background
-    s3 = _find_first("background", "overview", "intro", "timeline", "bullets") or {}
-    c3 = _content(s3)
-    bullets3 = clean_list([str(x) for x in (c3.get("bullets") or [])])
-    bullets3 = ensure_min(bullets3[:4], 2)
-    # Use first bullet as a sentence if paragraph empty
-    paragraph3 = (s3.get("paragraph") or "").strip()
-    if not paragraph3 and bullets3:
-        paragraph3 = bullets3[0]
-        bullets3 = bullets3[1:]
-    pos[3] = {"title": "Background", "paragraph": str(paragraph3), "bullets": bullets3}
-
-    # Position 4: Key Insights (two-column)
-    s4 = _find_first("double_column", "deep_dive", "bullets") or {}
-    c4 = _content(s4)
-    left_points = clean_list([str(x) for x in (c4.get("left_points") or [])])
-    right_points = clean_list([str(x) for x in (c4.get("right_points") or [])])
-    if not (left_points or right_points):
-        # Try table-style content
-        table = c4.get("table") or {}
-        left_points = clean_list([str(x) for x in (table.get("left", {}).get("points") or [])])
-        right_points = clean_list([str(x) for x in (table.get("right", {}).get("points") or [])])
-    left_points = ensure_min(left_points[:6], 4)
-    right_points = ensure_min(right_points[:6], 4)
-    pos[4] = {"title": "Key Concepts", "left": {"heading": "", "points": left_points}, "right": {"heading": "", "points": right_points}}
-
-    # Position 5: Comparison / Breakdown
-    s5 = _find_first("comparison", "table") or {}
-    c5 = _content(s5)
-    table5 = c5.get("table") or {}
-    left5 = table5.get("left") or {"heading": s5.get("left_title") or "Option A", "points": c5.get("left_points") or []}
-    right5 = table5.get("right") or {"heading": s5.get("right_title") or "Option B", "points": c5.get("right_points") or []}
-    # Sanitize headers
-    lh, rh = meaningful_headers(left5.get("heading"), right5.get("heading"))
-    lpts = ensure_min(clean_list([str(x) for x in (left5.get("points") or [])])[:6], 3)
-    rpts = ensure_min(clean_list([str(x) for x in (right5.get("points") or [])])[:6], 3)
-    pos[5] = {
-        "title": "Comparison",
-        "headers": [lh, rh],
-        "left": {"heading": lh, "points": lpts},
-        "right": {"heading": rh, "points": rpts},
-    }
-
-    # Position 6: Infographic Summary
-    s6 = _find_first("infographic", "key_takeaways", "bullets") or {}
-    c6 = _content(s6)
-    bullets6 = ensure_min(clean_list([str(x) for x in (c6.get("bullets") or [])])[:6], 3)
-    pos[6] = {"title": "KPI Snapshot", "bullets": bullets6}
-
-    # Position 7: Thank You / Final
-    s7 = _find_first("thank_you", "cta") or {}
-    # Steps come from either provided steps or bullets
-    steps_src = s7.get("steps") or s7.get("bullets") or []
-    steps_clean = sanitize_steps(steps_src)
-    pos[7] = {"title": "Process", "steps": steps_clean}
-
+    # Build slides strictly from agenda topics with pattern mapping
     try:
-        # Extend positions to 10 slides expected by python-pptx builder
-        # Slide 8 (Use Cases): cards (synthesize if thin)
-        pos[8] = pos.get(8) or {"title": "Use Cases", "cards": []}
-        uc_raw = pos[8].get("cards") or []
-        uc_cards = clean_list([str(x) for x in uc_raw])
-        if len(uc_cards) < 4:
-            # borrow from agenda and two-column bullets
-            donors = [pos[2]["bullets"], pos[4]["left"]["points"], pos[4]["right"]["points"]]
-            for src in donors:
-                for x in clean_list(src):
-                    if x not in uc_cards:
-                        uc_cards.append(x)
-                        if len(uc_cards) >= 6:
+        # 1) Title
+        s1 = _find_first("title") or {}
+        title_slide = {
+            "type": "title",
+            "title": (s1.get("title") if isinstance(s1.get("title"), str) else data.get("deck_title")) or deck_title,
+            "subtitle": (s1.get("subtitle") if isinstance(s1.get("subtitle"), str) else "") or (data.get("subtitle") or ""),
+            "_render_exact": True,
+        }
+
+        # 2) Agenda bullets (source of truth)
+        s2 = _find_first("agenda") or {}
+        c2 = _content(s2)
+        agenda_topics = clean_list([str(x) for x in (c2.get("bullets") or [])])
+        if not agenda_topics:
+            # Derive from provided slide titles excluding non-topic types
+            agenda_topics = []
+            for sl in slides:
+                t = _ctype(sl)
+                if t in {"title", "agenda", "thank_you", "cta"}:
+                    continue
+                ttl = str(sl.get("title") or "").strip()
+                if ttl:
+                    agenda_topics.append(ttl)
+            agenda_topics = clean_list(agenda_topics)[:32]
+        agenda_slide = {"type": "agenda", "content": {"bullets": agenda_topics[:32]}, "_render_exact": True}
+
+        # 3) For each topic, pick bullets from existing slides or derive via AI
+        def topic_bullets(topic: str) -> List[str]:
+            # Search any slide with matching title for bullets/cards/table points
+            for sl in slides:
+                if str(sl.get("title") or "").strip().lower() == topic.strip().lower():
+                    c = _content(sl)
+                    pts: List[str] = []
+                    if isinstance(c.get("bullets"), list):
+                        pts = [str(x) for x in c.get("bullets")]
+                    elif isinstance(c.get("cards"), list):
+                        pts = [str(x) for x in c.get("cards")]
+                    else:
+                        table = c.get("table") or {}
+                        left_pts = [str(x) for x in (table.get("left", {}).get("points") or [])]
+                        right_pts = [str(x) for x in (table.get("right", {}).get("points") or [])]
+                        pts = left_pts + right_pts
+                    pts = clean_list(pts)
+                    if pts:
+                        return pts
+            # Derive via ChatGPT if nothing found
+            return derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=5) or []
+
+        topic_slides: List[Dict[str, Any]] = []
+        for idx, topic in enumerate(agenda_topics, start=1):
+            pts = topic_bullets(topic)
+            pat = (idx - 1) % 7
+            if pat in {0, 1}:  # Double Column
+                # Ensure at least 3 per column; derive extras if needed
+                pool = list(pts)
+                def split_lr(src):
+                    return src[::2][:6], src[1::2][:6]
+                left, right = split_lr(pool)
+                guard = 0
+                while (len(left) < 3 or len(right) < 3) and guard < 6:
+                    more = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=4) or []
+                    for m in clean_list(more):
+                        if m not in pool:
+                            pool.append(m)
+                    left, right = split_lr(pool)
+                    guard += 1
+                # Final padding with placeholders if AI could not add enough
+                while len(left) < 3:
+                    pool.append("(to be refined)"); left, right = split_lr(pool)
+                while len(right) < 3:
+                    pool.append("(to be refined)"); left, right = split_lr(pool)
+                topic_slides.append({
+                    "type": "double_column",
+                    "title": topic,
+                    "content": {"left_points": left, "right_points": right},
+                    "_render_exact": True,
+                })
+            elif pat in {2, 3}:  # Table (comparison)
+                # Ensure at least 3 per column
+                pool = list(pts)
+                mid = max(1, len(pool)//2)
+                left_pts = pool[:mid][:6]
+                right_pts = pool[mid:][:6]
+                guard = 0
+                while (len(left_pts) < 3 or len(right_pts) < 3) and guard < 6:
+                    more = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=4) or []
+                    for m in clean_list(more):
+                        if m not in pool:
+                            pool.append(m)
+                    mid = max(1, len(pool)//2)
+                    left_pts = pool[:mid][:6]
+                    right_pts = pool[mid:][:6]
+                    guard += 1
+                while len(left_pts) < 3:
+                    left_pts.append("(to be refined)")
+                while len(right_pts) < 3:
+                    right_pts.append("(to be refined)")
+                topic_slides.append({
+                    "type": "comparison",
+                    "title": topic,
+                    "content": {"table": {"left": {"heading": "Aspects", "points": left_pts}, "right": {"heading": "Implications", "points": right_pts}}},
+                    "_render_exact": True,
+                })
+            elif pat in {4, 5}:  # Cards
+                # Ensure at least 5 cards
+                cards = list(clean_list(pts))
+                guard = 0
+                while len(cards) < 5 and guard < 6:
+                    more = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=5) or []
+                    for m in clean_list(more):
+                        if m not in cards:
+                            cards.append(m)
+                        if len(cards) >= 5:
                             break
-                if len(uc_cards) >= 4:
-                    break
-        uc_cards = ensure_min(uc_cards[:6], 4)
-        pos[8]["cards"] = uc_cards
-        # Slide 9 (Takeaways): points
-        # Takeaways: ensure captions available
-        pos[9] = pos.get(9) or {"title": "Takeaways", "points": []}
-        pos[9]["points"] = sanitize_for_takeaways(
-            pos[9].get("points") or [],
-            fallback_sources=[pos[4]["left"]["points"], pos[4]["right"]["points"], pos[2]["bullets"]],
-        )
-        # Slide 10 (Thank You)
-        pos[10] = pos.get(10) or {"title": "Thank You", "cta": (data.get("cta") or "")}
+                    guard += 1
+                while len(cards) < 5:
+                    cards.append("(to be refined)")
+                topic_slides.append({
+                    "type": "cards",
+                    "title": topic,
+                    "content": {"cards": cards[:6]},
+                    "_render_exact": True,
+                })
+            else:  # Infographic
+                topic_slides.append({
+                    "type": "infographic",
+                    "title": topic,
+                    "content": {"bullets": pts[:5]},
+                    "_render_exact": True,
+                })
+
+        # 4) Thank You last
+        s7 = _find_first("thank_you", "cta") or {}
+        thanks_slide = {"type": "thank_you", "title": "Thank You", "cta": (s7.get("cta") or data.get("cta") or ""), "_render_exact": True}
+
+        # Build final slides list
+        slides_out: List[Dict[str, Any]] = [title_slide, agenda_slide] + topic_slides + [thanks_slide]
 
         # Build PPTX locally
         import uuid
@@ -458,7 +500,8 @@ def export_presentation() -> Any:
         os.makedirs(out_dir, exist_ok=True)
         pptx_name = f"deck_{folder}.pptx"
         pptx_path = os.path.join(out_dir, pptx_name)
-        build_pptx_from_positions(pos, pptx_path, theme_name=theme_name)
+        # Build PPTX from our exact-pattern slides
+        build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
 
         download_url = url_for("main.download_file", folder=folder, fname=pptx_name, _external=True)
 
