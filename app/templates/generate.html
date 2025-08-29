@@ -105,7 +105,7 @@
 // Globals to share state between generate and export handlers
 let lastSlides = null;
 let lastThemeName = null;
-let lastTitle = 'Generated Presentation';
+let lastTitle = '';
 function showSkeletons(count = 6) {
     const container = document.getElementById('slidesPreview');
     const cards = Array.from({length: count}).map(() => `
@@ -279,7 +279,7 @@ document.addEventListener('DOMContentLoaded', function() {
         submitButton.innerHTML = 'Generating...';
         
         const formData = {
-            title: 'Generated Presentation',
+            title: '',
             subtitle: '',
             presenter: '{{ user.name }}',
             date: '',
@@ -305,7 +305,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('Slides generated:', data.slides);
                 lastSlides = data.slides;
                 lastThemeName = data.theme_name || document.getElementById('theme').value;
-                lastTitle = formData.title;
+                // Prefer AI-generated title from first slide; fallback to submitted title or generic
+                lastTitle = (Array.isArray(data.slides) && data.slides.length && typeof data.slides[0]?.title === 'string' && data.slides[0].title.trim())
+                  ? data.slides[0].title.trim()
+                  : (formData.title || 'Generated Presentation');
                 renderPreview(lastSlides);
             } else {
                 if (data && Array.isArray(data.errors) && data.errors.length) {
