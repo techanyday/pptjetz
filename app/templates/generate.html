@@ -280,10 +280,18 @@ document.getElementById('exportBtn').addEventListener('click', async function() 
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('presentationForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        
+
         const submitButton = this.querySelector('button[type="submit"]');
         submitButton.disabled = true;
         submitButton.innerHTML = 'Generating...';
+
+        // Analytics: generate form submitted
+        if (typeof gtag === 'function') {
+            gtag('event', 'generate_submit', {
+                event_category: 'engagement',
+                event_label: 'generate_form'
+            });
+        }
         
         const formData = {
             title: '',

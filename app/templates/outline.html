@@ -66,6 +66,13 @@
 
   exportBtn.addEventListener('click', async () => {
     exportBtn.disabled = true; exportBtn.textContent = 'Exporting...';
+    // Analytics: export clicked
+    if (typeof gtag === 'function') {
+      gtag('event', 'export_click', {
+        event_category: 'engagement',
+        event_label: 'outline_export'
+      });
+    }
     try {
       const resp = await fetch('/export', {
         method: 'POST',
