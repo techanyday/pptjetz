@@ -51,7 +51,7 @@ def download_file(folder: str, fname: str):
 @bp.get("/")
 def home() -> Any:
     """Render a minimal UI to generate and export decks."""
-    return render_template("index.html", themes=THEME_OPTIONS)
+    return render_template("index.html", themes=THEME_OPTIONS, user=current_user)
 
 
 @bp.get("/themes")
@@ -137,8 +137,8 @@ def login() -> Any:
         "email",
         "profile",
     ]
-    # Remember where to go after login; default to generator page
-    session["post_login_redirect"] = request.args.get("next") or url_for("main.generate_page")
+    # Remember where to go after login; default to home page
+    session["post_login_redirect"] = request.args.get("next") or url_for("main.home")
 
     request_uri = client.prepare_request_uri(
         authorization_endpoint,
@@ -211,7 +211,7 @@ def login_callback() -> Any:
     db.session.commit()
 
     login_user(user)
-    dest = session.pop("post_login_redirect", None) or url_for("main.generate_page")
+    dest = session.pop("post_login_redirect", None) or url_for("main.home")
     return redirect(dest)
 
 
