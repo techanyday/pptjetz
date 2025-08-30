@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
+import json
 import re
 import os
 import requests
@@ -303,12 +304,23 @@ def generate() -> Any:
 
     deck_title = derive_deck_title(slides) or "Generated Presentation"
 
-    DECK_STORE[deck_id] = {
+    deck_obj = {
         "slides": slides,
         "theme_name": theme_name,
         "deck_title": deck_title,
         "input_text": input_text,
     }
+    DECK_STORE[deck_id] = deck_obj
+
+    # Persist to disk so other instances/processes can read it
+    out_dir = os.path.join(PREVIEW_ROOT, deck_id)
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(out_dir, "deck.json"), "w", encoding="utf-8") as f:
+            json.dump(deck_obj, f, ensure_ascii=False)
+    except Exception:
+        # Non-fatal; outline page will still work if same instance handles it
+        pass
 
     redirect_url = url_for("main.outline_page", deck_id=deck_id, _external=True)
     return jsonify({"ok": True, "deck_id": deck_id, "redirect_url": redirect_url})
@@ -318,7 +330,12 @@ def generate() -> Any:
 def get_deck(deck_id: str) -> Any:
     deck = DECK_STORE.get(deck_id)
     if not deck:
-        return jsonify({"ok": False, "error": "Deck not found"}), 404
+        # Fallback: attempt to load from persisted JSON on disk
+        try:
+            with open(os.path.join(PREVIEW_ROOT, deck_id, "deck.json"), "r", encoding="utf-8") as f:
+                deck = json.load(f)
+        except Exception:
+            return jsonify({"ok": False, "error": "Deck not found"}), 404
     return jsonify({
         "ok": True,
         "deck_id": deck_id,
@@ -363,11 +380,15 @@ def export_presentation() -> Any:
     input_text = (data.get("input_text") or "").strip() or None
     deck_id = (data.get("deck_id") or "").strip() or None
 
-    # If client only sends deck_id, load persisted deck
+    # If client only sends deck_id, load persisted deck (memory or disk)
     if (not slides) and deck_id:
         deck = DECK_STORE.get(deck_id)
         if not deck:
-            return jsonify({"ok": False, "error": "Deck not found"}), 404
+            try:
+                with open(os.path.join(PREVIEW_ROOT, deck_id, "deck.json"), "r", encoding="utf-8") as f:
+                    deck = json.load(f)
+            except Exception:
+                return jsonify({"ok": False, "error": "Deck not found"}), 404
         slides = deck.get("slides") or []
         theme_name = deck.get("theme_name") or theme_name
         deck_title = deck.get("deck_title") or deck_title
