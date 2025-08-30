@@ -17,6 +17,10 @@ from app.models import User
 
 bp = Blueprint("main", __name__)
 
+# In-memory deck store for multi-page flow (outline -> export)
+# deck_id -> {"slides": [...], "theme_name": str, "deck_title": str, "input_text": str}
+DECK_STORE: Dict[str, Dict[str, Any]] = {}
+
 
 THEME_OPTIONS = [
     "SLEEK",
@@ -269,8 +273,76 @@ def generate() -> Any:
     if errors or not slides:
         return jsonify({"ok": False, "errors": errors or ["No slides generated"]}), 422
 
-    # Echo selected theme name so the client can carry it to /export
-    return jsonify({"ok": True, "slides": slides, "theme_name": theme_name})
+    # Multi-page change: persist slides and return deck_id + redirect URL
+    import uuid
+    deck_id = uuid.uuid4().hex[:8]
+    
+    # Derive a better deck title
+    def derive_deck_title(slides_list: List[Dict[str, Any]]) -> str | None:
+        # Prefer an explicit Title slide
+        try:
+            for sl in slides_list or []:
+                if isinstance(sl, dict) and (str(sl.get("type") or "").lower() == "title"):
+                    t = (sl.get("title") or "").strip()
+                    if t:
+                        return t
+        except Exception:
+            pass
+        # Fallback: if client sent a title string, use it
+        if title:
+            return title
+        # Last resort: derive from prompt text (first clause, title case-ish)
+        prompt = (input_text or "").strip()
+        if prompt:
+            base = re.split(r"[\.!?\n]\s*", prompt, maxsplit=1)[0].strip()
+            base = re.sub(r"^about\s+|^on\s+|^regarding\s+", "", base, flags=re.IGNORECASE)
+            if len(base) > 80:
+                base = base[:80].rsplit(" ", 1)[0]
+            return base[:1].upper() + base[1:]
+        return None
+
+    deck_title = derive_deck_title(slides) or "Generated Presentation"
+
+    DECK_STORE[deck_id] = {
+        "slides": slides,
+        "theme_name": theme_name,
+        "deck_title": deck_title,
+        "input_text": input_text,
+    }
+
+    redirect_url = url_for("main.outline_page", deck_id=deck_id, _external=True)
+    return jsonify({"ok": True, "deck_id": deck_id, "redirect_url": redirect_url})
+
+
+@bp.get("/api/decks/<deck_id>")
+def get_deck(deck_id: str) -> Any:
+    deck = DECK_STORE.get(deck_id)
+    if not deck:
+        return jsonify({"ok": False, "error": "Deck not found"}), 404
+    return jsonify({
+        "ok": True,
+        "deck_id": deck_id,
+        "slides": deck.get("slides") or [],
+        "theme_name": deck.get("theme_name") or "SLEEK",
+        "deck_title": deck.get("deck_title") or "Untitled",
+    })
+
+
+@bp.get("/outline/<deck_id>")
+def outline_page(deck_id: str) -> Any:
+    # Render outline page; the template will fetch /api/decks/<deck_id>
+    if deck_id not in DECK_STORE:
+        # Still render; client will show not found state
+        pass
+    return render_template("outline.html", deck_id=deck_id)
+
+
+@bp.get("/download_page/<deck_id>")
+def download_page(deck_id: str) -> Any:
+    """Simple page with a download link for the exported PPTX."""
+    pptx_name = f"deck_{deck_id}.pptx"
+    download_url = url_for("main.download_file", folder=deck_id, fname=pptx_name)
+    return render_template("download.html", download_url=download_url, user=current_user, remaining_presentations=None)
 
 
 @bp.route("/export", methods=["POST"])
@@ -289,6 +361,17 @@ def export_presentation() -> Any:
     slides = data.get("slides") or []
     theme_name = (data.get("theme_name") or "SLEEK").strip()
     input_text = (data.get("input_text") or "").strip() or None
+    deck_id = (data.get("deck_id") or "").strip() or None
+
+    # If client only sends deck_id, load persisted deck
+    if (not slides) and deck_id:
+        deck = DECK_STORE.get(deck_id)
+        if not deck:
+            return jsonify({"ok": False, "error": "Deck not found"}), 404
+        slides = deck.get("slides") or []
+        theme_name = deck.get("theme_name") or theme_name
+        deck_title = deck.get("deck_title") or deck_title
+        input_text = deck.get("input_text") or input_text
     # Sanitization helpers
     BANNED = {"tbd", "metric 1", "metric 2", "metric 3", "step 1", "step 2", "step 3", "step 4"}
 
@@ -495,7 +578,7 @@ def export_presentation() -> Any:
 
         # Build PPTX locally
         import uuid
-        folder = uuid.uuid4().hex[:8]
+        folder = (deck_id or uuid.uuid4().hex[:8])
         out_dir = os.path.join(PREVIEW_ROOT, folder)
         os.makedirs(out_dir, exist_ok=True)
         pptx_name = f"deck_{folder}.pptx"
@@ -510,8 +593,7 @@ def export_presentation() -> Any:
             "download_url": download_url,
             "pptx_path": pptx_name,
             "folder": folder,
-            # deck_id retained for future features but not used for previews anymore
-            "deck_id": folder
+            "deck_id": folder,
         })
     except Exception as exc:  # noqa: BLE001
         return jsonify({"ok": False, "error": str(exc)}), 500

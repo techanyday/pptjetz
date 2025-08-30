@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto p-6">
+  <h1 class="text-2xl font-bold mb-4">Outline Preview</h1>
+  <div id="meta" class="text-gray-600 mb-4"></div>
+  <div id="topics" class="space-y-2"></div>
+  <div class="mt-6 flex items-center gap-3">
+    <button id="exportBtn" class="bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700">Export PPTX</button>
+    <a href="{{ url_for('main.generate_page') }}" class="px-5 py-2 rounded border hover:bg-gray-50">Back</a>
+  </div>
+</div>
+
+<script>
+(async function(){
+  const deckId = {{ deck_id|tojson }};
+  const metaEl = document.getElementById('meta');
+  const topicsEl = document.getElementById('topics');
+  const exportBtn = document.getElementById('exportBtn');
+
+  function renderOutline(deck){
+    const title = deck.deck_title || 'Untitled';
+    const theme = deck.theme_name || 'SLEEK';
+    metaEl.textContent = `${title} • Theme: ${theme}`;
+
+    const slides = Array.isArray(deck.slides) ? deck.slides : [];
+    // Use agenda bullets if present, else use slide titles
+    let topics = [];
+    const agenda = slides.find(s => (s.type||'').toLowerCase() === 'agenda');
+    if (agenda && agenda.content && Array.isArray(agenda.content.bullets)) {
+      topics = agenda.content.bullets;
+    } else {
+      topics = slides
+        .filter(s => !['title','agenda','thank_you','cta'].includes((s.type||'').toLowerCase()))
+        .map(s => s.title).filter(Boolean);
+    }
+    if (!topics.length) {
+      topicsEl.innerHTML = '<div class="text-gray-500">No topics found.</div>';
+      return;
+    }
+    topicsEl.innerHTML = topics.map((t,i)=>`<div class="border rounded p-3">${i+1}. ${t}</div>`).join('');
+  }
+
+  async function loadDeck(){
+    const resp = await fetch(`/api/decks/${deckId}`);
+    if (!resp.ok) { topicsEl.innerHTML = '<div class="text-red-600">Deck not found.</div>'; return; }
+    const data = await resp.json();
+    renderOutline(data);
+  }
+
+  exportBtn.addEventListener('click', async () => {
+    exportBtn.disabled = true; exportBtn.textContent = 'Exporting...';
+    try {
+      const resp = await fetch('/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ deck_id: deckId })
+      });
+      const data = await resp.json();
+      if (data && data.ok && data.deck_id) {
+        // Redirect to dedicated download page
+        window.location.assign(`/download_page/${data.deck_id}`);
+      } else if (data && data.download_url) {
+        // Fallback: direct download link
+        window.location.assign(data.download_url);
+      } else {
+        alert((data && data.error) || 'Export failed');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Export failed');
+    } finally {
+      exportBtn.disabled = false; exportBtn.textContent = 'Export PPTX';
+    }
+  });
+
+  loadDeck();
+})();
+</script>
+{% endblock %}
