@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Transcriber – PPTJetX{% endblock %}
+{% block description %}Transcribe YouTube videos to text.{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-2xl font-semibold mb-4">Transcribe YouTube</h1>
+
+  <div class="bg-white shadow rounded p-4 space-y-3">
+    <label class="block">
+      <span class="text-sm text-gray-700">YouTube URL *</span>
+      <input id="ytUrl" type="text" class="mt-1 w-full border rounded px-3 py-2" placeholder="https://www.youtube.com/watch?v=XXXXXXXXXXX" />
+    </label>
+
+    <label class="inline-flex items-center space-x-2">
+      <input id="prefer" type="checkbox" class="h-4 w-4" checked />
+      <span class="text-sm text-gray-700">Prefer official captions (faster/free)</span>
+    </label>
+
+    <label class="inline-flex items-center space-x-2 block">
+      <input id="capOnly" type="checkbox" class="h-4 w-4" />
+      <span class="text-sm text-gray-700">Captions only (no audio transcription)</span>
+    </label>
+
+    <label class="inline-flex items-center space-x-2 block">
+      <input id="authz" type="checkbox" class="h-4 w-4" />
+      <span class="text-sm text-gray-700">I own/am authorized to process this video *</span>
+    </label>
+
+    <div class="flex items-center space-x-3">
+      <button id="goBtn" class="bg-blue-600 text-white px-4 py-2 rounded">Convert to Text</button>
+      <span id="status" class="text-sm text-gray-600"></span>
+    </div>
+  </div>
+
+  <div id="result" class="bg-white shadow rounded p-4 mt-4 hidden">
+    <p class="mb-2"><strong>Word count:</strong> <span id="wc">0</span></p>
+    <textarea id="out" class="w-full border rounded p-2" rows="12" readonly></textarea>
+    <div class="flex items-center space-x-3 mt-3">
+      <button id="copyBtn" class="px-3 py-2 border rounded">Copy</button>
+      <button id="downloadBtn" class="px-3 py-2 border rounded">Download .txt</button>
+      <button id="resetBtn" class="px-3 py-2 border rounded">Start another</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const urlEl = document.getElementById('ytUrl');
+const preferEl = document.getElementById('prefer');
+const capOnlyEl = document.getElementById('capOnly');
+const authzEl = document.getElementById('authz');
+const goBtn = document.getElementById('goBtn');
+const statusEl = document.getElementById('status');
+const resDiv = document.getElementById('result');
+const outEl = document.getElementById('out');
+const wcEl = document.getElementById('wc');
+const copyBtn = document.getElementById('copyBtn');
+const dlBtn = document.getElementById('downloadBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+function validUrl(u){ try { new URL(u); return /youtu\.be|youtube\.com/.test(u); } catch(_) { return false; } }
+
+async function transcribe(){
+  const url = urlEl.value.trim();
+  if (!validUrl(url)) { statusEl.textContent = 'Enter a valid YouTube URL.'; return; }
+  if (!authzEl.checked) { statusEl.textContent = 'Please confirm authorization.'; return; }
+  goBtn.disabled = true; statusEl.textContent = 'Transcribing…';
+  resDiv.classList.add('hidden'); outEl.value = ''; wcEl.textContent = '0';
+  try {
+    const resp = await fetch('/api/transcribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, preferCaptions: preferEl.checked, captionsOnly: capOnlyEl.checked, authorized: true })
+    });
+    const payload = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      if (resp.status === 404 && capOnlyEl.checked) { throw new Error('Captions not available for this video'); }
+      if (resp.status === 429) { throw new Error('Too many requests — please wait a bit.'); }
+      throw new Error(payload.detail || payload.error || 'Failed to transcribe');
+    }
+    outEl.value = payload.text || '';
+    wcEl.textContent = payload.wordCount || 0;
+    resDiv.classList.remove('hidden');
+    statusEl.textContent = 'Done';
+  } catch (e) {
+    statusEl.textContent = 'Error: ' + e.message;
+  } finally {
+    goBtn.disabled = false;
+  }
+}
+
+goBtn.addEventListener('click', transcribe);
+copyBtn.addEventListener('click', async () => { try { await navigator.clipboard.writeText(outEl.value); statusEl.textContent = 'Copied!'; } catch(_) {} });
+dlBtn.addEventListener('click', () => {
+  const blob = new Blob([outEl.value], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'transcript.txt'; a.click();
+  URL.revokeObjectURL(a.href);
+});
+resetBtn.addEventListener('click', () => { outEl.value=''; wcEl.textContent='0'; resDiv.classList.add('hidden'); statusEl.textContent=''; urlEl.value=''; authzEl.checked=false; preferEl.checked=true; capOnlyEl.checked=false; });
+</script>
+{% endblock %}

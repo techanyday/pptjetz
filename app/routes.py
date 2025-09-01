@@ -14,6 +14,13 @@ from app.services.ai_content import create_deck_slides, derive_topic_bullets
 from app.services.pptx_builder import build_pptx_from_positions, build_pptx_from_slides
 from app import db
 from app.models import User
+from app.transcriber.services import (
+    parse_youtube_id,
+    get_captions,
+    download_audio_wav,
+    transcribe_wav,
+    join_segments,
+)
 
 
 bp = Blueprint("main", __name__)
@@ -82,6 +89,83 @@ def privacy() -> Any:
 @bp.get("/terms")
 def terms() -> Any:
     return render_template("terms.html")
+
+
+# ---------- Transcriber UI (Flask) ----------
+@bp.get("/transcriber")
+def transcriber_page() -> Any:
+    """Render the Transcriber page (works under Flask server on :5000)."""
+    return render_template("transcriber.html")
+
+
+@bp.post("/api/transcribe")
+def api_transcribe() -> Any:
+    """Flask version of the transcribe endpoint using shared services."""
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    prefer_captions = bool(data.get("preferCaptions", True))
+    captions_only = bool(data.get("captionsOnly", False))
+    tos_ok = bool(data.get("authorized", False))
+
+    if not url:
+        return jsonify({"detail": "YouTube URL is required"}), 422
+    if not tos_ok:
+        return jsonify({"detail": "You must confirm authorization to process this video"}), 400
+
+    yt_id = parse_youtube_id(url)
+    if not yt_id:
+        return jsonify({"detail": "Invalid YouTube URL"}), 422
+
+    segments = None
+    if prefer_captions or captions_only:
+        segments = get_captions(yt_id)
+
+    text = None
+    if segments:
+        text = join_segments(segments)
+    else:
+        if captions_only:
+            return jsonify({"detail": "Captions not available for this video"}), 404
+        try:
+            wav_path = download_audio_wav(url, yt_id)
+            try:
+                # Force CPU-safe compute type to avoid float16 on non-GPU machines
+                asr_segments = transcribe_wav(wav_path, compute_type="int8")
+                text = join_segments(asr_segments)
+            finally:
+                try:
+                    wav_path.unlink(missing_ok=True)
+                    wav_dir = wav_path.parent
+                    for p in wav_dir.iterdir():
+                        try:
+                            p.unlink()
+                        except Exception:
+                            pass
+                    try:
+                        wav_dir.rmdir()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+        except RuntimeError as e:
+            msg = str(e)
+            if "403" in msg or "Requested format is not available" in msg:
+                # Surface a user-actionable error instead of 500
+                return (
+                    jsonify({
+                        "detail": "YouTube blocked the audio download for this video. Try 'Captions only' if available, or a different URL.",
+                        "reason": msg[:300],
+                    }),
+                    403,
+                )
+            # Generic failure
+            return jsonify({"detail": msg[:300]}), 400
+
+    if not text:
+        return jsonify({"detail": "Failed to obtain captions or transcription"}), 500
+
+    word_count = len([w for w in text.split() if w.strip()])
+    return jsonify({"ok": True, "videoId": yt_id, "text": text, "wordCount": word_count})
 
 
 @bp.get("/ads.txt")
