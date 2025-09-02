@@ -133,7 +133,15 @@ def download_audio_wav(url: str, yt_id: str) -> Path:
         "nocheckcertificate": True,
     }
     if cookies_file and Path(cookies_file).exists():
-        ydl_opts["cookiefile"] = cookies_file
+        # Copy cookies to a writable temp file in case the source is a read-only mount (/etc/secrets)
+        try:
+            tmp_cookie_path = tmpdir / "cookies.txt"
+            with open(cookies_file, "rb") as src, open(tmp_cookie_path, "wb") as dst:
+                dst.write(src.read())
+            ydl_opts["cookiefile"] = str(tmp_cookie_path)
+        except Exception:
+            # Fall back to original path if copy fails (best-effort read-only usage)
+            ydl_opts["cookiefile"] = cookies_file
 
     downloaded_path: Optional[Path] = None
     try:
