@@ -63,6 +63,7 @@ async def transcribe(request: Request) -> JSONResponse:
 
     url = (data.get("url") or "").strip()
     prefer_captions = bool(data.get("preferCaptions", True))
+    captions_only = bool(data.get("captionsOnly", False))
     tos_ok = bool(data.get("authorized", False))
 
     if not url:
@@ -78,32 +79,39 @@ async def transcribe(request: Request) -> JSONResponse:
     # Try captions first
     if prefer_captions:
         segments = get_captions(yt_id)
+        if captions_only and not segments:
+            # Client explicitly requested captions-only and none are available
+            raise HTTPException(status_code=404, detail="Captions not available for this video")
 
     text = None
     if segments:
         text = join_segments(segments)
     else:
         # Fallback: download and transcribe
-        wav_path = download_audio_wav(url, yt_id)
         try:
-            asr_segments = transcribe_wav(wav_path)
-            text = join_segments(asr_segments)
-        finally:
+            wav_path = download_audio_wav(url, yt_id)
             try:
-                wav_path.unlink(missing_ok=True)
-                # remove temp dir as well
-                wav_dir = wav_path.parent
-                for p in wav_dir.iterdir():
+                asr_segments = transcribe_wav(wav_path)
+                text = join_segments(asr_segments)
+            finally:
+                try:
+                    wav_path.unlink(missing_ok=True)
+                    # remove temp dir as well
+                    wav_dir = wav_path.parent
+                    for p in wav_dir.iterdir():
+                        try:
+                            p.unlink()
+                        except Exception:
+                            pass
                     try:
-                        p.unlink()
+                        wav_dir.rmdir()
                     except Exception:
                         pass
-                try:
-                    wav_dir.rmdir()
                 except Exception:
                     pass
-            except Exception:
-                pass
+        except Exception as e:
+            # Surface the underlying cause to the client for actionable feedback
+            raise HTTPException(status_code=400, detail=str(e)[:500])
 
     if not text:
         raise HTTPException(status_code=500, detail="Failed to obtain captions or transcription")
