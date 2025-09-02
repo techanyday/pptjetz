@@ -23,3 +23,9 @@ openai>=1.30.0
 python-pptx==0.6.21
 Pillow==10.4.0
 # pdf2image==1.17.0  # optional fallback if using PDF->PNG (requires poppler)
+
+# Transcriber dependencies
+faster-whisper==1.0.3
+yt-dlp>=2024.07.09
+youtube-transcript-api>=0.6.2
+huggingface_hub[hf_xet]>=0.23.0
