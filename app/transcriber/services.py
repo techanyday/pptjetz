@@ -116,6 +116,9 @@ def download_audio_wav(url: str, yt_id: str) -> Path:
     # Always canonicalize to watch URL to avoid shorts/embed quirks
     canonical_url = f"https://www.youtube.com/watch?v={yt_id}"
 
+    # Optional: path to exported cookies.txt (Netscape format) if needed for age/region/login
+    cookies_file = os.getenv("YTDLP_COOKIES_FILE", "").strip()
+
     # First pass: normal extraction
     ydl_opts = {
         "format": "bestaudio[ext=m4a]/bestaudio[acodec^=opus]/bestaudio/best",
@@ -129,6 +132,8 @@ def download_audio_wav(url: str, yt_id: str) -> Path:
         "geo_bypass": True,
         "nocheckcertificate": True,
     }
+    if cookies_file and Path(cookies_file).exists():
+        ydl_opts["cookiefile"] = cookies_file
 
     downloaded_path: Optional[Path] = None
     try:
@@ -170,34 +175,17 @@ def download_audio_wav(url: str, yt_id: str) -> Path:
                         downloaded_path = p
                         break
         except Exception as e2:
-            # Third pass: try with cookies from local browser to bypass 403/age/region restrictions
-            try:
-                ydl_opts3 = dict(ydl_opts2)
-                ydl_opts3.update({
-                    # Try common Windows browsers; yt-dlp will pick what's available
-                    "cookiesfrombrowser": ("edge", True, True),
-                })
-                with yt_dlp.YoutubeDL(ydl_opts3) as ydl:
-                    info = ydl.extract_info(canonical_url, download=True)
-                    for p in tmpdir.iterdir():
-                        if p.is_file() and p.stem.startswith(yt_id) and p.suffix.lower() != ".wav":
-                            downloaded_path = p
-                            break
-            except Exception as e3:
-                # Last attempt: try Chrome
-                try:
-                    ydl_opts4 = dict(ydl_opts2)
-                    ydl_opts4.update({
-                        "cookiesfrombrowser": ("chrome", True, True),
-                    })
-                    with yt_dlp.YoutubeDL(ydl_opts4) as ydl:
-                        info = ydl.extract_info(canonical_url, download=True)
-                        for p in tmpdir.iterdir():
-                            if p.is_file() and p.stem.startswith(yt_id) and p.suffix.lower() != ".wav":
-                                downloaded_path = p
-                                break
-                except Exception as e4:
-                    raise RuntimeError(f"yt-dlp failed: {str(e2)[:120]} | {str(e3)[:120]} | {str(e4)[:120]}") from e2
+            # If we reach here and still fail, provide a concise reason and guidance.
+            # Common message: "Sign in to confirm you're not a bot" -> cannot bypass on headless servers without cookies.
+            msg = str(e2)
+            hint = ""
+            if "Sign in to confirm you’re not a bot" in msg or "Sign in to confirm you're not a bot" in msg:
+                if not cookies_file:
+                    hint = (
+                        " | Requires cookies login; set env YTDLP_COOKIES_FILE to a Netscape cookies.txt exported from a browser "
+                        "that can access this video, or enable 'Prefer official captions' / 'Captions only' in the UI."
+                    )
+            raise RuntimeError(f"yt-dlp failed: {msg[:200]}{hint}") from e2
 
     if not downloaded_path or not downloaded_path.exists():
         raise RuntimeError("yt-dlp failed to produce an audio file")
