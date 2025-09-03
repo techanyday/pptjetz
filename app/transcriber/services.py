@@ -67,6 +67,16 @@ def get_captions(yt_id: str) -> Optional[List[Dict[str, Any]]]:
         if selected:
             break
 
+    # If no English captions, try to translate any available transcript to English
+    if not selected:
+        for t in transcripts:
+            try:
+                t_en = t.translate("en")
+                selected = t_en
+                break
+            except Exception:
+                continue
+
     if not selected:
         return None
 
@@ -233,6 +243,8 @@ def transcribe_wav(path: Path, model_size: Optional[str] = None, compute_type: O
         cpu_threads = None
 
     from faster_whisper import WhisperModel  # import here so module loads without pkg
+    task_env = os.getenv("WHISPER_TASK", "transcribe").strip().lower()
+    task = task_env if task_env in ("transcribe", "translate") else "transcribe"
 
     def make_model(size: str, ct: str, threads: Optional[int]) -> Any:
         return WhisperModel(size, device="auto", compute_type=ct, cpu_threads=threads)
@@ -247,9 +259,20 @@ def transcribe_wav(path: Path, model_size: Optional[str] = None, compute_type: O
             else:
                 raise
         segments, _info = model.transcribe(
-            str(path), vad_filter=True, vad_parameters={"min_silence_duration_ms": 300}
+            str(path),
+            task=task,
+            language="en" if task == "translate" else None,
+            beam_size=5,
+            best_of=5,
+            temperature=0.2,
+            no_speech_threshold=0.6,
+            log_prob_threshold=-1.0,
+            vad_filter=True,
+            vad_parameters={"min_silence_duration_ms": 300},
         )
         out: List[Segment] = [Segment(float(s.start), float(s.end), s.text.strip()) for s in segments]
+        if not any(seg.text for seg in out):
+            raise RuntimeError("ASR produced no text")
         return out
     except Exception as e:
         # Detect memory-related failures and retry with tiny/int8 and minimal threads
@@ -261,9 +284,20 @@ def transcribe_wav(path: Path, model_size: Optional[str] = None, compute_type: O
             tiny_threads = 1
             tiny_model = make_model("tiny", "int8", tiny_threads)
             segments, _info = tiny_model.transcribe(
-                str(path), vad_filter=True, vad_parameters={"min_silence_duration_ms": 300}
+                str(path),
+                task=task,
+                language="en" if task == "translate" else None,
+                beam_size=5,
+                best_of=5,
+                temperature=0.2,
+                no_speech_threshold=0.6,
+                log_prob_threshold=-1.0,
+                vad_filter=True,
+                vad_parameters={"min_silence_duration_ms": 300},
             )
             out: List[Segment] = [Segment(float(s.start), float(s.end), s.text.strip()) for s in segments]
+            if not any(seg.text for seg in out):
+                raise RuntimeError("ASR produced no text (tiny)")
             return out
         except Exception:
             # Re-raise original, which will be surfaced to client by the route wrapper
