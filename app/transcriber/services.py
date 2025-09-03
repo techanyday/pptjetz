@@ -218,10 +218,11 @@ class Segment:
 def transcribe_wav(path: Path, model_size: Optional[str] = None, compute_type: Optional[str] = None) -> List[Segment]:
     """Transcribe using faster-whisper with light VAD filtering. Returns punctuated segments.
 
-    Robust to unsupported compute types: if float16 is requested but not supported (e.g., CPU-only),
-    we automatically retry with int8.
+    Fallbacks:
+    - If float16 is unsupported, retry with int8.
+    - If model load/transcription fails due to memory, retry with tiny/int8 and 1 thread.
     """
-    model_size = model_size or os.getenv("WHISPER_MODEL", "small")
+    model_size = (model_size or os.getenv("WHISPER_MODEL", "small")).strip()
     compute_type = (compute_type or os.getenv("WHISPER_COMPUTE", "int8")).strip()
     threads_env = os.getenv("WHISPER_THREADS", "").strip()
     cpu_threads = None
@@ -233,26 +234,40 @@ def transcribe_wav(path: Path, model_size: Optional[str] = None, compute_type: O
 
     from faster_whisper import WhisperModel  # import here so module loads without pkg
 
-    def make_model(ct: str) -> Any:
-        # cpu_threads only applies on CPU; passing None lets the lib default
-        return WhisperModel(model_size, device="auto", compute_type=ct, cpu_threads=cpu_threads)
+    def make_model(size: str, ct: str, threads: Optional[int]) -> Any:
+        return WhisperModel(size, device="auto", compute_type=ct, cpu_threads=threads)
 
+    # Step 1: try requested settings (with float16->int8 fallback)
     try:
-        model = make_model(compute_type)
-    except ValueError as e:
-        # Typical message: "Requested float16 compute type, but the target device or backend do not support efficient float16 computation."
-        if "float16" in str(e).lower():
-            model = make_model("int8")
-        else:
+        try:
+            model = make_model(model_size, compute_type, cpu_threads)
+        except ValueError as e:
+            if "float16" in str(e).lower():
+                model = make_model(model_size, "int8", cpu_threads)
+            else:
+                raise
+        segments, _info = model.transcribe(
+            str(path), vad_filter=True, vad_parameters={"min_silence_duration_ms": 300}
+        )
+        out: List[Segment] = [Segment(float(s.start), float(s.end), s.text.strip()) for s in segments]
+        return out
+    except Exception as e:
+        # Detect memory-related failures and retry with tiny/int8 and minimal threads
+        msg = str(e).lower()
+        mem_hit = any(k in msg for k in ["out of memory", "oom", "cuda out of memory", "alloc", "cannot allocate memory"])
+        if not mem_hit:
             raise
-
-    segments, _info = model.transcribe(
-        str(path), vad_filter=True, vad_parameters={"min_silence_duration_ms": 300}
-    )
-    out: List[Segment] = []
-    for seg in segments:
-        out.append(Segment(float(seg.start), float(seg.end), seg.text.strip()))
-    return out
+        try:
+            tiny_threads = 1
+            tiny_model = make_model("tiny", "int8", tiny_threads)
+            segments, _info = tiny_model.transcribe(
+                str(path), vad_filter=True, vad_parameters={"min_silence_duration_ms": 300}
+            )
+            out: List[Segment] = [Segment(float(s.start), float(s.end), s.text.strip()) for s in segments]
+            return out
+        except Exception:
+            # Re-raise original, which will be surfaced to client by the route wrapper
+            raise e
 
 
 def join_segments(segments: List[Dict[str, Any] | Segment]) -> str:
