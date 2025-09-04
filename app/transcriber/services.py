@@ -1,4 +1,8 @@
+logger = logging.getLogger("transcriber")
+
 import os
+import time
+import logging
 import re
 import shlex
 import shutil
@@ -67,7 +71,7 @@ def get_captions(yt_id: str) -> Optional[List[Dict[str, Any]]]:
         if selected:
             break
 
-    # If no English captions, try to translate any available transcript to English
+    # If no English captions, try translating any available transcript to English
     if not selected:
         for t in transcripts:
             try:
@@ -103,113 +107,80 @@ def _run(cmd: str | list[str]) -> subprocess.CompletedProcess:
 
 
 def download_audio_wav(url: str, yt_id: str) -> Path:
-    """Download bestaudio with yt-dlp (Python API) and convert to 16k mono WAV via ffmpeg.
+    """Download bestaudio with yt-dlp and convert to 16k mono WAV via ffmpeg.
     Returns path to the WAV file. Raises RuntimeError on failure.
     """
+    use_exe = shutil.which("yt-dlp") is not None
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg not installed in PATH")
 
     tmpdir = Path(tempfile.mkdtemp(prefix=f"pptjet_{yt_id}_"))
+    # Let yt-dlp decide the correct extension; we will detect the produced file.
+    out_tmpl = tmpdir \
+        / f"{yt_id}.%(ext)s"
+
+    # Optional: Use browser-exported cookies if provided to bypass YouTube bot/age/region gates
+    cookies_file = os.getenv("YTDLP_COOKIES_FILE", "").strip()
+    cookies_args: list[str] = []
+    if cookies_file and Path(cookies_file).exists():
+        # Render Secret Files are mounted read-only under /etc/secrets. yt-dlp may attempt to
+        # update cookies, which fails with Errno 30. Copy to a writable temp path first.
+        try:
+            tmp_cookies = tmpdir / "cookies.txt"
+            # Use binary read/write to preserve bytes accurately
+            with open(cookies_file, "rb") as src, open(tmp_cookies, "wb") as dst:
+                dst.write(src.read())
+            cookies_args = ["--cookies", str(tmp_cookies)]
+        except Exception:
+            # If copy fails, fall back to original path (best effort read-only)
+            cookies_args = ["--cookies", cookies_file]
+
     wav = tmpdir / f"{yt_id}.wav"
 
-    # Use yt_dlp Python API for more control and reliability (nsig, UA, shorts)
+    if use_exe:
+        ytdlp_cmd = [
+            "yt-dlp",
+            "-f", "bestaudio/best",  # fall back to best if separate audio not available (e.g., some Shorts)
+            "--no-playlist", "--no-keyring", "--restrict-filenames", "--force-overwrites",
+            *cookies_args,
+            "-o", str(out_tmpl), url,
+        ]
+    else:
+        # Fallback to Python module invocation (works when installed in venv)
+        ytdlp_cmd = [
+            shutil.which("python") or "python", "-m", "yt_dlp",
+            "-f", "bestaudio/best",
+            "--no-playlist", "--no-keyring", "--restrict-filenames", "--force-overwrites",
+            *cookies_args,
+            "-o", str(out_tmpl), url,
+        ]
+    r1 = _run(ytdlp_cmd)
+    # Detect the produced media file (audio or video). We expect exactly one matching file.
+    produced: Optional[Path] = None
     try:
-        import yt_dlp  # type: ignore
-    except Exception as e:  # pragma: no cover
-        raise RuntimeError(f"yt-dlp import failed: {e}")
+        matches = list(tmpdir.glob(f"{yt_id}.*"))
+        # Exclude our target wav in case of retries
+        matches = [p for p in matches if p.name != wav.name]
+        if matches:
+            # Prefer typical audio containers first
+            prefer = {"m4a": 0, "webm": 1, "mp3": 2, "mp4": 3}
+            matches.sort(key=lambda p: prefer.get(p.suffix.lstrip('.'), 99))
+            produced = matches[0]
+    except Exception:
+        produced = None
 
-    outtmpl = str(tmpdir / f"{yt_id}.%(ext)s")
-    ua = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
-    )
-    # Always canonicalize to watch URL to avoid shorts/embed quirks
-    canonical_url = f"https://www.youtube.com/watch?v={yt_id}"
-
-    # Optional: path to exported cookies.txt (Netscape format) if needed for age/region/login
-    cookies_file = os.getenv("YTDLP_COOKIES_FILE", "").strip()
-
-    # First pass: normal extraction
-    ydl_opts = {
-        "format": "bestaudio[ext=m4a]/bestaudio[acodec^=opus]/bestaudio/best",
-        "noplaylist": True,
-        "outtmpl": outtmpl,
-        "quiet": True,
-        "no_warnings": True,
-        "http_headers": {"User-Agent": ua, "Referer": "https://www.youtube.com/"},
-        "retries": 3,
-        "fragment_retries": 3,
-        "geo_bypass": True,
-        "nocheckcertificate": True,
-    }
-    if cookies_file and Path(cookies_file).exists():
-        # Copy cookies to a writable temp file in case the source is a read-only mount (/etc/secrets)
-        try:
-            tmp_cookie_path = tmpdir / "cookies.txt"
-            with open(cookies_file, "rb") as src, open(tmp_cookie_path, "wb") as dst:
-                dst.write(src.read())
-            ydl_opts["cookiefile"] = str(tmp_cookie_path)
-        except Exception:
-            # Fall back to original path if copy fails (best-effort read-only usage)
-            ydl_opts["cookiefile"] = cookies_file
-
-    downloaded_path: Optional[Path] = None
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(canonical_url, download=True)
-            # Try to resolve the actual downloaded filename
-            if info:
-                # When outtmpl uses %(ext)s, the final filename is predictable
-                # but we don't know the extension. Find the first matching file.
-                for p in tmpdir.iterdir():
-                    if p.is_file() and p.stem.startswith(yt_id) and p.suffix.lower() != ".wav":
-                        downloaded_path = p
-                        break
-    except Exception as e:
-        # Attempt a cache clear and second pass using Android client to bypass signature/403
-        try:
-            with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
-                cache = ydl.cache
-                if cache:
-                    cache.remove()
-        except Exception:
-            pass
-        # Second pass opts
-        ydl_opts2 = dict(ydl_opts)
-        ydl_opts2.update({
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android"],
-                }
-            },
-            # Looser format chain
-            "format": "bestaudio/best",
-        })
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts2) as ydl:
-                info = ydl.extract_info(canonical_url, download=True)
-                for p in tmpdir.iterdir():
-                    if p.is_file() and p.stem.startswith(yt_id) and p.suffix.lower() != ".wav":
-                        downloaded_path = p
-                        break
-        except Exception as e2:
-            # If we reach here and still fail, provide a concise reason and guidance.
-            # Common message: "Sign in to confirm you're not a bot" -> cannot bypass on headless servers without cookies.
-            msg = str(e2)
-            hint = ""
-            if "Sign in to confirm you’re not a bot" in msg or "Sign in to confirm you're not a bot" in msg:
-                if not cookies_file:
-                    hint = (
-                        " | Requires cookies login; set env YTDLP_COOKIES_FILE to a Netscape cookies.txt exported from a browser "
-                        "that can access this video, or enable 'Prefer official captions' / 'Captions only' in the UI."
-                    )
-            raise RuntimeError(f"yt-dlp failed: {msg[:200]}{hint}") from e2
-
-    if not downloaded_path or not downloaded_path.exists():
-        raise RuntimeError("yt-dlp failed to produce an audio file")
+    if r1.returncode != 0 or not produced or not produced.exists():
+        err = r1.stderr.decode(errors='ignore')
+        hint = ""
+        if ("Sign in to confirm you're not a bot" in err or "Sign in to confirm you’re not a bot" in err) and not cookies_args:
+            hint = (
+                " | Requires login cookies. Export a Netscape cookies.txt from your browser and set "
+                "YTDLP_COOKIES_FILE to its path (Render Secret File recommended)."
+            )
+        raise RuntimeError(f"yt-dlp failed: {err[:200]}{hint}")
 
     ffmpeg_cmd = (
-        f"ffmpeg -y -i {shlex.quote(str(downloaded_path))} -ac 1 -ar 16000 -f wav {shlex.quote(str(wav))}"
+        f"ffmpeg -y -i {shlex.quote(str(produced))} -ac 1 -ar 16000 -f wav {shlex.quote(str(wav))}"
     )
     r2 = _run(ffmpeg_cmd)
     if r2.returncode != 0 or not wav.exists():
@@ -226,82 +197,160 @@ class Segment:
 
 
 def transcribe_wav(path: Path, model_size: Optional[str] = None, compute_type: Optional[str] = None) -> List[Segment]:
-    """Transcribe using faster-whisper with light VAD filtering. Returns punctuated segments.
+    """Transcribe audio using either:
+      - Hugging Face distilled Whisper (transformers) if TRANSCRIBE_MODEL=hf-distil
+      - faster-whisper (default/fallback)
 
-    Fallbacks:
-    - If float16 is unsupported, retry with int8.
-    - If model load/transcription fails due to memory, retry with tiny/int8 and 1 thread.
+    API contract unchanged: returns List[Segment].
     """
-    model_size = (model_size or os.getenv("WHISPER_MODEL", "small")).strip()
-    compute_type = (compute_type or os.getenv("WHISPER_COMPUTE", "int8")).strip()
-    threads_env = os.getenv("WHISPER_THREADS", "").strip()
-    cpu_threads = None
-    try:
-        if threads_env:
-            cpu_threads = max(1, int(threads_env))
-    except Exception:
-        cpu_threads = None
 
-    from faster_whisper import WhisperModel  # import here so module loads without pkg
+    # Common config
     task_env = os.getenv("WHISPER_TASK", "transcribe").strip().lower()
     task = task_env if task_env in ("transcribe", "translate") else "transcribe"
+    chunk_len = float(os.getenv("WHISPER_CHUNK_LEN", "20"))
+    beam_size = int(os.getenv("WHISPER_BEAM_SIZE", "1"))
 
-    def make_model(size: str, ct: str, threads: Optional[int]) -> Any:
-        return WhisperModel(size, device="auto", compute_type=ct, cpu_threads=threads)
+    backend = os.getenv("TRANSCRIBE_MODEL", "faster-whisper").strip().lower()
 
-    # Step 1: try requested settings (with float16->int8 fallback)
-    try:
+    if backend == "hf-distil":
+        # Try Hugging Face distilled Whisper via transformers
+        model_id = os.getenv("HF_WHISPER_MODEL", "distil-whisper/distil-small.en").strip()
+        alt_model_id = os.getenv("HF_WHISPER_MODEL_FALLBACK", "distil-whisper/distil-base.en").strip()
+
+        global _HF_PIPELINE_ID, _HF_PIPELINE
         try:
-            model = make_model(model_size, compute_type, cpu_threads)
-        except ValueError as e:
-            if "float16" in str(e).lower():
-                model = make_model(model_size, "int8", cpu_threads)
+            _HF_PIPELINE
+        except NameError:
+            _HF_PIPELINE = None  # type: ignore
+            _HF_PIPELINE_ID = None  # type: ignore
+
+        if _HF_PIPELINE is None or _HF_PIPELINE_ID not in (model_id, alt_model_id):
+            t0 = time.time()
+            logger.info(f"Loading HF pipeline: {model_id} (device=cpu)")
+            try:
+                from transformers import pipeline
+                import torch
+                hf_id = model_id
+                try:
+                    _HF_PIPELINE = pipeline(
+                        "automatic-speech-recognition",
+                        model=hf_id,
+                        device="cpu",
+                        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                    )
+                    _HF_PIPELINE_ID = hf_id
+                except Exception:
+                    logger.warning(f"Failed to load {model_id}, trying fallback {alt_model_id}")
+                    hf_id = alt_model_id
+                    from transformers import pipeline as _pipeline
+                    import torch as _torch
+                    _HF_PIPELINE = _pipeline(
+                        "automatic-speech-recognition",
+                        model=hf_id,
+                        device="cpu",
+                        torch_dtype=_torch.float32,
+                    )
+                    _HF_PIPELINE_ID = hf_id
+            except Exception as e:
+                logger.error(f"HF pipeline load failed: {e}; falling back to faster-whisper")
+                backend = "faster-whisper"
             else:
-                raise
+                logger.info(f"HF pipeline ready ({_HF_PIPELINE_ID}) in {time.time()-t0:.2f}s")
+
+        if backend == "hf-distil" and _HF_PIPELINE is not None:
+            # Run transformers pipeline with chunking; language='en'
+            t1 = time.time()
+            try:
+                result = _HF_PIPELINE(
+                    str(path),
+                    chunk_length_s=chunk_len,
+                    return_timestamps=False,
+                    generate_kwargs={
+                        "task": task,
+                        "language": "en",
+                        "temperature": 0.0,
+                        "beam_size": max(1, beam_size),
+                        "best_of": 1,
+                        "condition_on_previous_text": False,
+                    },
+                )
+            except Exception as e:
+                msg = str(e)
+                if "out of memory" in msg.lower() or "cannot allocate" in msg.lower():
+                    raise RuntimeError("Transcription OOM (HF): reduce chunk length or switch to faster-whisper int8")
+                raise RuntimeError(f"Transcription failed (HF): {e}")
+
+            text = result["text"] if isinstance(result, dict) else str(result)
+            text = (text or "").strip()
+            logger.info(
+                f"HF ASR done in {time.time()-t1:.2f}s | model={_HF_PIPELINE_ID} | backend=hf-distil"
+            )
+            if not text:
+                raise RuntimeError("ASR produced no text")
+            return [Segment(0.0, 0.0, text)]
+
+    # Fallback / default: faster-whisper (ctranslate2)
+    env_model = os.getenv("WHISPER_MODEL", os.getenv("WHISPER_MODEL_NAME", "base.en"))
+    model_name = (model_size or env_model or "base.en").strip()
+    env_compute = os.getenv("WHISPER_COMPUTE_TYPE", os.getenv("WHISPER_COMPUTE", "int8"))
+    compute = (compute_type or env_compute or "int8").strip()
+
+    # Global model cache
+    global _WHISPER_MODEL, _WHISPER_MODEL_NAME, _WHISPER_COMPUTE
+    try:
+        _WHISPER_MODEL
+    except NameError:
+        _WHISPER_MODEL = None  # type: ignore
+        _WHISPER_MODEL_NAME = None  # type: ignore
+        _WHISPER_COMPUTE = None  # type: ignore
+
+    try:
+        from faster_whisper import WhisperModel  # local import
+    except Exception as e:
+        raise RuntimeError(f"faster-whisper not available and HF backend failed: {e}")
+
+    if _WHISPER_MODEL is None or _WHISPER_MODEL_NAME != model_name or _WHISPER_COMPUTE != compute:
+        t0 = time.time()
+        logger.info(f"Loading faster-whisper(name={model_name}, device=cpu, compute={compute}) ...")
+        try:
+            _WHISPER_MODEL = WhisperModel(model_name, device="cpu", compute_type=compute)
+            _WHISPER_MODEL_NAME = model_name
+            _WHISPER_COMPUTE = compute
+        except Exception as e:
+            msg = str(e)
+            if "out of memory" in msg.lower() or "cannot allocate" in msg.lower():
+                raise RuntimeError("Model load OOM: try a smaller model or int8 compute_type")
+            raise RuntimeError(f"Failed to load model: {e}")
+        finally:
+            logger.info(f"Model load took {time.time()-t0:.2f}s")
+
+    model = _WHISPER_MODEL
+    t1 = time.time()
+    try:
         segments, _info = model.transcribe(
             str(path),
             task=task,
-            language="en" if task == "translate" else None,
-            beam_size=5,
-            best_of=5,
-            temperature=0.2,
-            no_speech_threshold=0.6,
-            log_prob_threshold=-1.0,
+            language="en" if (task == "translate" or model_name.endswith(".en")) else None,
             vad_filter=True,
             vad_parameters={"min_silence_duration_ms": 300},
+            chunk_length=chunk_len,
+            beam_size=max(1, beam_size),
+            condition_on_previous_text=False,
         )
-        out: List[Segment] = [Segment(float(s.start), float(s.end), s.text.strip()) for s in segments]
-        if not any(seg.text for seg in out):
-            raise RuntimeError("ASR produced no text")
-        return out
     except Exception as e:
-        # Detect memory-related failures and retry with tiny/int8 and minimal threads
-        msg = str(e).lower()
-        mem_hit = any(k in msg for k in ["out of memory", "oom", "cuda out of memory", "alloc", "cannot allocate memory"])
-        if not mem_hit:
-            raise
-        try:
-            tiny_threads = 1
-            tiny_model = make_model("tiny", "int8", tiny_threads)
-            segments, _info = tiny_model.transcribe(
-                str(path),
-                task=task,
-                language="en" if task == "translate" else None,
-                beam_size=5,
-                best_of=5,
-                temperature=0.2,
-                no_speech_threshold=0.6,
-                log_prob_threshold=-1.0,
-                vad_filter=True,
-                vad_parameters={"min_silence_duration_ms": 300},
-            )
-            out: List[Segment] = [Segment(float(s.start), float(s.end), s.text.strip()) for s in segments]
-            if not any(seg.text for seg in out):
-                raise RuntimeError("ASR produced no text (tiny)")
-            return out
-        except Exception:
-            # Re-raise original, which will be surfaced to client by the route wrapper
-            raise e
+        msg = str(e)
+        if "out of memory" in msg.lower() or "cannot allocate" in msg.lower():
+            raise RuntimeError("Transcription OOM: reduce chunk length or use a smaller model")
+        raise RuntimeError(f"Transcription failed: {e}")
+
+    out: List[Segment] = [Segment(float(s.start), float(s.end), s.text.strip()) for s in segments]
+    duration = time.time() - t1
+    words = sum(len(seg.text.split()) for seg in out if seg.text)
+    logger.info(f"ASR done in {duration:.2f}s | segments={len(out)} | approx_words={words} | backend=faster-whisper")
+
+    if not any(seg.text for seg in out):
+        raise RuntimeError("ASR produced no text")
+    return out
 
 
 def join_segments(segments: List[Dict[str, Any] | Segment]) -> str:

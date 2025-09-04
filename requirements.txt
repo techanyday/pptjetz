@@ -1,31 +1,27 @@
-Flask==2.3.3
-Flask-SQLAlchemy==3.1.1
-Flask-Login==0.6.2
-Flask-Migrate==4.0.5
-python-dotenv==1.0.0
-requests==2.31.0
-SQLAlchemy==2.0.41
-python-dateutil==2.8.2
-Werkzeug==2.3.7
-gunicorn==21.2.0
-waitress==2.1.2
-google-auth==2.27.0
-google-auth-oauthlib==1.2.0
-google-api-python-client==2.96.0
-
-Flask-Cors==4.0.0
-itsdangerous>=2.1.2
+fastapi==0.111.0
+uvicorn==0.27.1
 pydantic==2.7.1
-pydantic-settings>=2.2.1
-openai>=1.30.0
-
-# PPTX generation and previews
-python-pptx==0.6.21
-Pillow==10.4.0
-# pdf2image==1.17.0  # optional fallback if using PDF->PNG (requires poppler)
+httpx==0.27.0
+openai==1.30.1
+google-api-python-client==2.126.0
+google-auth==2.29.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.0
+matplotlib==3.8.3
+pillow<10.0
+python-pptx==0.6.23
+pytest==8.1.1
+python-dotenv==1.0.1
 
 # Transcriber dependencies
+youtube-transcript-api==0.6.2
+yt-dlp==2024.8.6
 faster-whisper==1.0.3
-yt-dlp>=2024.07.09
-youtube-transcript-api>=0.6.2
-huggingface_hub[hf_xet]>=0.23.0
+
+# Hugging Face distilled Whisper backend
+transformers>=4.41.0
+huggingface_hub>=0.23.0
+# CPU-only PyTorch; default pip wheels are CPU if CUDA not available
+torch>=2.2.0
+# Audio I/O for transformers ASR when reading wav files
+soundfile>=0.12.1
