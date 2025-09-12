@@ -111,10 +111,14 @@ def create_app():
     
     # Import models so Alembic can detect them
     from .presentation_log import PresentationLog  # noqa: F401
+    from .models import BlogPost  # noqa: F401
 
     # Register blueprint with URL prefix
     from .routes import bp as main_bp
     app.register_blueprint(main_bp, url_prefix='/')
+    # Blog API
+    from .blog import bp as blog_bp
+    app.register_blueprint(blog_bp, url_prefix='/api/blog')
     
     # Make `user` available in templates for compatibility with existing HTML
     @app.context_processor
@@ -125,11 +129,14 @@ def create_app():
     print(f"Template folder path: {app.template_folder}")
     print(f"Static folder path: {app.static_folder}")
     
-    # Ensure the generated directory exists
+    # Ensure the generated and uploads directories exist
     os.makedirs(os.path.join(os.path.dirname(app.root_path), 'generated'), exist_ok=True)
+    uploads_dir = os.path.join(app.static_folder, 'uploads', 'blog')
+    os.makedirs(uploads_dir, exist_ok=True)
     
-    # Tell Flask to prefer HTTPS when building external URLs
-    app.config['PREFERRED_URL_SCHEME'] = 'https'
+    # Prefer http in development (local) to match OAuth redirect URIs, https in prod
+    is_dev = os.environ.get('FLASK_ENV') == 'development'
+    app.config['PREFERRED_URL_SCHEME'] = 'http' if is_dev else 'https'
 
     # Ensure Flask respects X-Forwarded-Proto/Host headers so generated URLs use HTTPS and correct host on Render
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)

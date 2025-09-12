@@ -1,5 +1,3 @@
-logger = logging.getLogger("transcriber")
-
 import os
 import time
 import logging
@@ -11,6 +9,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+
+logger = logging.getLogger("transcriber")
 
 # External libs (declared in requirements)
 try:
@@ -141,7 +141,7 @@ def download_audio_wav(url: str, yt_id: str) -> Path:
         ytdlp_cmd = [
             "yt-dlp",
             "-f", "bestaudio/best",  # fall back to best if separate audio not available (e.g., some Shorts)
-            "--no-playlist", "--no-keyring", "--restrict-filenames", "--force-overwrites",
+            "--no-playlist", "--restrict-filenames", "--force-overwrites",
             *cookies_args,
             "-o", str(out_tmpl), url,
         ]
@@ -150,7 +150,7 @@ def download_audio_wav(url: str, yt_id: str) -> Path:
         ytdlp_cmd = [
             shutil.which("python") or "python", "-m", "yt_dlp",
             "-f", "bestaudio/best",
-            "--no-playlist", "--no-keyring", "--restrict-filenames", "--force-overwrites",
+            "--no-playlist", "--restrict-filenames", "--force-overwrites",
             *cookies_args,
             "-o", str(out_tmpl), url,
         ]

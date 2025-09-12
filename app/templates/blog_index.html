@@ -5,18 +5,46 @@
 {% block description %}Read the latest articles from the PPTJet team on AI, presentation design, and productivity.{% endblock %}
 
 {% block content %}
-<h1 class="text-4xl font-bold mb-8 text-center">PPTJet Blog</h1>
-<div class="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-    {% for post in posts %}
-    <a href="{{ post.url }}" class="block bg-white rounded-lg shadow hover:shadow-lg transition duration-150 overflow-hidden">
-        {% if post.image %}
-        <img src="{{ post.image }}" alt="{{ post.title }} image" class="w-full h-48 object-cover">
-        {% endif %}
-        <div class="p-6">
-            <h2 class="text-xl font-semibold mb-2">{{ post.title }}</h2>
-            <p class="text-gray-600 text-sm">{{ post.description }}</p>
-        </div>
-    </a>
-    {% endfor %}
+<!-- Hero -->
+<section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white mb-10">
+  <div class="px-6 py-16 md:px-12 md:py-20">
+    <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">Insights on AI, Slides, and Better Storytelling</h1>
+    <p class="text-white/90 md:text-lg max-w-3xl">Practical tips, patterns, and deep dives to help you move from idea to polished slides—faster.</p>
+    <div class="mt-6 flex items-center gap-3 text-sm text-white/80">
+      <span class="inline-flex items-center px-3 py-1 rounded-full bg-white/10 ring-1 ring-white/20">Design</span>
+      <span class="inline-flex items-center px-3 py-1 rounded-full bg-white/10 ring-1 ring-white/20">Workflows</span>
+      <span class="inline-flex items-center px-3 py-1 rounded-full bg-white/10 ring-1 ring-white/20">AI</span>
+    </div>
+  </div>
+  <svg class="absolute -bottom-10 -right-10 h-48 w-48 opacity-30" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M39.5,-61.4C52.5,-54.8,65.2,-44.6,73.1,-31.5C80.9,-18.4,84,-2.5,80.6,11.8C77.2,26.2,67.3,39.1,55.3,50.6C43.3,62,29.1,72.1,13.3,76.8C-2.4,81.5,-19.7,80.8,-35.4,75C-51.1,69.1,-65.2,58.1,-73.3,43.9C-81.4,29.8,-83.5,12.4,-81.5,-4.5C-79.6,-21.4,-73.5,-37.8,-62.4,-49.5C-51.2,-61.3,-35,-68.4,-19.1,-72.6C-3.3,-76.8,12.3,-78.2,26.3,-72.8C40.3,-67.4,52.6,-55.1,39.5,-61.4Z" transform="translate(100 100)" /></svg>
+</section>
+
+<!-- Grid -->
+<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+  {% for post in posts %}
+  <a href="{{ post.url }}" class="group relative overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5 hover:shadow-xl transition-all duration-300">
+    <div class="h-44 w-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+      {% if post.image %}
+      <img src="{{ post.image }}" alt="{{ post.title }}" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300">
+      {% else %}
+      <svg class="h-16 w-16 text-slate-400 group-hover:scale-105 transition-transform duration-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 14h-2v-2h2v2zm0-4h-2V6h2v6z"/></svg>
+      {% endif %}
+    </div>
+    <div class="p-5">
+      <h2 class="text-lg font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">{{ post.title }}</h2>
+      <p class="mt-2 text-sm text-slate-600 line-clamp-3">{{ post.description }}</p>
+      <div class="mt-4 flex items-center justify-between">
+        <span class="text-xs text-slate-500">Read article</span>
+        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M3 12a.75.75 0 01.75-.75h14.69l-4.22-4.22a.75.75 0 111.06-1.06l5.5 5.5a.75.75 0 010 1.06l-5.5 5.5a.75.75 0 11-1.06-1.06l4.22-4.22H3.75A.75.75 0 013 12z" clip-rule="evenodd"/></svg>
+        </span>
+      </div>
+    </div>
+  </a>
+  {% else %}
+  <div class="col-span-full text-center text-slate-600 bg-white rounded-xl p-10 ring-1 ring-black/5">
+    No posts yet. Check back soon!
+  </div>
+  {% endfor %}
 </div>
 {% endblock %}

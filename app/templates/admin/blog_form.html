@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Admin - {{ 'Edit' if post else 'New' }} Post{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto py-8">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold">{{ 'Edit' if post else 'New' }} Post</h1>
+    <a class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300" href="{{ url_for('main.admin_blog_list') }}">Back</a>
+  </div>
+
+  {% if error %}
+  <div class="mb-4 p-3 bg-red-100 text-red-700 rounded">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="space-y-4">
+    <div>
+      <label class="block text-sm font-medium mb-1">Title</label>
+      <input type="text" name="title" value="{{ post.title if post else '' }}" class="w-full border rounded p-2" required>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Slug</label>
+      <input type="text" name="slug" value="{{ post.slug if post else '' }}" class="w-full border rounded p-2" placeholder="auto-generated from title if left blank">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Summary</label>
+      <textarea name="summary" rows="2" class="w-full border rounded p-2">{{ post.summary if post else '' }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Content</label>
+      <!-- Hidden textarea actually submitted; we keep it in sync with Quill -->
+      <textarea name="content" id="content" class="hidden">{{ post.content if post else '' }}</textarea>
+      <div id="editor" class="w-full bg-white border rounded" style="min-height: 380px;"></div>
+      <p class="text-xs text-gray-500 mt-1">Tip: Use the toolbar to add headings, bold, lists, and links. Pasted formatting is preserved.</p>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Featured Image</label>
+      {% if post and post.featured_image %}
+      <div class="mb-2">
+        <img src="{{ url_for('static', filename=post.featured_image) }}" alt="Featured" class="h-28 rounded border">
+      </div>
+      {% endif %}
+      <input type="file" name="featured_image" accept="image/*" class="w-full border rounded p-2 bg-white">
+      <p class="text-xs text-gray-500 mt-1">Recommended: 1200×630px (JPG/PNG). Max ~5MB depending on server limits.</p>
+    </div>
+
+    <div class="flex items-center">
+      <input id="published" type="checkbox" name="published" value="1" class="mr-2" {% if post and post.published %}checked{% endif %}>
+      <label for="published">Published</label>
+    </div>
+
+    <div class="flex gap-3">
+      <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+      {% if post %}
+      <a class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300" href="{{ url_for('main.blog_post_page', slug=post.slug) }}" target="_blank">View</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <!-- Quill (no API key required) -->
+  <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+  <script>
+    (function() {
+      const toolbarOptions = [
+        [{ header: [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline'],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        ['link'],
+        ['clean']
+      ];
+      const quill = new Quill('#editor', {
+        theme: 'snow',
+        placeholder: 'Write your post here... (paste from your source to keep formatting)',
+        modules: { toolbar: toolbarOptions }
+      });
+      // Load initial HTML (if editing)
+      const textarea = document.getElementById('content');
+      if (textarea.value) {
+        quill.root.innerHTML = textarea.value;
+      }
+      // Keep textarea in sync so HTML5 validation sees content before submit
+      const sync = () => { textarea.value = quill.root.innerHTML; };
+      quill.on('text-change', sync);
+      // Also sync on clicking any submit button (before validation runs)
+      const form = textarea.closest('form');
+      form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(btn => {
+        btn.addEventListener('click', sync);
+      });
+    })();
+  </script>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }} | PPTJet Blog{% endblock %}
+
+{% block description %}{{ (post.summary or post.content[:150]) }}{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<header class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white">
+  <div class="px-6 py-16 md:px-12 md:py-20">
+    <div class="text-sm mb-3 text-white/80"><a href="{{ url_for('main.blog_index') }}" class="hover:underline">← Back to Blog</a></div>
+    <h1 class="text-3xl md:text-5xl font-extrabold leading-tight">{{ post.title }}</h1>
+    {% if post.summary %}
+    <p class="mt-4 text-white/90 md:text-lg max-w-3xl">{{ post.summary }}</p>
+    {% endif %}
+    <div class="mt-6 text-sm text-white/80 flex items-center gap-4">
+      {% if post.published_at %}
+      <span>Published {{ post.published_at.strftime('%b %d, %Y') }}</span>
+      {% endif %}
+      {% if post.author_id %}
+      <span>·</span>
+      <span>By {{ post.user.name if post.user and post.user.name else 'PPTJet Team' }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <svg class="absolute -bottom-12 -right-12 h-56 w-56 opacity-30" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M39.5,-61.4C52.5,-54.8,65.2,-44.6,73.1,-31.5C80.9,-18.4,84,-2.5,80.6,11.8C77.2,26.2,67.3,39.1,55.3,50.6C43.3,62,29.1,72.1,13.3,76.8C-2.4,81.5,-19.7,80.8,-35.4,75C-51.1,69.1,-65.2,58.1,-73.3,43.9C-81.4,29.8,-83.5,12.4,-81.5,-4.5C-79.6,-21.4,-73.5,-37.8,-62.4,-49.5C-51.2,-61.3,-35,-68.4,-19.1,-72.6C-3.3,-76.8,12.3,-78.2,26.3,-72.8C40.3,-67.4,52.6,-55.1,39.5,-61.4Z" transform="translate(100 100)" /></svg>
+</header>
+
+<!-- Content -->
+<article class="max-w-3xl mx-auto">
+  <div class="bg-white -mt-8 relative z-10 rounded-2xl p-6 md:p-10 shadow-sm ring-1 ring-black/5">
+    {% if post.featured_image %}
+    <img src="{{ url_for('static', filename=post.featured_image) }}" alt="{{ post.title }}" class="w-full h-64 object-cover rounded-xl mb-6">
+    {% endif %}
+    <div class="prose prose-slate max-w-none">
+      <div class="leading-7 text-slate-700 whitespace-pre-wrap">{{ post.content | safe }}</div>
+    </div>
+    <div class="mt-8 pt-6 border-t border-slate-200 flex items-center justify-between text-sm text-slate-500">
+      <span>Share:</span>
+      <div class="flex gap-3">
+        <a class="hover:text-indigo-600" href="https://twitter.com/intent/tweet?text={{ post.title | urlencode }}&url={{ request.url | urlencode }}" target="_blank" rel="noopener">Twitter</a>
+        <a class="hover:text-indigo-600" href="https://www.linkedin.com/sharing/share-offsite/?url={{ request.url | urlencode }}" target="_blank" rel="noopener">LinkedIn</a>
+      </div>
+    </div>
+  </div>
+</article>
+{% endblock %}

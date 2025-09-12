@@ -97,3 +97,45 @@ class User(UserMixin, db.Model):
             "presentations_count": self.presentations_count,
             "last_reset": self.last_reset.isoformat()
         }
+
+
+# Blog posts
+class BlogPost(db.Model):
+    __tablename__ = 'blog_posts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    slug = db.Column(db.String(160), unique=True, nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    summary = db.Column(db.String(300))
+    content = db.Column(db.Text, nullable=False)
+    featured_image = db.Column(db.String(300))  # relative to static folder, e.g., uploads/blog/filename.jpg
+    published = db.Column(db.Boolean, default=False, index=True)
+
+    author_id = db.Column(db.String(100), db.ForeignKey('users.id'), nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    published_at = db.Column(db.DateTime, nullable=True, index=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "slug": self.slug,
+            "title": self.title,
+            "summary": self.summary,
+            "content": self.content,
+            "featured_image": self.featured_image,
+            "published": self.published,
+            "author_id": self.author_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "published_at": self.published_at.isoformat() if self.published_at else None,
+        }
+
+    @staticmethod
+    def slugify(text: str) -> str:
+        import re as _re
+        base = (text or '').strip().lower()
+        base = _re.sub(r"[^a-z0-9\s-]", "", base)
+        base = _re.sub(r"\s+", "-", base).strip("-")
+        return base[:150]

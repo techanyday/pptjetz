@@ -5,15 +5,17 @@ import json
 import re
 import os
 import requests
+from datetime import datetime
+from werkzeug.utils import secure_filename
 
-from flask import Blueprint, jsonify, request, render_template, redirect, url_for, current_app, session, send_from_directory
-from flask_login import login_user, logout_user, current_user
+from flask import Blueprint, jsonify, request, render_template, redirect, url_for, current_app, session, send_from_directory, abort
+from flask_login import login_user, logout_user, current_user, login_required
 
 from app.services.ai_content import create_deck_slides, derive_topic_bullets
 # Preview PNG generation is removed; only PPTX export remains
 from app.services.pptx_builder import build_pptx_from_positions, build_pptx_from_slides
 from app import db
-from app.models import User
+from app.models import User, BlogPost
 from app.transcriber.services import (
     parse_youtube_id,
     get_captions,
@@ -94,78 +96,14 @@ def terms() -> Any:
 # ---------- Transcriber UI (Flask) ----------
 @bp.get("/transcriber")
 def transcriber_page() -> Any:
-    """Render the Transcriber page (works under Flask server on :5000)."""
-    return render_template("transcriber.html")
+    # Transcriber feature removed
+    abort(404)
 
 
 @bp.post("/api/transcribe")
 def api_transcribe() -> Any:
-    """Flask version of the transcribe endpoint using shared services."""
-    data = request.get_json(silent=True) or {}
-    url = (data.get("url") or "").strip()
-    prefer_captions = bool(data.get("preferCaptions", True))
-    captions_only = bool(data.get("captionsOnly", False))
-    tos_ok = bool(data.get("authorized", False))
-
-    if not url:
-        return jsonify({"detail": "YouTube URL is required"}), 422
-    if not tos_ok:
-        return jsonify({"detail": "You must confirm authorization to process this video"}), 400
-
-    yt_id = parse_youtube_id(url)
-    if not yt_id:
-        return jsonify({"detail": "Invalid YouTube URL"}), 422
-
-    segments = None
-    if prefer_captions or captions_only:
-        segments = get_captions(yt_id)
-
-    text = None
-    if segments:
-        text = join_segments(segments)
-    else:
-        if captions_only:
-            return jsonify({"detail": "Captions not available for this video"}), 404
-        try:
-            wav_path = download_audio_wav(url, yt_id)
-            try:
-                # Force CPU-safe compute type to avoid float16 on non-GPU machines
-                asr_segments = transcribe_wav(wav_path, compute_type="int8")
-                text = join_segments(asr_segments)
-            finally:
-                try:
-                    wav_path.unlink(missing_ok=True)
-                    wav_dir = wav_path.parent
-                    for p in wav_dir.iterdir():
-                        try:
-                            p.unlink()
-                        except Exception:
-                            pass
-                    try:
-                        wav_dir.rmdir()
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-        except RuntimeError as e:
-            msg = str(e)
-            if "403" in msg or "Requested format is not available" in msg:
-                # Surface a user-actionable error instead of 500
-                return (
-                    jsonify({
-                        "detail": "YouTube blocked the audio download for this video. Try 'Captions only' if available, or a different URL.",
-                        "reason": msg[:300],
-                    }),
-                    403,
-                )
-            # Generic failure
-            return jsonify({"detail": msg[:300]}), 400
-
-    if not text:
-        return jsonify({"detail": "Failed to obtain captions or transcription"}), 500
-
-    word_count = len([w for w in text.split() if w.strip()])
-    return jsonify({"ok": True, "videoId": yt_id, "text": text, "wordCount": word_count})
+    # Transcriber API removed
+    abort(404)
 
 
 @bp.get("/ads.txt")
@@ -181,7 +119,31 @@ def about() -> Any:
 
 @bp.get("/blog")
 def blog_index() -> Any:
-    return render_template("blog_index.html")
+    """Blog index page rendering published posts from DB."""
+    posts_q = BlogPost.query.filter(BlogPost.published.is_(True)).order_by(
+        BlogPost.published_at.desc().nullslast(), BlogPost.created_at.desc()
+    )
+    posts = [
+        {
+            "title": p.title,
+            "description": p.summary or (p.content[:140] + ("…" if len(p.content) > 140 else "")),
+            "url": url_for("main.blog_post_page", slug=p.slug),
+            "image": (url_for('static', filename=p.featured_image) if p.featured_image else None),
+        }
+        for p in posts_q.all()
+    ]
+    return render_template("blog_index.html", posts=posts)
+
+
+@bp.get("/blog/<slug>")
+def blog_post_page(slug: str) -> Any:
+    p = BlogPost.query.filter(BlogPost.slug == slug)
+    if not (getattr(current_user, "is_admin", False)):
+        p = p.filter(BlogPost.published.is_(True))
+    post = p.first()
+    if not post:
+        abort(404)
+    return render_template("blog_post.html", post=post)
 
 
 @bp.get("/dashboard")
@@ -213,7 +175,12 @@ def login() -> Any:
 
     # Build the authorization URL
     authorization_endpoint = "https://accounts.google.com/o/oauth2/v2/auth"
-    redirect_uri = url_for("main.login_callback", _external=True)
+    # Normalize redirect URI in development to localhost to match Google Console
+    is_dev = os.environ.get("FLASK_ENV") == "development"
+    if is_dev:
+        redirect_uri = "http://localhost:5000" + url_for("main.login_callback")
+    else:
+        redirect_uri = url_for("main.login_callback", _external=True)
     # Request only non-sensitive scopes to avoid verification prompts.
     # The app does not call Drive/Slides APIs anymore; PPTX export is local.
     scopes = [
@@ -246,7 +213,11 @@ def login_callback() -> Any:
         return redirect(url_for("main.home"))
 
     token_endpoint = "https://oauth2.googleapis.com/token"
-    redirect_uri = url_for("main.login_callback", _external=True)
+    is_dev = os.environ.get("FLASK_ENV") == "development"
+    if is_dev:
+        redirect_uri = "http://localhost:5000" + url_for("main.login_callback")
+    else:
+        redirect_uri = url_for("main.login_callback", _external=True)
     client_id = current_app.config.get("GOOGLE_OAUTH_CLIENT_ID") or os.getenv("GOOGLE_OAUTH_CLIENT_ID")
     client_secret = current_app.config.get("GOOGLE_OAUTH_CLIENT_SECRET") or os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 
@@ -263,6 +234,21 @@ def login_callback() -> Any:
         auth=(client_id, client_secret),
         timeout=20,
     )
+    # If Google returns an error, surface it clearly instead of raising InvalidGrant
+    if token_response.status_code != 200:
+        try:
+            err = token_response.json()
+        except Exception:
+            err = {"raw": token_response.text[:500]}
+        return (
+            render_template(
+                "error.html",
+                title="Google Login Failed",
+                message=(err.get("error_description") or err.get("error") or "Token exchange failed"),
+                details=err,
+            ),
+            400,
+        )
     client.parse_request_body_response(token_response.text)
     tokens = token_response.json()
     # Persist tokens in session for downstream Google API use
@@ -705,3 +691,115 @@ def export_presentation() -> Any:
 
 
 # Preview-related endpoints removed
+
+
+# ---------- Admin: Blog Management ----------
+def _admin_guard():
+    if not getattr(current_user, "is_authenticated", False):
+        abort(401)
+    if not getattr(current_user, "is_admin", False):
+        abort(403)
+
+
+@bp.get("/admin/blog")
+@login_required
+def admin_blog_list() -> Any:
+    _admin_guard()
+    posts = BlogPost.query.order_by(BlogPost.created_at.desc()).all()
+    return render_template("admin/blog_list.html", posts=posts)
+
+
+@bp.route("/admin/blog/new", methods=["GET", "POST"])
+@login_required
+def admin_blog_new() -> Any:
+    _admin_guard()
+    if request.method == "POST":
+        title = (request.form.get("title") or "").strip()
+        slug = (request.form.get("slug") or BlogPost.slugify(title)).strip()
+        summary = (request.form.get("summary") or "").strip() or None
+        content = (request.form.get("content") or "").strip()
+        published = bool(request.form.get("published"))
+        # Handle featured image upload (optional)
+        img_rel_path = None
+        file = request.files.get('featured_image')
+        if file and file.filename:
+            fname = secure_filename(file.filename)
+            # store under static/uploads/blog/<slug>-<timestamp>-<fname>
+            ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+            fname = f"{slug or 'post'}-{ts}-{fname}"
+            dest_dir = os.path.join(current_app.static_folder, 'uploads', 'blog')
+            os.makedirs(dest_dir, exist_ok=True)
+            file.save(os.path.join(dest_dir, fname))
+            img_rel_path = os.path.join('uploads', 'blog', fname).replace('\\', '/')
+        if not title or not content:
+            return render_template("admin/blog_form.html", error="Title and content are required", post=None)
+        if BlogPost.query.filter_by(slug=slug).first():
+            return render_template("admin/blog_form.html", error="Slug already exists", post=None)
+        post = BlogPost(
+            title=title,
+            slug=slug,
+            summary=summary,
+            content=content,
+            featured_image=img_rel_path,
+            published=published,
+            published_at=datetime.utcnow() if published else None,
+            author_id=getattr(current_user, "id", None),
+        )
+        db.session.add(post)
+        db.session.commit()
+        return redirect(url_for("main.admin_blog_list"))
+    return render_template("admin/blog_form.html", post=None)
+
+
+@bp.route("/admin/blog/<slug>/edit", methods=["GET", "POST"])
+@login_required
+def admin_blog_edit(slug: str) -> Any:
+    _admin_guard()
+    post = BlogPost.query.filter_by(slug=slug).first_or_404()
+    if request.method == "POST":
+        title = (request.form.get("title") or post.title).strip()
+        new_slug = (request.form.get("slug") or post.slug).strip()
+        summary = (request.form.get("summary") or post.summary or "").strip() or None
+        content = (request.form.get("content") or post.content).strip()
+        published = bool(request.form.get("published"))
+        # Handle optional featured image replacement
+        file = request.files.get('featured_image')
+        if file and file.filename:
+            fname = secure_filename(file.filename)
+            ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+            fname = f"{new_slug or 'post'}-{ts}-{fname}"
+            dest_dir = os.path.join(current_app.static_folder, 'uploads', 'blog')
+            os.makedirs(dest_dir, exist_ok=True)
+            file.save(os.path.join(dest_dir, fname))
+            post.featured_image = os.path.join('uploads', 'blog', fname).replace('\\', '/')
+        if new_slug != post.slug and BlogPost.query.filter_by(slug=new_slug).first():
+            return render_template("admin/blog_form.html", error="Slug already exists", post=post)
+        post.title = title
+        post.slug = new_slug
+        post.summary = summary
+        post.content = content
+        if published and not post.published:
+            post.published_at = datetime.utcnow()
+        post.published = published
+        db.session.commit()
+        return redirect(url_for("main.admin_blog_list"))
+    return render_template("admin/blog_form.html", post=post)
+
+
+@bp.post("/admin/blog/<slug>/delete")
+@login_required
+def admin_blog_delete(slug: str) -> Any:
+    _admin_guard()
+    post = BlogPost.query.filter_by(slug=slug).first_or_404()
+    # Optionally remove the featured image from disk
+    try:
+        if post.featured_image:
+            img_path = os.path.join(current_app.static_folder, post.featured_image)
+            if os.path.isfile(img_path):
+                os.remove(img_path)
+    except Exception:
+        # Non-fatal if file removal fails
+        pass
+    db.session.delete(post)
+    db.session.commit()
+    return redirect(url_for("main.admin_blog_list"))

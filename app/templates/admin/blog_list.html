@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Admin - Blog Posts{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto py-8">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold">Blog Posts</h1>
+    <a class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700" href="{{ url_for('main.admin_blog_new') }}">New Post</a>
+  </div>
+  <table class="w-full text-left border">
+    <thead>
+      <tr class="bg-gray-100">
+        <th class="p-2 border">Title</th>
+        <th class="p-2 border">Slug</th>
+        <th class="p-2 border">Published</th>
+        <th class="p-2 border">Updated</th>
+        <th class="p-2 border">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in posts %}
+      <tr>
+        <td class="p-2 border">{{ p.title }}</td>
+        <td class="p-2 border">{{ p.slug }}</td>
+        <td class="p-2 border">{% if p.published %}Yes{% else %}No{% endif %}</td>
+        <td class="p-2 border">{{ (p.updated_at or p.created_at).strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="p-2 border">
+          <a class="text-blue-600 hover:underline" href="{{ url_for('main.admin_blog_edit', slug=p.slug) }}">Edit</a>
+          <span class="mx-2">|</span>
+          <a class="text-gray-600 hover:underline" href="{{ url_for('main.blog_post_page', slug=p.slug) }}" target="_blank">View</a>
+          <span class="mx-2">|</span>
+          <form action="{{ url_for('main.admin_blog_delete', slug=p.slug) }}" method="post" class="inline" onsubmit="return confirm('Delete this post? This cannot be undone.');">
+            <button type="submit" class="text-red-600 hover:underline">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td class="p-4 text-center text-gray-500" colspan="5">No posts.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
