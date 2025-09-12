@@ -40,7 +40,8 @@ def create_app():
         r"/*": {
             "origins": [
                 "http://localhost:5000",
-                "https://pptjet-dev.onrender.com"
+                "https://pptjet-dev.onrender.com",
+                "https://pptjet.com"
             ],
             "supports_credentials": True
         }
@@ -57,7 +58,12 @@ def create_app():
 
     # Configure app
     app.config['GENERATED_FOLDER'] = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'generated')
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.urandom(24)
+    # Prefer SECRET_KEY, but support FLASK_SECRET_KEY as a fallback (for some hosts)
+    app.config['SECRET_KEY'] = (
+        os.environ.get('SECRET_KEY')
+        or os.environ.get('FLASK_SECRET_KEY')
+        or os.urandom(24)
+    )
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///app.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
@@ -90,11 +96,13 @@ def create_app():
             "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
             "redirect_uris": [
                 "http://localhost:5000/login/callback",
-                "https://pptjet-dev.onrender.com/login/callback"
+                "https://pptjet-dev.onrender.com/login/callback",
+                "https://pptjet.com/login/callback"
             ],
             "javascript_origins": [
                 "http://localhost:5000",
-                "https://pptjet-dev.onrender.com"
+                "https://pptjet-dev.onrender.com",
+                "https://pptjet.com"
             ]
         }
     }
@@ -133,6 +141,21 @@ def create_app():
     os.makedirs(os.path.join(os.path.dirname(app.root_path), 'generated'), exist_ok=True)
     uploads_dir = os.path.join(app.static_folder, 'uploads', 'blog')
     os.makedirs(uploads_dir, exist_ok=True)
+    
+    # SQLite safety net: auto-create tables if migrations weren't run
+    try:
+        uri = app.config.get('SQLALCHEMY_DATABASE_URI', '') or ''
+        if uri.startswith('sqlite'):
+            from sqlalchemy import inspect as _sa_inspect
+            with app.app_context():
+                insp = _sa_inspect(db.engine)
+                expected = {"users", "presentation_logs", "blog_posts"}
+                missing = [t for t in expected if not insp.has_table(t)]
+                if missing:
+                    print(f"DB init: creating missing tables {missing} via db.create_all()")
+                    db.create_all()
+    except Exception as _e:
+        print(f"Warning: failed to auto-create tables: {_e}")
     
     # Prefer http in development (local) to match OAuth redirect URIs, https in prod
     is_dev = os.environ.get('FLASK_ENV') == 'development'
