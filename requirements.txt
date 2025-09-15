@@ -28,6 +28,9 @@ requests==2.32.3
 # Production WSGI server
 gunicorn==21.2.0
 
+# Database drivers
+psycopg2-binary==2.9.9
+
 # Transcriber dependencies
 youtube-transcript-api==0.6.2
 yt-dlp==2024.8.6
@@ -40,3 +43,4 @@ huggingface_hub>=0.23.0
 torch>=2.2.0
 # Audio I/O for transformers ASR when reading wav files
 soundfile>=0.12.1
+psycopg2-binary==2.9.9
