@@ -142,17 +142,22 @@ def create_app():
     uploads_dir = os.path.join(app.static_folder, 'uploads', 'blog')
     os.makedirs(uploads_dir, exist_ok=True)
     
-    # SQLite safety net: auto-create tables if migrations weren't run
+    # SQLite safety net (development only): opt-in auto-create tables
+    # To use locally: set FLASK_ENV=development and AUTO_CREATE_TABLES=1
     try:
         uri = app.config.get('SQLALCHEMY_DATABASE_URI', '') or ''
-        if uri.startswith('sqlite'):
+        if (
+            uri.startswith('sqlite')
+            and os.environ.get('FLASK_ENV') == 'development'
+            and os.environ.get('AUTO_CREATE_TABLES') == '1'
+        ):
             from sqlalchemy import inspect as _sa_inspect
             with app.app_context():
                 insp = _sa_inspect(db.engine)
                 expected = {"users", "presentation_logs", "blog_posts"}
                 missing = [t for t in expected if not insp.has_table(t)]
                 if missing:
-                    print(f"DB init: creating missing tables {missing} via db.create_all()")
+                    print(f"DB init (dev): creating missing tables {missing} via db.create_all()")
                     db.create_all()
     except Exception as _e:
         print(f"Warning: failed to auto-create tables: {_e}")
