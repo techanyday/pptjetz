@@ -6,6 +6,22 @@
     <title>{% block title %}PPTJet - AI PowerPoint Generator{% endblock %}</title>
     <meta name="description" content="{% block description %}AI-powered presentation tips, resources, and tools from PPTJet.{% endblock %}">
     <link rel="canonical" href="{{ request.url }}">
+    
+    <!-- Default Open Graph / Twitter (can be overridden in child templates) -->
+    <meta property="og:site_name" content="PPTJet">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{% block og_title %}{% block title %}PPTJet - AI PowerPoint Generator{% endblock %}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}{% block description %}AI-powered presentation tips, resources, and tools from PPTJet.{% endblock %}{% endblock %}">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:image" content="{{ url_for('static', filename='images/logo.png', _external=True) }}">
+    <meta property="og:image:alt" content="PPTJet logo">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{% block tw_title %}{% block title %}PPTJet - AI PowerPoint Generator{% endblock %}{% endblock %}">
+    <meta name="twitter:description" content="{% block tw_description %}{% block description %}AI-powered presentation tips, resources, and tools from PPTJet.{% endblock %}{% endblock %}">
+    <meta name="twitter:image" content="{{ url_for('static', filename='images/logo.png', _external=True) }}">
+
+    {% block head_extra %}{% endblock %}
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @keyframes fadeIn {
