@@ -10,14 +10,23 @@
   <meta property="og:title" content="{{ post.title }} | PPTJet Blog">
   <meta property="og:description" content="{{ (post.summary or post.content[:150]) }}">
   <meta property="og:url" content="{{ request.url }}">
-  <meta property="og:image" content="{{ abs_image }}">
-  <meta property="og:image:alt" content="{{ post.title }}">
   {% if post.published_at %}
   <meta property="article:published_time" content="{{ post.published_at.isoformat() }}">
   {% endif %}
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{{ post.title }} | PPTJet Blog">
   <meta name="twitter:description" content="{{ (post.summary or post.content[:150]) }}">
+  {# twitter:image is provided via tw_image block below #}
+{% endblock %}
+
+{% block og_image %}
+  {% set abs_image = (url_for('static', filename=post.featured_image, _external=True) if post.featured_image else url_for('static', filename='images/logo.png', _external=True)) %}
+  <meta property="og:image" content="{{ abs_image }}">
+  <meta property="og:image:alt" content="{{ post.title }}">
+{% endblock %}
+
+{% block tw_image %}
+  {% set abs_image = (url_for('static', filename=post.featured_image, _external=True) if post.featured_image else url_for('static', filename='images/logo.png', _external=True)) %}
   <meta name="twitter:image" content="{{ abs_image }}">
 {% endblock %}
 
