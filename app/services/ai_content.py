@@ -588,11 +588,16 @@ def _quality_issues(slides: List[Dict[str, Any]]) -> Tuple[List[str], List[str]]
     for idx, s in enumerate(slides):
         stype = s.get("type")
         title = (s.get("title") or "").strip()
-        content = s.get("content") or {}
+        # Normalize content to a dict; the AI may sometimes emit a list/null
+        _raw = s.get("content")
+        content = _raw if isinstance(_raw, dict) else {}
         # Table placeholders
         if stype == "table":
-            left = (content.get("table") or {}).get("left", {})
-            right = (content.get("table") or {}).get("right", {})
+            tbl = content.get("table") or {}
+            if not isinstance(tbl, dict):
+                tbl = {}
+            left = (tbl.get("left") or {}) if isinstance(tbl.get("left"), dict) else {}
+            right = (tbl.get("right") or {}) if isinstance(tbl.get("right"), dict) else {}
             lhead = (left.get("heading") or "").strip().lower()
             rhead = (right.get("heading") or "").strip().lower()
             lpts = left.get("points") or []

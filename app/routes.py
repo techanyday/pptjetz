@@ -16,6 +16,7 @@ from app.services.ai_content import create_deck_slides, derive_topic_bullets
 from app.services.pptx_builder import build_pptx_from_positions, build_pptx_from_slides
 from app import db
 from app.models import User, BlogPost
+from app.presentation_log import PresentationLog
 from app.transcriber.services import (
     parse_youtube_id,
     get_captions,
@@ -679,6 +680,26 @@ def export_presentation() -> Any:
 
         download_url = url_for("main.download_file", folder=folder, fname=pptx_name, _external=True)
 
+        # Record usage: log presentation and increment user counter when logged in
+        try:
+            if getattr(current_user, "is_authenticated", False) and getattr(current_user, "id", None):
+                log = PresentationLog(
+                    user_id=current_user.id,
+                    title=deck_title,
+                    num_slides=len(slides_out),
+                    units_used=1,
+                )
+                db.session.add(log)
+                # increment user presentations_count if present on model
+                try:
+                    current_user.presentations_count = (getattr(current_user, "presentations_count", 0) or 0) + 1
+                except Exception:
+                    pass
+                db.session.commit()
+        except Exception:
+            # Non-fatal if logging fails; continue to return the download link
+            db.session.rollback()
+
         return jsonify({
             "ok": True,
             "download_url": download_url,
@@ -803,3 +824,42 @@ def admin_blog_delete(slug: str) -> Any:
     db.session.delete(post)
     db.session.commit()
     return redirect(url_for("main.admin_blog_list"))
+
+
+# ---------- Admin: Usage API ----------
+@bp.get("/admin/usage")
+@login_required
+def admin_usage_api() -> Any:
+    """Aggregate per-user usage for the admin dashboard.
+
+    Returns JSON like:
+    { ok: true, rows: [{id, email, presentations, last_presentation}] }
+    """
+    _admin_guard()
+    try:
+        from sqlalchemy import func
+        q = (
+            db.session.query(
+                User.id.label("id"),
+                User.email.label("email"),
+                func.count(PresentationLog.id).label("presentations"),
+                func.max(PresentationLog.created_at).label("last_presentation"),
+            )
+            .outerjoin(PresentationLog, PresentationLog.user_id == User.id)
+            .group_by(User.id)
+            .order_by(func.max(PresentationLog.created_at).desc().nullslast(), User.email.asc())
+        )
+        usage = [
+            {
+                "user_id": r.id,
+                "email": r.email,
+                "presentations": int(r.presentations or 0),
+                "last_date": (r.last_presentation.isoformat() if r.last_presentation else ""),
+            }
+            for r in q.all()
+        ]
+        # Match template expectation: { usage: [...] }
+        return jsonify({"usage": usage})
+    except Exception as exc:  # pragma: no cover
+        # In dev, the table may not yet exist; avoid 500ing the dashboard
+        return jsonify({"usage": [], "error": str(exc)}), 200
