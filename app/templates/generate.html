@@ -111,8 +111,32 @@
 <!-- Preview Section -->
 <div id="previewSection" class="max-w-4xl mx-auto mt-8 hidden">
   <div class="bg-white shadow-xl rounded-lg p-6">
+    {% if ADS_ENABLED and ADSENSE_ENABLED %}
+    <!-- AdSense: GENERATE_PREVIEW_TOP (slot 2523725868) -->
+    <div class="mb-4">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-6405372608012962"
+           data-ad-slot="2523725868"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    {% endif %}
     <h2 class="text-2xl font-bold mb-4">Presentation Outline</h2>
     <div id="slidesPreview" class="space-y-4"></div>
+    {% if ADS_ENABLED and ADSENSE_ENABLED %}
+    <!-- AdSense: GENERATE_PREVIEW_BOTTOM (slot 1754118419) -->
+    <div class="my-4">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-6405372608012962"
+           data-ad-slot="1754118419"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    {% endif %}
     <div class="text-center mt-6">
       <button id="exportBtn" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">Export PPTX</button>
     </div>
