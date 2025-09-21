@@ -31,9 +31,34 @@
         {% endif %}
     </div>
 
+    {% if ADS_ENABLED and ADSENSE_ENABLED %}
+    <!-- AdSense: Landing page above-features unit (slot 6909693439) -->
+    <div class="my-6">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-6405372608012962"
+           data-ad-slot="6909693439"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    {% endif %}
+
     <!-- Features Section -->
     <div class="py-12 bg-gray-50 rounded-xl">
         <div class="max-w-xl mx-auto px-4 sm:px-6 lg:max-w-7xl lg:px-8">
+            {% if ADS_ENABLED and ADSENSE_ENABLED %}
+            <!-- AdSense: HOME_FEATURES_TOP (slot 7093526269) placed immediately above Features title -->
+            <div class="my-6">
+              <ins class="adsbygoogle"
+                   style="display:block"
+                   data-ad-client="ca-pub-6405372608012962"
+                   data-ad-slot="7093526269"
+                   data-ad-format="auto"
+                   data-full-width-responsive="true"></ins>
+              <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+            </div>
+            {% endif %}
             <h2 class="text-3xl font-extrabold text-gray-900 text-center mb-12">Features</h2>
             <div class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 <div class="bg-white p-6 rounded-lg shadow-md">
@@ -51,5 +76,48 @@
             </div>
         </div>
     </div>
+
+    {% if ADS_ENABLED and ADSENSE_ENABLED %}
+    <!-- AdSense: Landing page below-features unit (slot 8103850440) -->
+    <div class="my-8">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="{{ ADSENSE_CLIENT }}"
+           data-ad-slot="8103850440"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    {% endif %}
+
+    {% if ADS_ENABLED and ADSENSE_ENABLED %}
+    <!-- Sidebars (shown on >= 1280px widths) -->
+    <style>
+    @media (min-width: 1280px){
+      .sidebar-ad{position:fixed; top:120px; width:300px; z-index:10;}
+      .sidebar-left{left:10px;}
+      .sidebar-right{right:10px;}
+    }
+    @media (max-width: 1279px){ .sidebar-ad{ display:none !important; } }
+    </style>
+    <div class="sidebar-ad sidebar-left">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="{{ ADSENSE_CLIENT }}"
+           data-ad-slot="3534050045"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    <div class="sidebar-ad sidebar-right">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="{{ ADSENSE_CLIENT }}"
+           data-ad-slot="8263632542"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
