@@ -128,10 +128,20 @@ def create_app():
     from .blog import bp as blog_bp
     app.register_blueprint(blog_bp, url_prefix='/api/blog')
     
-    # Make `user` available in templates for compatibility with existing HTML
+    # Make `user` and ad flags available in templates
     @app.context_processor
     def inject_user():
-        return {"user": current_user}
+        from flask import request
+        path = (request.path or "").lower()
+        # Disable ads on admin and blog admin routes
+        ads_enabled = not (path.startswith("/admin"))
+        return {
+            "user": current_user,
+            "FB_APP_ID": os.environ.get("FB_APP_ID", ""),
+            "EZOIC_ENABLED": os.environ.get("EZOIC_ENABLED", "0") == "1",
+            "ADSENSE_ENABLED": os.environ.get("ADSENSE_ENABLED", "0") == "1",
+            "ADS_ENABLED": ads_enabled,
+        }
     
     # Add debug prints for template loading
     print(f"Template folder path: {app.template_folder}")

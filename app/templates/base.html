@@ -1,14 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Ezoic Privacy & Header Scripts (load privacy scripts before header) -->
-    <script src="https://cmp.gatekeeperconsent.com/min.js" data-cfasync="false"></script>
-    <script src="https://the.gatekeeperconsent.com/cmp.min.js" data-cfasync="false"></script>
-    <script async src="//www.ezojs.com/ezoic/sa.min.js"></script>
-    <script>
-        window.ezstandalone = window.ezstandalone || {};
-        ezstandalone.cmd = ezstandalone.cmd || [];
-    </script>
+    {% if ADS_ENABLED and EZOIC_ENABLED %}
+      <!-- Ezoic Privacy & Header Scripts (load privacy scripts before header) -->
+      <script src="https://cmp.gatekeeperconsent.com/min.js" data-cfasync="false"></script>
+      <script src="https://the.gatekeeperconsent.com/cmp.min.js" data-cfasync="false"></script>
+      <script async src="//www.ezojs.com/ezoic/sa.min.js"></script>
+      <script>
+          window.ezstandalone = window.ezstandalone || {};
+          ezstandalone.cmd = ezstandalone.cmd || [];
+      </script>
+    {% endif %}
+    {% if ADS_ENABLED and ADSENSE_ENABLED %}
+      <!-- Google AdSense Auto Ads (enabled via ADSENSE_ENABLED) -->
+      <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6405372608012962" crossorigin="anonymous"></script>
+    {% endif %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}PPTJet - AI PowerPoint Generator{% endblock %}</title>
