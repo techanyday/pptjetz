@@ -143,6 +143,36 @@
   </div>
 </div>
 
+{% if ADS_ENABLED and ADSENSE_ENABLED %}
+<!-- Generate page sidebar (left, desktop only) -->
+<style>
+@media (min-width: 1280px){
+  .gen-sidebar-ad{position:fixed; top:120px; width:300px; z-index:10;}
+  .gen-sidebar-left{left:10px;}
+  .gen-sidebar-right{right:10px;}
+}
+@media (max-width: 1279px){ .gen-sidebar-ad{ display:none !important; } }
+</style>
+<div class="gen-sidebar-ad gen-sidebar-left">
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="ca-pub-6405372608012962"
+       data-ad-slot="3425743992"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<div class="gen-sidebar-ad gen-sidebar-right">
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="ca-pub-6405372608012962"
+       data-ad-slot="5114725022"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+{% endif %}
+
 <script>
 // Skeletons
 // Globals to share state between generate and export handlers
