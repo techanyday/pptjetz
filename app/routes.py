@@ -8,7 +8,20 @@ import requests
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
-from flask import Blueprint, jsonify, request, render_template, redirect, url_for, current_app, session, send_from_directory, abort
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    url_for,
+)
 from flask_login import login_user, logout_user, current_user, login_required
 
 from app.services.ai_content import create_deck_slides, derive_topic_bullets
@@ -145,6 +158,22 @@ def blog_post_page(slug: str) -> Any:
     if not post:
         abort(404)
     return render_template("blog_post.html", post=post)
+
+
+# ---------- Ads.txt (Ezoic-managed) ----------
+@bp.get("/ads.txt")
+def ads_txt_redirect() -> Any:
+    """Redirect /ads.txt to Ezoic-managed ads.txt.
+
+    If EZOIC_ADSTXT_URL is set in the environment, use it. Otherwise, default
+    to the conventional Ezoic manager URL for pptjet.com.
+    """
+    import os
+    target = os.environ.get(
+        "EZOIC_ADSTXT_URL",
+        "https://srv.adstxtmanager.com/19390/pptjet.com",
+    )
+    return redirect(target, code=301)
 
 
 @bp.get("/dashboard")
