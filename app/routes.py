@@ -176,6 +176,16 @@ def ads_txt_redirect() -> Any:
     return redirect(target, code=301)
 
 
+@bp.get("/webpushr-sw.js")
+def webpushr_service_worker() -> Any:
+    """Serve Webpushr service worker from site root path.
+
+    File must exist at app.static_folder / 'webpushr-sw.js'. This endpoint ensures
+    it is available at https://<domain>/webpushr-sw.js as required by Webpushr.
+    """
+    return send_from_directory(current_app.static_folder, "webpushr-sw.js", mimetype="application/javascript")
+
+
 @bp.get("/dashboard")
 def dashboard() -> Any:
     return render_template("dashboard.html")
