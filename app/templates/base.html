@@ -85,6 +85,9 @@
                     <a href="{{ url_for('main.blog_index') }}" class="flex items-center py-4 text-gray-600 hover:text-blue-600">Blog</a>
                     {% if current_user.is_authenticated %}
                     <a href="{{ url_for('main.dashboard') }}" class="flex items-center py-4 text-gray-600 hover:text-blue-600">Dashboard</a>
+                    {% if PUSH_ENABLED %}
+                    <button id="enablePushTop" class="ml-4 my-2 px-3 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700">Enable notifications</button>
+                    {% endif %}
                     {% if current_user.is_authenticated and current_user.is_admin %}
                     <a href="{{ url_for('main.admin_dashboard_page') }}" class="flex items-center py-4 text-gray-600 hover:text-blue-600">Admin</a>
                     <a href="{{ url_for('main.admin_blog_list') }}" class="flex items-center py-4 text-gray-600 hover:text-blue-600">Blog&nbsp;Admin</a>
@@ -106,9 +109,31 @@
                 <a href="{{ url_for('main.privacy') }}" class="text-blue-600 hover:underline">Privacy Policy</a> |
                 <a href="{{ url_for('main.terms') }}" class="text-blue-600 hover:underline">Terms of Service</a> | <a href="mailto:support@pptjet.com" class="text-blue-600 hover:underline">support@pptjet.com</a>
             </p>
+            {% if PUSH_ENABLED and current_user.is_authenticated %}
+            <div class="text-center mt-3">
+              <button id="enablePush" class="px-3 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700">Enable notifications</button>
+            </div>
+            {% endif %}
         </div>
     </footer>
 
     {% block scripts %}{% endblock %}
+    {% if PUSH_ENABLED %}
+    <!-- start webpushr code -->
+    <script>
+      (function(w,d, s, id) {if(typeof(w.webpushr)!=='undefined') return;w.webpushr=w.webpushr||function(){(w.webpushr.q=w.webpushr.q||[]).push(arguments)};var js, fjs = d.getElementsByTagName(s)[0];js = d.createElement(s); js.id = id;js.async=1;js.src = "https://cdn.webpushr.com/app.min.js";fjs.parentNode.insertBefore(js, fjs);}(window,document, 'script', 'webpushr-jssdk'));
+      webpushr('setup',{'key':'BAZhLqUHoM--3e0DnDf32Gc-USvzq4aOUHJfT0ODVYAakc-NzR2JvNxpHcWyTTwqpjqeA07RTjqOZSk08wmvKVg', 'sw': '/webpushr-sw.js' });
+      {% if current_user.is_authenticated %}
+      // Optional: map to internal user id for targeting
+      webpushr('attributes', { 'user_id': '{{ current_user.id }}' });
+      {% endif %}
+      // Hook up buttons (footer and top nav) if present
+      document.getElementById('enablePush')?.addEventListener('click', function(){ webpushr('optin'); });
+      document.getElementById('enablePushTop')?.addEventListener('click', function(){ webpushr('optin'); });
+      // Helper: auto-prompt when URL has ?push=1
+      (function(){ try{ var usp=new URLSearchParams(window.location.search); if(usp.get('push')==='1'){ webpushr('optin'); } }catch(e){} })();
+    </script>
+    <!-- end webpushr code -->
+    {% endif %}
 </body>
 </html>
