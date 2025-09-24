@@ -141,6 +141,18 @@ def create_app():
             "EZOIC_ENABLED": os.environ.get("EZOIC_ENABLED", "0") == "1",
             "ADSENSE_ENABLED": os.environ.get("ADSENSE_ENABLED", "0") == "1",
             "ADS_ENABLED": ads_enabled,
+            # Optional AdSense placement slots for homepage
+            "ADSENSE_CLIENT": os.environ.get("ADSENSE_CLIENT", "ca-pub-6405372608012962"),
+            "ADS_HOME_ABOVE_FEATURES": os.environ.get("ADS_HOME_ABOVE_FEATURES", ""),
+            "ADS_HOME_BELOW_FEATURES": os.environ.get("ADS_HOME_BELOW_FEATURES", ""),
+            "ADS_HOME_SIDEBAR_LEFT": os.environ.get("ADS_HOME_SIDEBAR_LEFT", ""),
+            "ADS_HOME_SIDEBAR_RIGHT": os.environ.get("ADS_HOME_SIDEBAR_RIGHT", ""),
+            # Webpushr config
+            "WEBPUSHR_APP_KEY": os.environ.get("WEBPUSHR_APP_KEY", ""),
+            "PUSH_ENABLED": os.environ.get("PUSH_ENABLED", "0") == "1",
+            # Meta Pixel
+            "META_PIXEL_ENABLED": os.environ.get("META_PIXEL_ENABLED", "0") == "1",
+            "META_PIXEL_ID": os.environ.get("META_PIXEL_ID", "1784365095778916"),
         }
     
     # Add debug prints for template loading
