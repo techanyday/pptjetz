@@ -321,6 +321,11 @@ def login_callback() -> Any:
     db.session.commit()
 
     login_user(user)
+    # Signal front-end to fire Meta Pixel CompleteRegistration once
+    try:
+        session["just_registered"] = True
+    except Exception:
+        pass
     dest = session.pop("post_login_redirect", None) or url_for("main.home")
     return redirect(dest)
 
@@ -864,6 +869,15 @@ def admin_blog_delete(slug: str) -> Any:
     db.session.commit()
     return redirect(url_for("main.admin_blog_list"))
 
+
+@bp.post("/_clear_reg")
+def clear_complete_registration_flag() -> Any:
+    """Clear the one-time session flag used to trigger Meta Pixel CompleteRegistration."""
+    try:
+        session["just_registered"] = False
+    except Exception:
+        pass
+    return jsonify({"ok": True})
 
 # ---------- Admin: Usage API ----------
 @bp.get("/admin/usage")

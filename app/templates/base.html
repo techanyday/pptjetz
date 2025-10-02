@@ -39,6 +39,17 @@
     /></noscript>
     <!-- End Meta Pixel Code -->
     {% endif %}
+    {% if META_PIXEL_ENABLED and META_PIXEL_ID %}
+    {% if session.get('just_registered') or request.args.get('reg') == '1' %}
+    <script>
+      // Meta Pixel: CompleteRegistration on post-signup page load
+      // Uses ISO currency code per Meta docs
+      if (typeof fbq === 'function') {
+        fbq('track', 'CompleteRegistration', { value: 0.0032, currency: 'USD' });
+      }
+    </script>
+    {% endif %}
+    {% endif %}
     
     <!-- Default Open Graph / Twitter (can be overridden in child templates) -->
     <meta property="og:site_name" content="PPTJet">
