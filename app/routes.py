@@ -952,3 +952,50 @@ def admin_usage_api() -> Any:
     except Exception as exc:  # pragma: no cover
         # In dev, the table may not yet exist; avoid 500ing the dashboard
         return jsonify({"usage": [], "error": str(exc)}), 200
+
+
+# ---------- Admin: Marketing Opt-ins ----------
+@bp.get("/admin/marketing")
+@login_required
+def admin_marketing() -> Any:
+    _admin_guard()
+    from app.models import User
+    rows = (
+        User.query
+        .filter(User.marketing_opt_in.is_(True))
+        .filter(User.unsubscribed_at.is_(None))
+        .order_by(User.marketing_opt_in_at.desc())
+        .all()
+    )
+    return render_template("admin/marketing.html", rows=rows)
+
+
+@bp.get("/admin/marketing.csv")
+@login_required
+def admin_marketing_csv() -> Any:
+    _admin_guard()
+    from app.models import User
+    import csv
+    from io import StringIO
+    rows = (
+        User.query
+        .filter(User.marketing_opt_in.is_(True))
+        .filter(User.unsubscribed_at.is_(None))
+        .order_by(User.marketing_opt_in_at.desc())
+        .all()
+    )
+    si = StringIO()
+    w = csv.writer(si)
+    w.writerow(["id", "email", "name", "opt_in_at", "source"]) 
+    for u in rows:
+        w.writerow([
+            getattr(u, "id", ""),
+            getattr(u, "email", ""),
+            getattr(u, "name", ""),
+            (u.marketing_opt_in_at.isoformat() if getattr(u, "marketing_opt_in_at", None) else ""),
+            getattr(u, "marketing_opt_in_source", ""),
+        ])
+    out = si.getvalue()
+    return Response(out, mimetype="text/csv", headers={
+        "Content-Disposition": "attachment; filename=marketing_optins.csv"
+    })

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Marketing Opt-ins - Admin{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-semibold">Marketing Opt-ins</h1>
+    <a href="{{ url_for('main.admin_marketing_csv') }}" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Download CSV</a>
+  </div>
+  {% if not rows %}
+    <p class="text-gray-600">No opt-ins yet.</p>
+  {% else %}
+  <div class="overflow-x-auto bg-white rounded shadow">
+    <table class="min-w-full text-left">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-2">Email</th>
+          <th class="px-4 py-2">Name</th>
+          <th class="px-4 py-2">Opt-in At</th>
+          <th class="px-4 py-2">Source</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in rows %}
+        <tr class="border-t">
+          <td class="px-4 py-2">{{ u.email }}</td>
+          <td class="px-4 py-2">{{ u.name }}</td>
+          <td class="px-4 py-2">{{ u.marketing_opt_in_at.strftime('%Y-%m-%d %H:%M') if u.marketing_opt_in_at else '' }}</td>
+          <td class="px-4 py-2">{{ u.marketing_opt_in_source }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
