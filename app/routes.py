@@ -326,6 +326,13 @@ def login_callback() -> Any:
         session["just_registered"] = True
     except Exception:
         pass
+    # If user has not been asked for marketing consent before, send to consent page
+    try:
+        if getattr(user, "marketing_opt_in", None) is None:
+            session["needs_marketing_consent"] = True
+            return redirect(url_for("main.consent"))
+    except Exception:
+        pass
     dest = session.pop("post_login_redirect", None) or url_for("main.home")
     return redirect(dest)
 
@@ -868,6 +875,35 @@ def admin_blog_delete(slug: str) -> Any:
     db.session.delete(post)
     db.session.commit()
     return redirect(url_for("main.admin_blog_list"))
+
+
+@bp.route("/consent", methods=["GET", "POST"])
+def consent() -> Any:
+    """Post-login marketing consent page.
+
+    Shows a checkbox (unchecked by default). On POST, stores marketing consent
+    on the current user and redirects to the intended next page.
+    """
+    if not getattr(current_user, "is_authenticated", False):
+        return redirect(url_for("main.home"))
+    next_url = session.pop("post_login_redirect", None) or url_for("main.home")
+    if request.method == "POST":
+        try:
+            opt_in = bool(request.form.get("opt_in"))
+            text = (request.form.get("consent_text") or "I agree to receive marketing emails from PPTJet.").strip()
+            current_user.marketing_opt_in = opt_in
+            current_user.marketing_opt_in_text = text[:255]
+            current_user.marketing_opt_in_source = "post_login_consent_v1"
+            current_user.marketing_opt_in_at = datetime.utcnow()
+            from app import db as _db
+            _db.session.commit()
+        except Exception:
+            from app import db as _db
+            _db.session.rollback()
+            return render_template("consent.html", error="Could not save preferences, please try again.", next_url=next_url)
+        session.pop("needs_marketing_consent", None)
+        return redirect(next_url)
+    return render_template("consent.html", next_url=next_url)
 
 
 @bp.post("/_clear_reg")

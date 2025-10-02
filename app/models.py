@@ -16,6 +16,12 @@ class User(UserMixin, db.Model):
     presentations_count = db.Column(db.Integer, default=0)
     last_reset = db.Column(db.DateTime, default=datetime.utcnow)
     is_admin = db.Column(db.Boolean, default=False)
+    # Marketing consent
+    marketing_opt_in = db.Column(db.Boolean, nullable=True, default=None)  # None = not asked yet
+    marketing_opt_in_at = db.Column(db.DateTime, nullable=True)
+    marketing_opt_in_source = db.Column(db.String(120), nullable=True)
+    marketing_opt_in_text = db.Column(db.String(255), nullable=True)
+    unsubscribed_at = db.Column(db.DateTime, nullable=True)
     # Relationship to presentation logs
     logs = db.relationship('PresentationLog', backref='user', lazy=True)
 
