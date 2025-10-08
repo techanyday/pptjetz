@@ -954,6 +954,66 @@ def admin_usage_api() -> Any:
         return jsonify({"usage": [], "error": str(exc)}), 200
 
 
+# ---------- SEO: robots.txt and sitemap.xml ----------
+@bp.get("/robots.txt")
+def robots_txt_route() -> Any:
+    """Serve a simple robots.txt that references our sitemap."""
+    lines = [
+        "User-agent: *",
+        "Allow: /",
+        f"Sitemap: {url_for('main.sitemap_xml_route', _external=True)}",
+        "",
+    ]
+    return Response("\n".join(lines), mimetype="text/plain")
+
+
+@bp.get("/sitemap.xml")
+def sitemap_xml_route() -> Any:
+    """Generate a basic XML sitemap for key pages and published blog posts."""
+    # Core URLs
+    urls = [
+        {"loc": url_for('main.home', _external=True), "changefreq": "daily", "priority": "1.0"},
+        {"loc": url_for('main.generate_page', _external=True), "changefreq": "weekly", "priority": "0.9"},
+        {"loc": url_for('main.blog_index', _external=True), "changefreq": "daily", "priority": "0.6"},
+        {"loc": url_for('main.privacy', _external=True), "changefreq": "yearly", "priority": "0.2"},
+        {"loc": url_for('main.terms', _external=True), "changefreq": "yearly", "priority": "0.2"},
+    ]
+
+    # Blog posts
+    try:
+        posts = BlogPost.query.filter(BlogPost.published.is_(True)).all()
+        for p in posts:
+            lastmod = (p.updated_at or p.published_at)
+            urls.append({
+                "loc": url_for('main.blog_post_page', slug=p.slug, _external=True),
+                "lastmod": (lastmod.strftime('%Y-%m-%d') if lastmod else None),
+                "changefreq": "weekly",
+                "priority": "0.7",
+            })
+    except Exception:
+        # If DB unavailable, still serve core URLs
+        pass
+
+    # Build XML
+    from xml.sax.saxutils import escape as _esc
+    parts = [
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+        "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">",
+    ]
+    for u in urls:
+        parts.append("  <url>")
+        parts.append(f"    <loc>{_esc(u['loc'])}</loc>")
+        if u.get("lastmod"):
+            parts.append(f"    <lastmod>{_esc(u['lastmod'])}</lastmod>")
+        if u.get("changefreq"):
+            parts.append(f"    <changefreq>{_esc(u['changefreq'])}</changefreq>")
+        if u.get("priority"):
+            parts.append(f"    <priority>{_esc(u['priority'])}</priority>")
+        parts.append("  </url>")
+    parts.append("</urlset>")
+    xml = "\n".join(parts)
+    return Response(xml, mimetype="application/xml")
+
 # ---------- Admin: Marketing Opt-ins ----------
 @bp.get("/admin/marketing")
 @login_required
