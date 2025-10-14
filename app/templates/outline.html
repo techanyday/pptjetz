@@ -3,6 +3,20 @@
 {% block content %}
 <div class="max-w-3xl mx-auto p-6">
   <h1 class="text-2xl font-bold mb-4">Outline Preview</h1>
+  <style>
+    /* Outline card styles */
+    .ol-item{display:flex;align-items:center;gap:.75rem;background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;padding:.75rem 1rem;}
+    .ol-item + .ol-item{margin-top:.75rem}
+    .ol-num{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;border-radius:9999px;background:#ebf5ff;color:#1d4ed8;font-weight:700;font-size:.9rem;border:1px solid #bfdbfe}
+    .ol-title{font-weight:600;color:#111827}
+    .ol-item:hover{box-shadow:0 4px 10px rgba(0,0,0,.05);border-color:#d1d5db}
+
+    /* Meta card styles */
+    .ol-meta{display:flex;align-items:center;justify-content:space-between;gap:1rem;background:#f8fafc;border:1px solid #e5e7eb;border-radius:.5rem;padding:.75rem 1rem}
+    .ol-meta-title{font-weight:700;color:#0f172a}
+    .ol-meta-sub{color:#334155;font-size:.9rem}
+    .ol-pill{display:inline-flex;align-items:center;gap:.25rem;background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;border-radius:9999px;padding:.125rem .5rem;font-weight:600}
+  </style>
   <div id="meta" class="text-gray-600 mb-4"></div>
   <!-- Ad: outline_top (replace data-ad-slot) -->
   <ins class="adsbygoogle"
@@ -12,7 +26,7 @@
        data-ad-format="auto"
        data-full-width-responsive="true"></ins>
   <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-  <div id="topics" class="space-y-2"></div>
+  <div id="topics" class="mt-4"></div>
   <!-- Ad: outline_bottom (replace data-ad-slot) -->
   <ins class="adsbygoogle"
        style="display:block; margin: 16px 0;"
@@ -37,7 +51,16 @@
   function renderOutline(deck){
     const title = deck.deck_title || 'Untitled';
     const theme = deck.theme_name || 'SLEEK';
-    metaEl.textContent = `${title} • Theme: ${theme}`;
+    // Build meta card safely using textContent assignments
+    metaEl.innerHTML = `
+      <div class="ol-meta">
+        <div id="olTitle" class="ol-meta-title"></div>
+        <div class="ol-meta-sub">Theme: <span class="ol-pill" id="olTheme"></span></div>
+      </div>`;
+    const olTitle = document.getElementById('olTitle');
+    const olTheme = document.getElementById('olTheme');
+    if (olTitle) olTitle.textContent = title;
+    if (olTheme) olTheme.textContent = theme;
 
     const slides = Array.isArray(deck.slides) ? deck.slides : [];
     // Use agenda bullets if present, else use slide titles
@@ -54,7 +77,13 @@
       topicsEl.innerHTML = '<div class="text-gray-500">No topics found.</div>';
       return;
     }
-    topicsEl.innerHTML = topics.map((t,i)=>`<div class="border rounded p-3">${i+1}. ${t}</div>`).join('');
+    const list = topics.map((t,i)=>`
+      <div class="ol-item" role="listitem">
+        <span class="ol-num">${i+1}</span>
+        <div class="ol-title">${t}</div>
+      </div>
+    `).join('');
+    topicsEl.innerHTML = `<div role="list" aria-label="Outline topics">${list}</div>`;
   }
 
   async function loadDeck(){
