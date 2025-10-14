@@ -9,15 +9,22 @@
   </div>
   <!-- Single centered manual ad container (for a responsive unit). Replace contents later with your AdSense tag. -->
   <div class="mt-10 w-full px-4 flex justify-center">
-    <div class="bg-white rounded shadow p-4 w-full max-w-3xl min-h-[120px] flex items-center justify-center" aria-label="Loading page ad container">
+    <div class="bg-white rounded shadow p-4 w-full max-w-3xl min-h-[300px]" aria-label="Loading page ad container">
       {% if ADS_ENABLED and ADSENSE_ENABLED %}
       <ins class="adsbygoogle"
-           style="display:block"
+           style="display:block; width:100%; min-height:280px;"
            data-ad-client="{{ ADSENSE_CLIENT }}"
            data-ad-slot="7907957016"
            data-ad-format="auto"
            data-full-width-responsive="true"></ins>
-      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      <script>
+        // Defer push slightly to ensure the element has computed width
+        (function(){
+          const push = () => { try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch(e) { console.warn('adsbygoogle push failed', e); } };
+          if (document.readyState === 'complete') { setTimeout(push, 100); }
+          else { window.addEventListener('load', () => setTimeout(push, 100), { once: true }); }
+        })();
+      </script>
       {% else %}
       <div class="text-gray-300">Ads disabled</div>
       {% endif %}
@@ -40,8 +47,10 @@ let i = 0; setInterval(() => { document.getElementById('tip').textContent = tips
     const raw = sessionStorage.getItem('pptjet_generate_payload');
     if (!raw) { window.location.replace('/generate'); return; }
     const payload = JSON.parse(raw);
-    const resp = await fetch('/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) });
-    const data = await resp.json();
+    const minDelay = new Promise(res => setTimeout(res, 3000)); // ensure some dwell for ad fill
+    const apiPromise = fetch('/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) })
+      .then(r => r.json());
+    const data = await Promise.all([apiPromise, minDelay]).then(([d]) => d);
     if (data && data.redirect_url) { window.location.assign(data.redirect_url); return; }
     // Fallback: render inline results like before if slides returned
     if (data && Array.isArray(data.slides) && data.slides.length) {
