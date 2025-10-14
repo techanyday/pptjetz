@@ -191,6 +191,17 @@ def dashboard() -> Any:
     return render_template("dashboard.html")
 
 
+@bp.get("/loading")
+def loading_page() -> Any:
+    """Full screen loading page used between Generate submit and results.
+
+    Front-end script on this page reads the previously stored payload from
+    sessionStorage and calls the existing /generate API. When the API returns
+    a redirect_url, the script navigates there automatically.
+    """
+    return render_template("loading.html")
+
+
 @bp.get("/admin")
 def admin_dashboard_page() -> Any:
     return render_template("admin/dashboard.html")

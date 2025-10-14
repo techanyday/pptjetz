@@ -122,5 +122,17 @@
       <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
     </div>
     {% endif %}
+
+    {% if ADS_ENABLED and ADSENSE_ENABLED %}
+    <!-- AdSense: Homepage bottom Multiplex (DISPLAY: autorelaxed) -->
+    <div class="my-10" aria-label="Advertisement">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="{{ ADSENSE_CLIENT }}"
+           data-ad-slot="2301171457"
+           data-ad-format="autorelaxed"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

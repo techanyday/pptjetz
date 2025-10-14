@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Generating your presentation…{% endblock %}
+{% block content %}
+<div class="min-h-[75vh] flex flex-col items-center justify-center py-12">
+  <div class="flex flex-col items-center text-center">
+    <div class="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+    <h1 class="text-2xl font-semibold mb-2">Generating your presentation…</h1>
+    <p id="tip" class="text-gray-600">This usually takes a few seconds. Feel free to explore tips below.</p>
+  </div>
+  <!-- Single centered manual ad container (for a responsive unit). Replace contents later with your AdSense tag. -->
+  <div class="mt-10 w-full px-4 flex justify-center">
+    <div class="bg-white rounded shadow p-4 w-full max-w-3xl min-h-[120px] flex items-center justify-center" aria-label="Loading page ad container">
+      {% if ADS_ENABLED and ADSENSE_ENABLED %}
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="{{ ADSENSE_CLIENT }}"
+           data-ad-slot="7907957016"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      {% else %}
+      <div class="text-gray-300">Ads disabled</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+// Rotate small tips while loading
+const tips = [
+  'Tip: Try different keywords for better results.',
+  'Tip: Change the theme to match your audience.',
+  'Tip: You can export to PPTX for free.'
+];
+let i = 0; setInterval(() => { document.getElementById('tip').textContent = tips[i % tips.length]; i++; }, 2000);
+
+// Read payload from sessionStorage, call /generate, then redirect as before
+(async function(){
+  try {
+    const raw = sessionStorage.getItem('pptjet_generate_payload');
+    if (!raw) { window.location.replace('/generate'); return; }
+    const payload = JSON.parse(raw);
+    const resp = await fetch('/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await resp.json();
+    if (data && data.redirect_url) { window.location.assign(data.redirect_url); return; }
+    // Fallback: render inline results like before if slides returned
+    if (data && Array.isArray(data.slides) && data.slides.length) {
+      // Store in sessionStorage and navigate to outline route we already use
+      // The backend already returns redirect_url normally; this is a safeguard
+      const url = data.redirect_url || '/';
+      window.location.assign(url);
+      return;
+    }
+    alert((data && data.error) || 'Generation failed');
+    window.location.replace('/generate');
+  } catch (e) {
+    console.error(e);
+    alert('Generation failed');
+    window.location.replace('/generate');
+  }
+})();
+</script>
+{% endblock %}

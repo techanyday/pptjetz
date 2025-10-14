@@ -206,14 +206,7 @@
   </div>
   </div>
 
-<!-- Loading Overlay with Tips -->
-<div id="loadingOverlay" class="fixed inset-0 z-40 hidden">
-  <div class="absolute inset-0 bg-white/95 flex flex-col items-center justify-center p-6 text-center">
-    <div class="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-    <h4 class="text-lg font-semibold mb-2">Generating your AI-powered slides…</h4>
-    <p id="loadingTip" class="text-gray-600">Tip: You can generate unlimited presentations!</p>
-  </div>
-</div>
+<!-- Loading overlay removed: now using dedicated /loading page -->
 
 <script>
 // Skeletons
@@ -404,19 +397,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const modal = document.getElementById('confirmModal');
   const confBack = document.getElementById('confBack');
   const confGo = document.getElementById('confGo');
-  const loading = document.getElementById('loadingOverlay');
-  const tipEl = document.getElementById('loadingTip');
-  const tips = [
-    'Tip: You can generate unlimited presentations!',
-    'Tip: Try different keywords for better results.',
-    'Tip: You can export to PPTX for free.',
-    'Tip: Change the theme to match your audience.',
-  ];
-
-  function rotateTips() {
-    let i = 0;
-    return setInterval(() => { tipEl.textContent = tips[i % tips.length]; i++; }, 1800);
-  }
+  // Loading overlay and rotating tips removed (now handled by /loading page)
 
   formEl.addEventListener('submit', function(e) {
     e.preventDefault();
@@ -444,8 +425,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   confGo.addEventListener('click', async () => {
     modal.classList.add('hidden');
-    loading.classList.remove('hidden');
-    const stop = rotateTips();
     const submitButton = formEl.querySelector('button[type="submit"]');
     submitButton.disabled = true;
 
@@ -465,48 +444,11 @@ document.addEventListener('DOMContentLoaded', function() {
       include_images: document.getElementById('include_images').checked
     };
 
-    // Guarantee at least 2.5s of loading UI (front-end only)
-    const minDelay = new Promise(res => setTimeout(res, 2500));
+    // Store payload and navigate to dedicated loading page
     try {
-      const response = await fetch('/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      const data = await response.json();
-
-      // Wait for minimum time
-      await minDelay;
-
-      // Multi-page flow: if backend returned redirect_url, go there
-      if (data && data.redirect_url) {
-        loading.classList.add('hidden');
-        clearInterval(stop);
-        window.location.assign(data.redirect_url);
-        return;
-      }
-
-      if ((data && data.ok) || (data && Array.isArray(data.slides) && data.slides.length)) {
-        lastSlides = data.slides;
-        lastThemeName = data.theme_name || document.getElementById('theme').value;
-        lastTitle = (Array.isArray(data.slides) && data.slides.length && typeof data.slides[0]?.title === 'string' && data.slides[0].title.trim())
-          ? data.slides[0].title.trim() : (formData.title || 'Generated Presentation');
-        renderPreview(lastSlides);
-      } else {
-        if (data && Array.isArray(data.errors) && data.errors.length) {
-          alert(`Slide issues:\n- ${data.errors.join('\n- ')}`);
-        } else {
-          alert(data && data.error ? data.error : 'Error generating presentation');
-        }
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Error generating presentation');
-    } finally {
-      loading.classList.add('hidden');
-      clearInterval(stop);
-      submitButton.disabled = false;
-    }
+      sessionStorage.setItem('pptjet_generate_payload', JSON.stringify(formData));
+    } catch (e) { console.warn('Could not store payload', e); }
+    window.location.assign('/loading');
   });
 });
 </script>
