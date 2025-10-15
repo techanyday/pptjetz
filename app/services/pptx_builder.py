@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
+import random
 import re
 from pptx import Presentation  # type: ignore
 from pptx.util import Inches, Pt
@@ -42,6 +43,9 @@ THEME_PALETTES: Dict[str, Dict[str, Tuple[int, int, int]]] = {
         "secondary": (219, 234, 254),
     },
 }
+
+# Global rotating index for summary template selection (round-robin)
+SUMMARY_STYLE_INDEX: int = 0
 
 
 # --- Topic-aware Background/Evolution heuristics ---
@@ -1390,6 +1394,295 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             if _content(sl).get("bullets"):
                 render_bullets(sl)
             # Ignore unsupported types silently
+
+    # --- Smart Infographic Summary (rotate among 4 templates) ---
+    def _collect_summary_from_slides(sl_list: List[Dict[str, Any]]) -> List[str]:
+        pts: List[str] = []
+        # Prefer Key Takeaways / Infographic bullets
+        for s in sl_list:
+            t = _ctype(s)
+            c = _content(s)
+            if t in {"key_takeaways", "infographic"}:
+                pts += [str(x).strip() for x in (c.get("bullets") or c.get("takeaways") or []) if str(x).strip()]
+        # Agenda bullets
+        for s in sl_list:
+            if _ctype(s) == "agenda":
+                pts += [str(x).strip() for x in (_content(s).get("bullets") or []) if str(x).strip()]
+                break
+        # Fallback: other slide titles
+        if len(pts) < 3:
+            for s in sl_list:
+                t = _ctype(s)
+                if t in {"title", "agenda", "thank_you", "cta"}:
+                    continue
+                lab = (s.get("title") or "").strip()
+                if lab:
+                    pts.append(lab)
+        # Normalize 3–5
+        uniq = []
+        seen = set()
+        for p in pts:
+            lo = p.lower()
+            if lo and lo not in seen:
+                seen.add(lo); uniq.append(p)
+        if len(uniq) < 3:
+            # pad with topic-driven generics
+            topic = (slides_norm[0].get("title") or "Key Insights").strip()
+            base = [f"{topic}: summary", "Outcomes", "Next steps", "Owners", "Risks/Effort"]
+            for b in base:
+                if len(uniq) >= 3:
+                    break
+                if b.lower() not in seen:
+                    seen.add(b.lower()); uniq.append(b)
+        return uniq[:5]
+
+    def _render_summary_banner(slide, items: List[str], *, pal: Dict[str, Tuple[int, int, int]]):
+        """Horizontal stacked banners inspired by the sample screenshot.
+        - Big title + subtitle at top
+        - 4 rounded pills with left icon bubble
+        - High contrast text per pill color
+        """
+        title_col = (11, 36, 71)  # deep navy
+        sub_col = (100, 116, 139)  # slate-500
+        _add_textbox(slide, 1.0, 0.9, 11.3, 0.9, "Key Takeaways", font_size_pt=44, bold=True, color=title_col)
+        _add_textbox(slide, 1.0, 1.6, 11.3, 0.6, "", font_size_pt=22, color=sub_col, align="center")
+
+        # Approximate colors from the sample: amber, teal, navy, coral
+        PILL_COLORS = [
+            ((251, 191, 36), (11, 36, 71)),   # amber bg, navy text
+            ((45, 212, 191), (11, 36, 71)),   # teal bg, navy text
+            ((10, 61, 98),   (255, 255, 255)),# navy bg, white text
+            ((244, 114, 82), (11, 36, 71)),   # coral bg, navy text
+        ]
+
+        def _luma(rgb: Tuple[int, int, int]) -> float:
+            r, g, b = rgb
+            return 0.2126*r + 0.7152*g + 0.0722*b
+
+        # Layout tuned to 13.33in x 7.5in. This fits 4 rows comfortably.
+        y = 2.35           # top of first pill
+        h = 0.86           # pill height
+        gap = 0.32         # vertical gap between pills
+        for i, raw in enumerate(items[:4]):
+            bg_rgb, preferred_txt = PILL_COLORS[i % len(PILL_COLORS)]
+            # Pill background
+            pill_x = 1.55   # shift a bit right for visual balance
+            pill_w = 10.6
+            pill = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(pill_x), Inches(y), Inches(pill_w), Inches(h))
+            pill.fill.solid(); pill.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            pill.line.fill.background()
+            try:
+                pill.shadow.inherit = False; pill.shadow.visible = True; pill.shadow.blur = 6; pill.shadow.distance = 2
+            except Exception:
+                pass
+
+            # Icon circle on the left (overlapping look)
+            ico_d = 0.86
+            ico_x = pill_x - 0.45
+            ico_y = y + (h - ico_d) / 2
+            ico = slide.shapes.add_shape(MsoShape.OVAL, Inches(ico_x), Inches(ico_y), Inches(ico_d), Inches(ico_d))
+            ico.fill.solid(); ico.fill.fore_color.rgb = RGBColor(255, 255, 255)
+            # Ensure contrast for white preferred text (use deep navy for outline and dot)
+            ico_border_rgb = preferred_txt if preferred_txt != (255, 255, 255) else (11, 36, 71)
+            ico.line.color.rgb = RGBColor(*ico_border_rgb)
+            # simple glyph placeholder
+            itf = ico.text_frame; itf.clear(); ip = itf.paragraphs[0]; ip.alignment = PP_ALIGN.CENTER
+            ir = ip.add_run(); ir.text = "●"; ir.font.size = Pt(20); ir.font.bold = True; ir.font.color.rgb = RGBColor(*ico_border_rgb)
+            try:
+                ico.shadow.inherit = False; ico.shadow.visible = True; ico.shadow.blur = 3; ico.shadow.distance = 1
+            except Exception:
+                pass
+
+            # Text: bold head + lighter tail for visibility
+            head, tail = _split_head_tail(str(raw))
+            tb = slide.shapes.add_textbox(Inches(pill_x + 0.65), Inches(y + 0.14), Inches(pill_w - 0.90), Inches(h - 0.28)).text_frame
+            tb.word_wrap = True
+            tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tb.paragraphs[0]
+            p.clear()
+            # Choose contrast color automatically if needed
+            txt_rgb = preferred_txt if _luma(bg_rgb) < 170 else (11, 36, 71)
+            if head:
+                r1 = p.add_run(); r1.text = head + (" " if tail else ""); r1.font.size = Pt(22); r1.font.bold = True; r1.font.color.rgb = RGBColor(*txt_rgb)
+            if tail:
+                r2 = p.add_run(); r2.text = tail; r2.font.size = Pt(13); r2.font.color.rgb = RGBColor(235, 244, 255) if txt_rgb == (255, 255, 255) else RGBColor(71, 85, 105)
+            y += h + gap
+
+    def _render_summary_cluster(slide, items: List[str], *, pal: Dict[str, Tuple[int, int, int]]):
+        _add_textbox(slide, 1.0, 0.9, 11.3, 0.9, "Key Takeaways", font_size_pt=36, bold=True, color=pal["primary"])
+        # arrange in grid 2x2 or 3x2
+        cols = 2 if len(items) <= 4 else 3
+        rows = 2
+        start_x, start_y = 1.0, 2.0
+        gap_x, gap_y = 0.6, 0.6
+        w, h = (SLIDE_W_IN - 2*start_x - (cols-1)*gap_x)/cols, 1.6
+        idx = 0
+        for r in range(rows):
+            for c in range(cols):
+                if idx >= len(items) or idx >= 6:
+                    break
+                x = start_x + c*(w+gap_x); y = start_y + r*(h+gap_y)
+                card = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+                card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+                card.line.color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+                tb = slide.shapes.add_textbox(Inches(x+0.35), Inches(y+0.25), Inches(w-0.6), Inches(h-0.5)).text_frame
+                tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                p = tb.paragraphs[0]; p.text = items[idx]; p.font.size = Pt(18); p.font.bold = True; p.font.color.rgb = RGBColor(*pal["text"])
+                idx += 1
+
+    def _render_summary_flow(slide, items: List[str], *, pal: Dict[str, Tuple[int, int, int]]):
+        _add_textbox(slide, 1.0, 0.9, 11.3, 0.9, "Key Takeaways", font_size_pt=36, bold=True, color=pal["primary"])
+        x, y = 4.2, 2.0
+        w, h, gap = 5.6, 0.9, 0.25
+        for i, lab in enumerate(items[:5], start=1):
+            chev = slide.shapes.add_shape(MsoShape.CHEVRON, Inches(x), Inches(y), Inches(w), Inches(h))
+            chev.fill.solid(); chev.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            chev.line.color.rgb = RGBColor(*pal["primary"])
+            tf = chev.text_frame; tf.clear(); p = tf.paragraphs[0]; p.text = f"{i}. {lab}"; p.font.size = Pt(18); p.font.bold = True
+            y += h + gap
+
+    def _render_summary_steps(slide, items: List[str], *, pal: Dict[str, Tuple[int, int, int]]):
+        # Align title to inner grid for visual balance
+        _add_textbox(slide, 1.2, 0.9, 10.8, 0.9, "Key Takeaways", font_size_pt=36, bold=True, color=pal["primary"])
+        start_y = 1.75
+        row_h = 1.08
+        gap = 0.16
+        # Accent colors for big numbers
+        NUM_COLORS = [
+            (234, 179, 8),   # amber-500
+            (45, 212, 191),  # teal-400
+            (99, 102, 241),  # indigo-500
+            (244, 114, 82),  # orange-400
+        ]
+        for i, raw in enumerate(items[:5], start=1):
+            # Big number on the left
+            num_col = NUM_COLORS[(i - 1) % len(NUM_COLORS)]
+            nb = slide.shapes.add_textbox(Inches(1.2), Inches(start_y - 0.10), Inches(0.9), Inches(row_h)).text_frame
+            nb.clear(); pnum = nb.paragraphs[0]; pnum.alignment = PP_ALIGN.LEFT
+            rnum = pnum.add_run(); rnum.text = f"{i}."; rnum.font.size = Pt(44); rnum.font.bold = True; rnum.font.color.rgb = RGBColor(*num_col)
+
+            # Head (bold) + tail (lighter) stacked to the right
+            head, tail = _split_head_tail(str(raw))
+            # Keep right edge consistent at ~12.0in: x=2.3, w=9.7
+            tb = slide.shapes.add_textbox(Inches(2.3), Inches(start_y), Inches(9.7), Inches(row_h - 0.20)).text_frame
+            tb.word_wrap = True
+            p1 = tb.paragraphs[0]; p1.clear()
+            if head:
+                r1 = p1.add_run(); r1.text = head; r1.font.size = Pt(22); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal["text"]) 
+            if tail:
+                p2 = tb.add_paragraph(); p2.clear()
+                r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(14); r2.font.color.rgb = RGBColor(71, 85, 105)
+
+            # Subtle divider line under each row except the last
+            if i < min(5, len(items)):
+                line_y = start_y + row_h - 0.10
+                # Divider aligned to grid (x=1.2) with width 10.8 to end around 12.0in
+                line = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(1.2), Inches(line_y), Inches(10.8), Inches(0.02))
+                line.fill.solid(); line.fill.fore_color.rgb = RGBColor(229, 231, 235)  # gray-200
+                line.line.fill.background()
+
+            start_y += row_h + gap
+
+    def _render_summary_vertical_arrows(slide, items: List[str], *, pal: Dict[str, Tuple[int, int, int]]):
+        # Title block aligned to grid
+        _add_textbox(slide, 1.2, 0.9, 10.8, 0.9, "Key Takeaways", font_size_pt=36, bold=True, color=pal["primary"])
+        # Colors similar to banner pills
+        PILL_COLORS = [
+            ((251, 191, 36), (11, 36, 71)),
+            ((45, 212, 191), (11, 36, 71)),
+            ((10, 61, 98),   (255, 255, 255)),
+            ((244, 114, 82), (11, 36, 71)),
+        ]
+        # Balanced grid: left=1.2, right ~11.6 (0.4in gutter both sides)
+        x = 1.2
+        card_w, card_h = 10.4, 1.10
+        gap = 0.30
+        y = 1.9
+        for i, raw in enumerate(items[:4]):
+            bg_rgb, txt_pref = PILL_COLORS[i % len(PILL_COLORS)]
+            # Rounded rectangle card
+            card = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(card_w), Inches(card_h))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            card.line.fill.background()
+            try:
+                card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 6; card.shadow.distance = 2
+            except Exception:
+                pass
+            # Down arrow tip (triangle) centered under card
+            tri_w = 1.00; tri_h = 0.34
+            tri_x = x + (card_w - tri_w) / 2
+            tri = slide.shapes.add_shape(MsoShape.ISOSCELES_TRIANGLE, Inches(tri_x), Inches(y + card_h - 0.02), Inches(tri_w), Inches(tri_h))
+            tri.rotation = 180  # point downward
+            tri.fill.solid(); tri.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            tri.line.fill.background()
+            # Text
+            head, tail = _split_head_tail(str(raw))
+            tb = slide.shapes.add_textbox(Inches(x + 0.55), Inches(y + 0.20), Inches(card_w - 1.10), Inches(card_h - 0.40)).text_frame
+            tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tb.paragraphs[0]; p.clear()
+            # Choose contrast
+            txt_rgb = txt_pref
+            if head:
+                r1 = p.add_run(); r1.text = head; r1.font.size = Pt(21); r1.font.bold = True; r1.font.color.rgb = RGBColor(*txt_rgb)
+            if tail:
+                p2 = tb.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(13); r2.font.color.rgb = RGBColor(235, 244, 255) if txt_rgb == (255, 255, 255) else RGBColor(71, 85, 105)
+            y += card_h + gap
+
+    def _render_summary_horizontal_arrows(slide, items: List[str], *, pal: Dict[str, Tuple[int, int, int]]):
+        # Title block
+        _add_textbox(slide, 1.2, 0.9, 10.8, 0.9, "Key Takeaways", font_size_pt=36, bold=True, color=pal["primary"])
+        # Base band and overlay chevron
+        y = 2.0
+        band_h, gap = 0.95, 0.28
+        band_x, band_w = 1.2, 10.8
+        CHEV_W = 6.4
+        PILL_COLORS = [
+            ((251, 191, 36), (11, 36, 71)),
+            ((45, 212, 191), (11, 36, 71)),
+            ((10, 61, 98),   (255, 255, 255)),
+            ((244, 114, 82), (11, 36, 71)),
+        ]
+        for i, raw in enumerate(items[:4]):
+            bg_rgb, txt_pref = PILL_COLORS[i % len(PILL_COLORS)]
+            # White base rounded band
+            band = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(band_x), Inches(y), Inches(band_w), Inches(band_h))
+            band.fill.solid(); band.fill.fore_color.rgb = RGBColor(255, 255, 255)
+            band.line.color.rgb = RGBColor(229, 231, 235)
+            # Colored chevron overlay from left
+            chev = slide.shapes.add_shape(MsoShape.CHEVRON, Inches(band_x), Inches(y), Inches(CHEV_W), Inches(band_h))
+            chev.fill.solid(); chev.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            chev.line.fill.background()
+            # Head text on chevron
+            head, tail = _split_head_tail(str(raw))
+            tb1 = slide.shapes.add_textbox(Inches(band_x + 0.40), Inches(y + 0.14), Inches(CHEV_W - 0.80), Inches(band_h - 0.28)).text_frame
+            tb1.word_wrap = True; tb1.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p1 = tb1.paragraphs[0]; p1.clear(); r1 = p1.add_run(); r1.text = head or str(raw); r1.font.size = Pt(20); r1.font.bold = True; r1.font.color.rgb = RGBColor(*(txt_pref if txt_pref != (255, 255, 255) else (11,36,71)))
+            # Tail text on right white area
+            if tail:
+                tb2 = slide.shapes.add_textbox(Inches(band_x + CHEV_W + 0.40), Inches(y + 0.14), Inches(band_w - CHEV_W - 0.80), Inches(band_h - 0.28)).text_frame
+                tb2.word_wrap = True; tb2.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                p2 = tb2.paragraphs[0]; p2.clear(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(16); r2.font.color.rgb = RGBColor(71, 85, 105)
+            y += band_h + gap
+
+    def render_summary_slide(items: List[str]):
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        # Round-robin rotation across approved templates (flow chevrons removed)
+        global SUMMARY_STYLE_INDEX
+        styles = ["banner", "steps", "v_arrows"]
+        choice = styles[SUMMARY_STYLE_INDEX % len(styles)]
+        SUMMARY_STYLE_INDEX += 1
+        if choice == "banner":
+            _render_summary_banner(s, items, pal=pal)
+        elif choice == "steps":
+            _render_summary_steps(s, items, pal=pal)
+        elif choice == "v_arrows":
+            _render_summary_vertical_arrows(s, items, pal=pal)
+        else:
+            _render_summary_vertical_arrows(s, items, pal=pal)
+
+    # Render the smart summary just before the final Thank You slide
+    summary_pts = _collect_summary_from_slides(slides_norm)
+    render_summary_slide(summary_pts)
 
     # Always ensure a Thank You at the end
     thanks_sl = next((s for s in slides_norm if _ctype(s) in {"thank_you", "cta"}), None)
