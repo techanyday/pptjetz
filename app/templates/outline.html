@@ -45,7 +45,11 @@
        data-full-width-responsive="true"></ins>
   <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
   <div id="topics" class="mt-4"></div>
-  <!-- Ad: outline_bottom (replace data-ad-slot) -->
+  <div class="mt-6 flex items-center gap-3">
+    <button id="exportBtn" class="bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700">Export PPTX</button>
+    <a href="{{ url_for('main.generate_page') }}" class="px-5 py-2 rounded border hover:bg-gray-50">Back</a>
+  </div>
+  <!-- Ad: outline_bottom (moved below buttons) -->
   <ins class="adsbygoogle"
        style="display:block; margin: 16px 0;"
        data-ad-client="ca-pub-6405372608012962"
@@ -53,10 +57,6 @@
        data-ad-format="auto"
        data-full-width-responsive="true"></ins>
   <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-  <div class="mt-6 flex items-center gap-3">
-    <button id="exportBtn" class="bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700">Export PPTX</button>
-    <a href="{{ url_for('main.generate_page') }}" class="px-5 py-2 rounded border hover:bg-gray-50">Back</a>
-  </div>
       </div>
     </main>
 
