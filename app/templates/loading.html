@@ -1,34 +1,68 @@
 {% extends "base.html" %}
 {% block title %}Generating your presentation…{% endblock %}
 {% block content %}
-<div class="min-h-[75vh] flex flex-col items-center justify-center py-12">
-  <div class="flex flex-col items-center text-center">
-    <div class="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-    <h1 class="text-2xl font-semibold mb-2">Generating your presentation…</h1>
-    <p id="tip" class="text-gray-600">This usually takes a few seconds. Feel free to explore tips below.</p>
-  </div>
-  <!-- Single centered manual ad container (for a responsive unit). Replace contents later with your AdSense tag. -->
-  <div class="mt-10 w-full px-4 flex justify-center">
-    <div class="bg-white rounded shadow p-4 w-full max-w-3xl min-h-[300px]" aria-label="Loading page ad container">
-      {% if ADS_ENABLED and ADSENSE_ENABLED %}
-      <ins class="adsbygoogle"
-           style="display:block; width:100%; min-height:280px;"
-           data-ad-client="{{ ADSENSE_CLIENT }}"
-           data-ad-slot="7907957016"
-           data-ad-format="auto"
-           data-full-width-responsive="true"></ins>
-      <script>
-        // Defer push slightly to ensure the element has computed width
-        (function(){
-          const push = () => { try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch(e) { console.warn('adsbygoogle push failed', e); } };
-          if (document.readyState === 'complete') { setTimeout(push, 100); }
-          else { window.addEventListener('load', () => setTimeout(push, 100), { once: true }); }
-        })();
-      </script>
-      {% else %}
-      <div class="text-gray-300">Ads disabled</div>
-      {% endif %}
-    </div>
+<div class="min-h-[75vh] py-8">
+  <!-- 3-column responsive layout: hidden sidebars on small screens -->
+  <div class="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_300px] gap-6 px-4">
+    <!-- Left ad (sticky) -->
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Left ad slot">
+          {% if ADS_ENABLED and ADSENSE_ENABLED %}
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="6319439915"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          {% else %}
+          <div class="text-gray-300 text-sm">Ads disabled</div>
+          {% endif %}
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center content -->
+    <main>
+      <div class="flex flex-col items-center text-center">
+        <div class="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+        <h1 class="text-2xl font-semibold mb-2">Generating your presentation…</h1>
+        <p id="tip" class="text-gray-600">This usually takes a few seconds. Feel free to explore tips below.</p>
+      </div>
+      <!-- Existing centered responsive ad unit -->
+      <div class="mt-10 w-full flex justify-center">
+        <div class="bg-white rounded shadow p-4 w-full max-w-3xl min-h-[300px]" aria-label="Loading page center ad container">
+          {% if ADS_ENABLED and ADSENSE_ENABLED %}
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:280px;"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="7907957016"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          {% else %}
+          <div class="text-gray-300">Ads disabled</div>
+          {% endif %}
+        </div>
+      </div>
+    </main>
+
+    <!-- Right ad (sticky) -->
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Right ad slot">
+          {% if ADS_ENABLED and ADSENSE_ENABLED %}
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="5229719529"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          {% else %}
+          <div class="text-gray-300 text-sm">Ads disabled</div>
+          {% endif %}
+        </div>
+      </div>
+    </aside>
   </div>
 </div>
 
@@ -68,5 +102,13 @@ let i = 0; setInterval(() => { document.getElementById('tip').textContent = tips
     window.location.replace('/generate');
   }
 })();
+// Trigger AdSense on all slots if enabled
+{% if ADS_ENABLED and ADSENSE_ENABLED %}
+try {
+  const push = () => { try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch(e) { console.warn('adsbygoogle push failed', e); } };
+  if (document.readyState === 'complete') { setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150); }
+  else { window.addEventListener('load', () => setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150), { once: true }); }
+} catch (e) { console.warn(e); }
+{% endif %}
 </script>
 {% endblock %}

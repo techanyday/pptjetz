@@ -1,28 +1,62 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 text-center">
-            <div class="card">
-                <div class="card-body">
-                    <h2 class="card-title mb-4">Your Presentation is Ready!</h2>
-                    
-                    <p class="lead mb-4">Click the button below to download your presentation.</p>
-                    
-                    <a id="downloadLink" href="{{ download_url }}" class="inline-flex items-center gap-2 mb-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md shadow">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v9a1 1 0 11-2 0V4H5v8a1 1 0 11-2 0V3zm3 10a1 1 0 011-1h2V6a1 1 0 112 0v6h2a1 1 0 01.707 1.707l-3 3a1 1 0 01-1.414 0l-3-3A1 1 0 016 13z" clip-rule="evenodd"/></svg>
-                        Download Presentation
-                    </a>
+<div class="min-h-[70vh] py-6">
+  <div class="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_300px] gap-6 px-4">
+    <!-- Left sidebar ad (sticky) -->
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Download left ad slot">
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="ca-pub-6405372608012962"
+               data-ad-slot="3741378034"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+        </div>
+      </div>
+    </aside>
 
-                    <!-- Ad: download_top -->
-                    <ins class="adsbygoogle"
-                         style="display:block; margin: 16px 0;"
-                         data-ad-client="ca-pub-6405372608012962"
-                         data-ad-slot="9445777349"
-                         data-ad-format="auto"
-                         data-full-width-responsive="true"></ins>
-                    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    <!-- Center content -->
+    <main>
+      <div class="max-w-3xl mx-auto text-center">
+        <div class="card">
+          <div class="card-body p-6 bg-white rounded shadow">
+            <h2 class="card-title mb-4 text-xl font-semibold">Your Presentation is Ready!</h2>
+            <p class="lead mb-4">Click the button below to download your presentation.</p>
+            <a id="downloadLink" href="{{ download_url }}" class="inline-flex items-center gap-2 mb-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md shadow">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v9a1 1 0 11-2 0V4H5v8a1 1 0 11-2 0V3zm3 10a1 1 0 011-1h2V6a1 1 0 112 0v6h2a1 1 0 01.707 1.707l-3 3a1 1 0 01-1.414 0l-3-3A1 1 0 016 13z" clip-rule="evenodd"/></svg>
+              Download Presentation
+            </a>
+
+            <!-- Ad: download_top -->
+            <ins class="adsbygoogle"
+                 style="display:block; margin: 16px 0;"
+                 data-ad-client="ca-pub-6405372608012962"
+                 data-ad-slot="9445777349"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+            <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right sidebar ad (sticky) -->
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Download right ad slot">
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="ca-pub-6405372608012962"
+               data-ad-slot="9962977938"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
 
 <script>
 // Analytics: download click
@@ -39,11 +73,14 @@
   });
 })();
 </script>
-
-                    
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+{% if ADS_ENABLED and ADSENSE_ENABLED %}
+<script>
+// Trigger AdSense for all slots after load
+try {
+  const push = () => { try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch(e) { console.warn('adsbygoogle push failed', e); } };
+  if (document.readyState === 'complete') { setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150); }
+  else { window.addEventListener('load', () => setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150), { once: true }); }
+} catch (e) { console.warn(e); }
+</script>
+{% endif %}
 {% endblock %}

@@ -1,8 +1,26 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto p-6">
-  <h1 class="text-2xl font-bold mb-4">Outline Preview</h1>
+<div class="min-h-[70vh] py-6">
+  <div class="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_300px] gap-6 px-4">
+    <!-- Left sidebar ad (sticky) -->
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Outline left ad slot">
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="ca-pub-6405372608012962"
+               data-ad-slot="6845860007"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main column -->
+    <main>
+      <div class="max-w-3xl mx-auto">
+        <h1 class="text-2xl font-bold mb-4">Outline Preview</h1>
   <style>
     /* Outline card styles */
     .ol-item{display:flex;align-items:center;gap:.75rem;background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;padding:.75rem 1rem;}
@@ -38,6 +56,23 @@
   <div class="mt-6 flex items-center gap-3">
     <button id="exportBtn" class="bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700">Export PPTX</button>
     <a href="{{ url_for('main.generate_page') }}" class="px-5 py-2 rounded border hover:bg-gray-50">Back</a>
+  </div>
+      </div>
+    </main>
+
+    <!-- Right sidebar ad (sticky) -->
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Outline right ad slot">
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="ca-pub-6405372608012962"
+               data-ad-slot="6055328998"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+        </div>
+      </div>
+    </aside>
   </div>
 </div>
 
@@ -129,4 +164,14 @@
   loadDeck();
 })();
 </script>
+{% if ADS_ENABLED and ADSENSE_ENABLED %}
+<script>
+// Trigger AdSense requests for all slots (including sidebars) after load
+try {
+  const push = () => { try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch(e) { console.warn('adsbygoogle push failed', e); } };
+  if (document.readyState === 'complete') { setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150); }
+  else { window.addEventListener('load', () => setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150), { once: true }); }
+} catch (e) { console.warn(e); }
+</script>
+{% endif %}
 {% endblock %}
