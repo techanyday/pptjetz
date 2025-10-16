@@ -21,8 +21,8 @@
 <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
     <!-- Hero Section -->
     <div class="text-center py-16 sm:py-24">
-        <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-8">AI-Powered Presentation Generator</h1>
-        <p class="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">Create professional presentations in minutes using artificial intelligence. Save time and deliver impactful presentations.</p>
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-8">Create Smart PowerPoint Presentations in 60 Seconds – Free to Use</h1>
+        <p class="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">Turn any idea into a professionally designed presentation with AI.</p>
         {% if user.is_authenticated %}
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
             Start Creating
@@ -32,6 +32,25 @@
             Get Started
         </a>
         {% endif %}
+    </div>
+    <!-- Benefits Highlights -->
+    <div class="py-4">
+      <div class="max-w-3xl mx-auto">
+        <ul class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-gray-800 text-base">
+          <li class="flex items-start justify-center sm:justify-start gap-2 bg-white rounded-md border border-gray-200 px-3 py-2">
+            <span aria-hidden="true">✅</span>
+            <span>Saves hours of manual design</span>
+          </li>
+          <li class="flex items-start justify-center sm:justify-start gap-2 bg-white rounded-md border border-gray-200 px-3 py-2">
+            <span aria-hidden="true">✅</span>
+            <span>Professional-quality slides instantly</span>
+          </li>
+          <li class="flex items-start justify-center sm:justify-start gap-2 bg-white rounded-md border border-gray-200 px-3 py-2">
+            <span aria-hidden="true">✅</span>
+            <span>Free to use — unlimited exports</span>
+          </li>
+        </ul>
+      </div>
     </div>
 
     {% if ADS_ENABLED and ADSENSE_ENABLED %}
