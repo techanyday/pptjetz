@@ -187,8 +187,44 @@ def webpushr_service_worker() -> Any:
 
 
 @bp.get("/dashboard")
+@login_required
 def dashboard() -> Any:
-    return render_template("dashboard.html")
+    """User dashboard showing usage summary and recent activity."""
+    try:
+        # Recent logs for this user (newest first)
+        logs = (
+            PresentationLog.query.filter_by(user_id=getattr(current_user, "id", None))
+            .order_by(PresentationLog.created_at.desc())
+            .limit(20)
+            .all()
+        )
+    except Exception:
+        logs = []
+
+    # Usage counters
+    try:
+        used = int(getattr(current_user, "presentations_count", 0) or 0)
+    except Exception:
+        # Fallback to counting logs if the counter isn't present
+        used = len(logs)
+
+    # Plan limit and remaining
+    try:
+        plan_key = (getattr(current_user, "plan", "free") or "free").strip()
+        plan_meta = getattr(User, "PLANS", {}).get(plan_key, {})
+        limit = plan_meta.get("limit", None)
+    except Exception:
+        plan_key, plan_meta, limit = "free", {}, 3
+
+    if limit is None:
+        remaining = "Unlimited"
+    else:
+        try:
+            remaining = max(int(limit) - int(used), 0)
+        except Exception:
+            remaining = 0
+
+    return render_template("dashboard.html", logs=logs, used=used, remaining=remaining)
 
 
 @bp.get("/loading")
