@@ -9,7 +9,7 @@
     <p>
         PPTJet is an AI-powered presentation generator that converts your ideas into polished
         Microsoft PowerPoint decks in minutes. Under the hood, we combine OpenAI’s latest
-        language and image models with carefully curated slide templates and smart layout
+        language models with carefully curated slide templates and smart layout
         logic. The result: visually compelling slides that would normally take hours to craft—
         now ready in a few clicks.
     </p>
@@ -30,15 +30,7 @@
         this JSON before proceeding, ensuring clean data and preventing rogue prompts.
     </p>
 
-    <h2 class="mt-10 mb-4 font-semibold text-2xl">3. DALL·E 3 Generates Custom Images (Optional)</h2>
-    <p>
-        If you tick “Include DALL·E 3 Images,” we send the image prompts to OpenAI’s DALL·E 3
-        endpoint. The images are downloaded, temporarily cached, and then embedded directly
-        into the slides—scaled and positioned to avoid overlapping with your text.
-        Prefer to use your own artwork? Simply leave the checkbox unticked.
-    </p>
-
-    <h2 class="mt-10 mb-4 font-semibold text-2xl">4. python-pptx Builds the Deck</h2>
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">3. python-pptx Builds the Deck</h2>
     <p>
         The <code class="text-sm">PPTGenerator</code> class assembles everything in real time using the
         <code class="text-sm">python-pptx</code> library:
@@ -47,16 +39,23 @@
         <li>Loads your chosen template (<code>.pptx</code> file)</li>
         <li>Creates a title slide and one content slide per JSON entry</li>
         <li>Inserts bullet points, resizes placeholders, and applies the template’s fonts & colours</li>
-        <li>Places DALL·E images into picture placeholders or the right-hand column</li>
         <li>Saves the finished file into a secure <code>/generated</code> folder</li>
     </ul>
 
-    <h2 class="mt-10 mb-4 font-semibold text-2xl">5. One-Click Download</h2>
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">4. One-Click Download</h2>
     <p>
         When generation is complete, you’ll see a “Download” button. Click it and the deck is
         streamed straight to your browser. No emails, no waiting. All generated files are
         auto-deleted after 24 hours for your privacy.
     </p>
+
+    <h2 class="mt-10 mb-4 font-semibold text-2xl">Modern Slide Types Included</h2>
+    <ul class="list-disc list-inside">
+        <li><strong>Double column</strong> — two side-by-side sections with bold headings and detailed text.</li>
+        <li><strong>Table slides</strong> — comparison tables with themed headers and readable rows.</li>
+        <li><strong>Infographic summaries</strong> — at-a-glance visual cards for concise takeaways.</li>
+        <li><strong>Timeline slides</strong> — multiple variations, including horizontal rounded rectangles, chevrons, and bubble steps.</li>
+    </ul>
 
     <h2 class="mt-10 mb-4 font-semibold text-2xl">Why Trust PPTJet?</h2>
     <p>
