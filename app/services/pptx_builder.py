@@ -49,6 +49,8 @@ SUMMARY_STYLE_INDEX: int = 0
 TIMELINE_STYLE_INDEX: int = 0
 # Persisted across deck generations so timeline styles rotate between runs
 PROCESS_STYLE_INDEX: int = 0
+# Rotate color scheme for double-column bullet squares across presentations
+DOUBLE_SCHEME_INDEX: int = 0
 # Track if any "takeaways" slide (including at-a-glance) has already been rendered
 TAKEAWAYS_RENDERED: bool = False
 
@@ -149,7 +151,13 @@ def _split_head_tail(txt: str) -> Tuple[str, str]:
     import re as _re
     m = _re.search(r"[:;\u2013\u2014\-\.\,]", t)
     if m and m.start() > 0:
-        return t[:m.start()].strip(), t[m.start():].lstrip()
+        head = t[:m.start()].strip()
+        # drop the matched separator itself and trim remainder
+        tail = t[m.start() + 1 :].lstrip()
+        # ignore meaningless tails that are too short or just punctuation
+        if not tail or len(tail.strip('.-–—,')) < 2:
+            tail = ""
+        return head, tail
     # fallback: first 4 words bold
     parts = t.split()
     head = " ".join(parts[:4])
@@ -1848,7 +1856,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         pad = 0.20
         two_rows = n >= 5
         # Horizontal stretch for better text fit (ellipse width = d * ax)
-        ax = 1.28
+        ax = 1.35
 
         # Auto-scale to fit available height first
         desired_h = (2 * d + row_gap + 2 * pad) if two_rows else (d + 2 * pad)
@@ -1953,8 +1961,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(255,255,255); dot.line.fill.background()
             # text box inside bubble
             # Textbox sized relative to current ellipse (use width w)
-            tx_w = max(0.70, w - 0.62)
-            tx_h = max(0.58, d - 0.40)
+            tx_w = max(0.72, w - 0.56)
+            tx_h = max(0.62, d - 0.34)
             tf = s.shapes.add_textbox(Inches(x + (w - tx_w)/2.0), Inches(y + (d - tx_h)/2.0), Inches(tx_w), Inches(tx_h)).text_frame
             tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
             try:
@@ -1965,26 +1973,35 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             try:
                 # Add small internal margins so text does not touch circle edge
                 from pptx.util import Inches as _In
-                tf.margin_left = int(_In(0.04))
-                tf.margin_right = int(_In(0.04))
-                tf.margin_top = int(_In(0.02))
-                tf.margin_bottom = int(_In(0.02))
+                tf.margin_left = int(_In(0.10))
+                tf.margin_right = int(_In(0.10))
+                tf.margin_top = int(_In(0.06))
+                tf.margin_bottom = int(_In(0.06))
             except Exception:
                 pass
             p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
             head, tail = _split_head_tail(lab)
-            # Make copy more concise
-            try:
-                head = _shorten(head or lab, 30)
-            except Exception:
-                head = head or lab
-            r1 = p.add_run(); r1.text = head; r1.font.size = Pt(14); r1.font.bold = True; r1.font.color.rgb = RGBColor(255,255,255)
+            # If no meaningful tail, derive one from remaining words beyond first few
+            if not tail:
+                ws = (lab or "").split()
+                if len(ws) > 4:
+                    head = " ".join(ws[:4])
+                    tail = " ".join(ws[4:])
+            # Heads: avoid ellipsis when there is a tail; keep concise by words
+            if tail:
+                head_txt = " ".join((head or lab).split()[:5])
+            else:
+                try:
+                    head_txt = _shorten(head or lab, 30)
+                except Exception:
+                    head_txt = head or lab
+            r1 = p.add_run(); r1.text = head_txt; r1.font.size = Pt(15); r1.font.bold = True; r1.font.color.rgb = RGBColor(255,255,255)
             if tail:
                 try:
-                    tail = _shorten(tail, 52)
+                    tail_txt = _shorten(tail, 70)
                 except Exception:
-                    tail = tail
-                p2 = tf.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(10); r2.font.color.rgb = RGBColor(235,244,255)
+                    tail_txt = tail
+                p2 = tf.add_paragraph(); r2 = p2.add_run(); r2.text = tail_txt; r2.font.size = Pt(11); r2.font.color.rgb = RGBColor(235,244,255)
 
     def render_timeline_vchevrons(title_txt: str, points: List[str], topic_src: str):
         """Vertical chevron stack: left icon bar + right chevron rows (like provided sample)."""
@@ -2246,42 +2263,98 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         lp_all = [str(x) for x in (c.get("left_points") or [])]
         rp_all = [str(x) for x in (c.get("right_points") or [])]
 
-        # Pagination: 4 bullets max per column per slide
+        # Pagination: 3 bullets per column per slide for generous spacing
         def chunks(lst: List[str], n: int) -> List[List[str]]:
             return [lst[i:i+n] for i in range(0, len(lst), n)]
 
-        left_pages = chunks(lp_all, 4) or [[]]
-        right_pages = chunks(rp_all, 4) or [[]]
+        left_pages = chunks(lp_all, 3) or [[]]
+        right_pages = chunks(rp_all, 3) or [[]]
         pages = max(len(left_pages), len(right_pages))
+
+        # Rotating color schemes for square bullets
+        schemes = [
+            # scheme 0 (sample-like): left warm, right cool
+            [(251, 191, 36), (34, 197, 94), (59, 130, 246)],  # left col squares
+            [(147, 51, 234), (99, 102, 241), (56, 189, 248)], # left alt
+            [(244, 114, 82), (250, 204, 21), (34, 197, 94)],  # left alt 2
+            [(2, 132, 199), (10, 61, 98), (16, 185, 129)],    # left alt 3
+            # scheme 4 (pastel pop)
+            [(251, 146, 60), (244, 114, 182), (165, 180, 252)],
+            # scheme 5 (blues & sky)
+            [(59, 130, 246), (37, 99, 235), (2, 132, 199)],
+            # scheme 6 (earthy)
+            [(101, 163, 13), (180, 83, 9), (234, 88, 12)],
+        ]
+        right_schemes = [
+            [(139, 92, 246), (59, 130, 246), (56, 189, 248)],
+            [(251, 191, 36), (34, 197, 94), (59, 130, 246)],
+            [(99, 102, 241), (2, 132, 199), (45, 212, 191)],
+            [(244, 114, 82), (250, 204, 21), (34, 197, 94)],
+            # scheme 4 pair (pastel pop mates)
+            [(52, 211, 153), (125, 211, 252), (250, 204, 21)],
+            # scheme 5 pair (blues & sky mates)
+            [(56, 189, 248), (29, 78, 216), (10, 61, 98)],
+            # scheme 6 pair (earthy mates)
+            [(16, 185, 129), (234, 179, 8), (124, 45, 18)],
+        ]
+
+        global DOUBLE_SCHEME_INDEX
+        scheme_idx = DOUBLE_SCHEME_INDEX % len(schemes)
+        left_colors = schemes[scheme_idx]
+        right_colors = right_schemes[scheme_idx]
 
         for page in range(pages):
             s = prs.slides.add_slide(blank); apply_bg(s)
-            title = (sl.get("title") or "Key Concepts").strip()
+            title = (sl.get("title") or "Discussion").strip() or "Discussion"
             if page > 0:
                 title = f"{title} (cont.)"
             _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=pal["primary"])
 
-            # Layout metrics
-            gutter = 0.6
-            margin = 1.0
+            # Layout metrics matching reference
+            gutter = 0.9
+            margin = 1.2
             col_w = (SLIDE_W_IN - 2 * margin - gutter) / 2.0
             left_x = margin
             right_x = margin + col_w + gutter
+            top_y = 2.0
+            row_h = 1.25
+            gap_y = 0.25
+
+            # Center divider with soft shadow
+            divider_w = 0.10
+            divider_x = left_x + col_w + (gutter - divider_w) / 2.0
+            div = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(divider_x), Inches(top_y - 0.10), Inches(divider_w), Inches(3 * row_h + 2 * gap_y + 0.20))
+            div.fill.solid(); div.fill.fore_color.rgb = RGBColor(229, 231, 235); div.line.fill.background()
 
             lp = left_pages[page] if page < len(left_pages) else []
             rp = right_pages[page] if page < len(right_pages) else []
 
-            # Subtle vertical divider
-            divider_w = 0.06
-            divider_x = left_x + col_w + (gutter - divider_w) / 2.0
-            divider_top = 2.0
-            divider_h = 4.6
-            div = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(divider_x), Inches(divider_top), Inches(divider_w), Inches(divider_h))
-            div.fill.solid(); div.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
-            div.line.fill.background()
+            def render_col(items: List[str], base_x: float, colors: List[Tuple[int, int, int]]):
+                y = top_y
+                for i, lab in enumerate(items[:3]):
+                    sq = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(base_x), Inches(y + 0.18), Inches(0.38), Inches(0.38))
+                    sq.fill.solid(); sq.fill.fore_color.rgb = RGBColor(*colors[i % len(colors)])
+                    sq.line.fill.background(); sq.radius = 0  # sharp square
 
-            _add_bullets(s, left_x, 2.1, col_w, 4.3, lp, font_size_pt=18, color=pal["text"], word_wrap=True, auto_fit=True, line_spacing=1.45, bold_first_phrase=False, space_before_pt=4, space_after_pt=14)
-            _add_bullets(s, right_x, 2.1, col_w, 4.3, rp, font_size_pt=18, color=pal["text"], word_wrap=True, auto_fit=True, line_spacing=1.45, bold_first_phrase=False, space_before_pt=4, space_after_pt=14)
+                    # text with bold head + normal tail
+                    tf = s.shapes.add_textbox(Inches(base_x + 0.60), Inches(y), Inches(col_w - 0.70), Inches(row_h - 0.05)).text_frame
+                    tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                    try:
+                        from pptx.enum.text import MSO_ANCHOR
+                        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+                    except Exception:
+                        pass
+                    p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
+                    head, tail = _split_head_tail(lab)
+                    r1 = p.add_run(); r1.text = (head or lab); r1.font.size = Pt(20); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal["text"])
+                    if tail:
+                        p2 = tf.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(14); r2.font.color.rgb = RGBColor(100,116,139)
+                    y += row_h + gap_y
+
+            render_col(lp, left_x, left_colors)
+            render_col(rp, right_x, right_colors)
+
+        DOUBLE_SCHEME_INDEX += 1
 
     def render_table(sl):
         s = prs.slides.add_slide(blank); apply_bg(s)
