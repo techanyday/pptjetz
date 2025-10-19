@@ -23,7 +23,7 @@ TITLE = RGBColor(42, 94, 255)
 STROKE = RGBColor(255, 255, 255)  # thin white divider
 
 
-def _title(slide, text, kicker=None):
+def _title(slide, text, kicker=None, color_rgb=None):
     """
     Draw title (+ optional kicker) and return bottom y (top of content region).
     """
@@ -37,7 +37,7 @@ def _title(slide, text, kicker=None):
     p.text = text
     p.font.size = Pt(36)
     p.font.bold = True
-    p.font.color.rgb = TITLE
+    p.font.color.rgb = RGBColor(*color_rgb) if isinstance(color_rgb, (tuple, list)) and len(color_rgb) == 3 else TITLE
 
     # Kicker (optional)
     if kicker:
@@ -138,10 +138,10 @@ def _split_rows(items):
     return items[:4], items[4:8]
 
 
-def render_takeaways_chevrons(slide, items, title="Key Takeaways", kicker="At-a-glance summary"):
+def render_takeaways_chevrons(slide, items, title="Key Takeaways", kicker="At-a-glance summary", title_color=None):
     items = _clean(items, 4, 8)
 
-    title_bottom = _title(slide, title, kicker)
+    title_bottom = _title(slide, title, kicker, color_rgb=title_color)
 
     # CONTENT REGION: between title_bottom and bottom margin
     content_top = title_bottom + Inches(0.12)

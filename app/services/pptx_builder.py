@@ -983,7 +983,7 @@ def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, 
                 labels.append(filler)
 
     # Render as chevron roadmap (python-pptx only)
-    render_takeaways_chevrons(s6, labels, title="Key Takeaways", kicker="At-a-glance summary")
+    render_takeaways_chevrons(s6, labels, title="Key Takeaways", kicker="At-a-glance summary", title_color=pal["primary"])
     _mark_takeaways_rendered()
 
     # Capture Thank You content source early; render it at the very end
@@ -1975,26 +1975,122 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             head, tail = _split_head_tail(lab)
             # Make copy more concise
             try:
-                head = _shorten(head or lab, 34)
+                head = _shorten(head or lab, 30)
             except Exception:
                 head = head or lab
-            r1 = p.add_run(); r1.text = head; r1.font.size = Pt(15); r1.font.bold = True; r1.font.color.rgb = RGBColor(255,255,255)
+            r1 = p.add_run(); r1.text = head; r1.font.size = Pt(14); r1.font.bold = True; r1.font.color.rgb = RGBColor(255,255,255)
             if tail:
                 try:
-                    tail = _shorten(tail, 58)
+                    tail = _shorten(tail, 52)
                 except Exception:
                     tail = tail
-                p2 = tf.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(11); r2.font.color.rgb = RGBColor(235,244,255)
+                p2 = tf.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(10); r2.font.color.rgb = RGBColor(235,244,255)
+
+    def render_timeline_vchevrons(title_txt: str, points: List[str], topic_src: str):
+        """Vertical chevron stack: left icon bar + right chevron rows (like provided sample)."""
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=40, bold=True, color=pal["primary"])
+        sub = _timeline_subtitle(topic_src, points, "v-chevrons")
+        _add_textbox(s, 1.0, 1.55, 10.8, 0.6, sub, font_size_pt=16, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
+
+        items = [str(x).strip() for x in (points or []) if str(x).strip()] or ["Step 1", "Step 2", "Step 3", "Step 4"]
+        n = min(6, max(4, len(items)))
+        items = items[:n]
+        STEP_COLS = _step_colors()
+
+        # Layout metrics & container
+        margin_x = 1.2
+        row_h = 1.05
+        gap = 0.28
+        chevron_h = 0.92
+        icon_w = 0.92
+        spine_gap = 0.12
+
+        # Compute available vertical space and scale rows to fit
+        SUB_Y, SUB_H = 1.55, 0.80
+        top_y = max(2.05, SUB_Y + SUB_H + 0.30)
+        bottom_margin = 0.65
+        avail_h = max(1.0, SLIDE_H_IN - bottom_margin - top_y)
+        total_h = n * row_h + (n - 1) * gap
+        extra = 0.66  # container padding
+        if total_h + extra > avail_h:
+            scale = max(0.72, (avail_h - 0.02) / (total_h + extra))
+            row_h *= scale
+            gap *= scale
+            chevron_h = min(chevron_h * scale, row_h - 0.10)
+            total_h = n * row_h + (n - 1) * gap
+
+        cont_y = top_y
+        cont_h = min(avail_h, total_h + extra)
+        cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(0.7), Inches(cont_y), Inches(SLIDE_W_IN - 1.4), Inches(cont_h))
+        cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240,245,255))))
+        cont.line.color.rgb = RGBColor(229,231,235)
+        try:
+            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 14; cont.shadow.distance = 3
+        except Exception:
+            pass
+
+        y_top = cont_y + 0.33
+        chev_w = SLIDE_W_IN - 2 * margin_x - icon_w - spine_gap - 0.4
+        for i, lab in enumerate(items):
+            y = y_top + i * (row_h)
+            base_x = margin_x
+            # left icon/block
+            icon = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(base_x), Inches(y + (row_h - chevron_h)/2), Inches(icon_w), Inches(chevron_h))
+            icon.fill.solid(); icon.fill.fore_color.rgb = RGBColor(*STEP_COLS[i % len(STEP_COLS)])
+            icon.line.fill.background()
+            dot = s.shapes.add_shape(MsoShape.OVAL, Inches(base_x + 0.26), Inches(y + row_h/2 - 0.14), Inches(0.28), Inches(0.28))
+            dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(255,255,255); dot.line.fill.background()
+            # chevron bar to the right
+            cx = base_x + icon_w + spine_gap
+            chev = s.shapes.add_shape(MsoShape.CHEVRON, Inches(cx), Inches(y + (row_h - chevron_h)/2), Inches(chev_w), Inches(chevron_h))
+            chev.fill.solid(); chev.fill.fore_color.rgb = RGBColor(*STEP_COLS[i % len(STEP_COLS)])
+            chev.line.fill.background()
+            try:
+                chev.adjustments[0] = 0.25
+            except Exception:
+                pass
+            tf = chev.text_frame; tf.clear(); tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                from pptx.enum.text import MSO_ANCHOR
+                tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+            except Exception:
+                pass
+            try:
+                from pptx.util import Inches as _In
+                # Add safe insets so text stays away from the chevron tip and edges
+                tf.margin_left = int(_In(0.18))
+                tf.margin_right = int(_In(0.18))
+                tf.margin_top = int(_In(0.10))
+                tf.margin_bottom = int(_In(0.10))
+            except Exception:
+                pass
+            p = tf.paragraphs[0]; p.alignment = PP_ALIGN.LEFT
+            head, tail = _split_head_tail(lab)
+            # Shorten to avoid spill; autosize will handle edge cases
+            try:
+                head = _shorten(head or lab, 42)
+            except Exception:
+                head = head or lab
+            r1 = p.add_run(); r1.text = head; r1.font.size = Pt(19); r1.font.bold = True; r1.font.color.rgb = RGBColor(255,255,255)
+            if tail:
+                try:
+                    tail = _shorten(tail, 80)
+                except Exception:
+                    tail = tail
+                p2 = tf.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(12); r2.font.color.rgb = RGBColor(235,244,255)
 
     def render_process_variant(title_txt: str, points: List[str], topic_src: str):
         global PROCESS_STYLE_INDEX
-        sel = PROCESS_STYLE_INDEX % 3
+        sel = PROCESS_STYLE_INDEX % 4
         if sel == 0:
             render_timeline_horizontal(title_txt, points, topic_src)
         elif sel == 1:
             render_process_timeline_alt(title_txt, points, topic_src)
-        else:
+        elif sel == 2:
             render_timeline_bubbles(title_txt, points, topic_src)
+        else:
+            render_timeline_vchevrons(title_txt, points, topic_src)
         PROCESS_STYLE_INDEX += 1
 
     def render_timeline_vertical(title_txt: str, points: List[str], topic_src: str):
@@ -2401,10 +2497,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         - 4 rounded pills with left icon bubble
         - High contrast text per pill color
         """
-        title_col = (11, 36, 71)  # deep navy
-        sub_col = (100, 116, 139)  # slate-500
-        _add_textbox(slide, 1.0, 0.9, 11.3, 0.9, "Key Takeaways", font_size_pt=44, bold=True, color=title_col)
-        _add_textbox(slide, 1.0, 1.6, 11.3, 0.6, "", font_size_pt=22, color=sub_col, align="center")
+        # Use theme colors for consistency with all slide titles
+        _add_textbox(slide, 1.0, 0.9, 11.3, 0.9, "Key Takeaways", font_size_pt=44, bold=True, color=pal["primary"])
+        _add_textbox(slide, 1.0, 1.6, 11.3, 0.6, "", font_size_pt=22, color=pal.get("muted", (100,116,139)), align="center")
 
         # Approximate colors from the sample: amber, teal, navy, coral
         PILL_COLORS = [
