@@ -137,15 +137,39 @@ def blog_index() -> Any:
     posts_q = BlogPost.query.filter(BlogPost.published.is_(True)).order_by(
         BlogPost.published_at.desc().nullslast(), BlogPost.created_at.desc()
     )
-    posts = [
-        {
+    def _resolve_image(path: str | None) -> str | None:
+        if not path:
+            return None
+        try:
+            s = str(path).strip()
+            # If it's already an absolute URL, return as-is
+            if s.startswith("http://") or s.startswith("https://"):
+                return s
+            # Strip leading slashes
+            while s.startswith("/"):
+                s = s[1:]
+            # Remove leading 'static/' if present to avoid /static/static/... URLs
+            if s.lower().startswith("static/"):
+                s = s[7:]
+            # Only return a URL if the file actually exists on disk.
+            # This prevents broken thumbnails when uploads are missing on a new environment.
+            import os
+            from flask import current_app
+            abs_path = os.path.join(current_app.static_folder, s)
+            if os.path.isfile(abs_path):
+                return url_for('static', filename=s)
+            return None
+        except Exception:
+            return None
+
+    posts = []
+    for p in posts_q.all():
+        posts.append({
             "title": p.title,
             "description": p.summary or (p.content[:140] + ("…" if len(p.content) > 140 else "")),
             "url": url_for("main.blog_post_page", slug=p.slug),
-            "image": (url_for('static', filename=p.featured_image) if p.featured_image else None),
-        }
-        for p in posts_q.all()
-    ]
+            "image": _resolve_image(getattr(p, 'featured_image', None)),
+        })
     return render_template("blog_index.html", posts=posts)
 
 
