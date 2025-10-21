@@ -5,7 +5,7 @@
 {% block description %}{{ (post.summary or post.content[:150]) }}{% endblock %}
 
 {% block head_extra %}
-  {% set abs_image = (url_for('static', filename=post.featured_image, _external=True) if post.featured_image else url_for('static', filename='images/logo.png', _external=True)) %}
+  {% set abs_image = (image_url_abs if image_url_abs else url_for('static', filename='images/logo.png', _external=True)) %}
   <meta property="og:type" content="article">
   <meta property="og:title" content="{{ post.title }} | PPTJet Blog">
   <meta property="og:description" content="{{ (post.summary or post.content[:150]) }}">
@@ -20,13 +20,13 @@
 {% endblock %}
 
 {% block og_image %}
-  {% set abs_image = (url_for('static', filename=post.featured_image, _external=True) if post.featured_image else url_for('static', filename='images/logo.png', _external=True)) %}
+  {% set abs_image = (image_url_abs if image_url_abs else url_for('static', filename='images/logo.png', _external=True)) %}
   <meta property="og:image" content="{{ abs_image }}">
   <meta property="og:image:alt" content="{{ post.title }}">
 {% endblock %}
 
 {% block tw_image %}
-  {% set abs_image = (url_for('static', filename=post.featured_image, _external=True) if post.featured_image else url_for('static', filename='images/logo.png', _external=True)) %}
+  {% set abs_image = (image_url_abs if image_url_abs else url_for('static', filename='images/logo.png', _external=True)) %}
   <meta name="twitter:image" content="{{ abs_image }}">
 {% endblock %}
 
@@ -55,8 +55,8 @@
 <!-- Content -->
 <article class="max-w-3xl mx-auto">
   <div class="bg-white -mt-8 relative z-10 rounded-2xl p-6 md:p-10 shadow-sm ring-1 ring-black/5">
-    {% if post.featured_image %}
-    <img src="{{ url_for('static', filename=post.featured_image) }}" alt="{{ post.title }}" class="w-full h-64 object-cover rounded-xl mb-6">
+    {% if image_url %}
+    <img src="{{ image_url }}" alt="{{ post.title }}" class="w-full h-64 object-cover rounded-xl mb-6">
     {% endif %}
     <div class="prose prose-slate max-w-none">
       <div class="leading-7 text-slate-700 whitespace-pre-wrap">{{ post.content | safe }}</div>

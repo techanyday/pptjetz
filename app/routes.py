@@ -181,7 +181,30 @@ def blog_post_page(slug: str) -> Any:
     post = p.first()
     if not post:
         abort(404)
-    return render_template("blog_post.html", post=post)
+    # Resolve featured image safely: allow absolute URLs; for local files ensure they exist
+    def _resolve_image_pair(path: str | None) -> tuple[str | None, str | None]:
+        try:
+            if not path:
+                return None, None
+            s = str(path).strip()
+            if s.startswith("http://") or s.startswith("https://"):
+                # Relative URL not needed; use absolute for both
+                return s, s
+            while s.startswith("/"):
+                s = s[1:]
+            if s.lower().startswith("static/"):
+                s = s[7:]
+            import os
+            from flask import current_app
+            abs_path = os.path.join(current_app.static_folder, s)
+            if os.path.isfile(abs_path):
+                return url_for('static', filename=s), url_for('static', filename=s, _external=True)
+            return None, None
+        except Exception:
+            return None, None
+
+    img_url, img_url_abs = _resolve_image_pair(getattr(post, 'featured_image', None))
+    return render_template("blog_post.html", post=post, image_url=img_url, image_url_abs=img_url_abs)
 
 
 # ---------- Ads.txt (Ezoic-managed) ----------
