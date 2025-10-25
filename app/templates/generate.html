@@ -91,6 +91,7 @@
                     <option value="PULSE">PULSE</option>
                     <option value="MINIMAL FLUX">MINIMAL FLUX</option>
                     <option value="BLUE HORIZON">BLUE HORIZON</option>
+                    <option value="NIGHTFALL">NIGHTFALL</option>
                 </select>
                 <p id="themeError" class="mt-1 text-sm text-red-600 hidden">Please select a theme to continue.</p>
             </div>
@@ -191,14 +192,16 @@
 <div id="confirmModal" class="fixed inset-0 z-40 hidden">
   <div class="absolute inset-0 bg-black/50" aria-hidden="true"></div>
   <div class="absolute inset-0 flex items-center justify-center p-4">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[85vh] flex flex-col">
       <h3 class="text-xl font-semibold mb-3">Review before generating</h3>
-      <ul class="text-gray-700 space-y-1 mb-5">
-        <li><span class="font-semibold">Topic:</span> <span id="confTopic"></span></li>
-        <li><span class="font-semibold">Theme:</span> <span id="confTheme"></span></li>
-        <li class="text-sm text-gray-500"><span class="font-semibold">Type:</span> <span id="confIntent">—</span></li>
-      </ul>
-      <div class="flex justify-end gap-3">
+      <div class="overflow-y-auto pr-1 -mr-1 flex-1">
+        <ul class="text-gray-700 space-y-1">
+          <li><span class="font-semibold">Topic:</span> <span id="confTopic"></span></li>
+          <li><span class="font-semibold">Theme:</span> <span id="confTheme"></span></li>
+          <li class="text-sm text-gray-500"><span class="font-semibold">Type:</span> <span id="confIntent">—</span></li>
+        </ul>
+      </div>
+      <div class="flex justify-end gap-3 pt-4">
         <button id="confBack" class="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200">Back</button>
         <button id="confGo" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Generate Now</button>
       </div>

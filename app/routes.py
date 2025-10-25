@@ -51,6 +51,7 @@ THEME_OPTIONS = [
     "PULSE",
     "MINIMAL FLUX",
     "BLUE HORIZON",
+    "NIGHTFALL",
 ]
 
 # Root directory for per-request preview images (legacy temp + static web-served)
@@ -495,6 +496,113 @@ def generate() -> Any:
     deck_id = uuid.uuid4().hex[:8]
     
     # Derive a better deck title
+    def _smart_title_from_prompt(prompt_text: str) -> str | None:
+        t = (prompt_text or "").strip()
+        if not t:
+            return None
+        lo = t.lower()
+        # 1) Extract canonical name with acronym if present
+        name = None
+        full_name = None
+        acronym = None
+        # Pattern A: "ABC, or Long Name" -> Long Name (ABC)
+        m = re.search(r"\b([A-Z]{2,})\s*,\s*or\s+([^.,\n]+)", t, flags=re.I)
+        if m:
+            acronym = m.group(1).strip()
+            full_name = m.group(2).strip()
+            name = f"{full_name} ({acronym})"
+        # Pattern B: "Long Name (ABC)"
+        if not name:
+            m2 = re.search(r"\b([^\(\)\n]{4,}?)\s*\(([A-Z]{2,})\)", t)
+            if m2:
+                full_name = m2.group(1).strip()
+                acronym = m2.group(2).strip()
+                name = f"{full_name} ({acronym})"
+        # Fallback: first NP-like chunk
+        if not name:
+            first_clause = re.split(r"[\.!?\n]\s*", t, maxsplit=1)[0]
+            first_clause = re.sub(r"^(about|on|regarding|please|kindly|create|write|make|generate|i need|we need)\s+", "", first_clause, flags=re.I)
+            first_clause = re.sub(r"^(an|a)\s+(overview|introduction)\s+of\s+", "", first_clause, flags=re.I)
+            first_clause = first_clause.split(":", 1)[0].strip()
+            name = first_clause
+        # Clean name length
+        name_words = name.split()
+        if len(name_words) > 10:
+            name = " ".join(name_words[:10])
+
+        # 2) Extract 2–3 key themes from full prompt
+        THEMES = [
+            (r"bank communication", "Bank Communications"),
+            (r"payment approval|approval workflow", "Payment Approvals"),
+            (r"status monitoring|payment status", "Status Monitoring"),
+            (r"straight[- ]through processing|stp", "Straight‑Through Processing"),
+            (r"automated processing|automation", "Automation"),
+            (r"compliance|audit trail", "Compliance"),
+            (r"visibility|end-to-end visibility|cash flow", "Visibility"),
+            (r"cost savings|fees|per-transaction", "Cost Savings"),
+            (r"workflow", "Workflow"),
+        ]
+        picks = []
+        for pat, label in THEMES:
+            try:
+                if re.search(pat, lo):
+                    picks.append(label)
+            except Exception:
+                continue
+        # Keep at most 2 themes for conciseness
+        picks = picks[:2]
+        # 3) Compose concise title. Try progressively shorter candidates within limit.
+        LIM = 48
+        def as_title(s: str) -> str:
+            small = {"and","or","the","of","in","on","for","to","a","an","with","at","by"}
+            parts = s.split()
+            out = []
+            for i,w in enumerate(parts):
+                if i>0 and w.lower() in small:
+                    out.append(w.lower())
+                else:
+                    out.append(w[:1].upper()+w[1:])
+            return " ".join(out)
+
+        candidates: list[str] = []
+        if picks:
+            # 3 themes, then 2, then 1
+            for k in [2,1]:
+                if len(picks) >= k:
+                    tail = ", ".join(picks[:k]) if k > 1 else picks[0]
+                    candidates.append(f"{name}: {tail}")
+        else:
+            candidates.append(name)
+        # Prefer acronym-only variant when long
+        if acronym:
+            short_name = f"{acronym}" if not full_name else f"{acronym}: {picks[0]}" if picks else acronym
+            candidates.append(short_name)
+        # Also try "Full (ACR)" without themes
+        if full_name and acronym:
+            candidates.append(f"{full_name} ({acronym})")
+
+        # Select first under limit; fallback to hard trim
+        for c in candidates:
+            if len(c) <= LIM:
+                base = c
+                break
+        else:
+            base = (candidates[0])[:LIM]
+
+        # Title case with small-word exceptions
+        small = {"and","or","the","of","in","on","for","to","a","an","with","at","by"}
+        def smart_tc(s: str) -> str:
+            parts = s.split()
+            out = []
+            for i,w in enumerate(parts):
+                if i>0 and w.lower() in small:
+                    out.append(w.lower())
+                else:
+                    out.append(w[:1].upper()+w[1:])
+            return " ".join(out)
+        title_str = smart_tc(base)
+        return title_str
+
     def derive_deck_title(slides_list: List[Dict[str, Any]]) -> str | None:
         # Prefer an explicit Title slide
         try:
@@ -506,16 +614,12 @@ def generate() -> Any:
         except Exception:
             pass
         # Fallback: if client sent a title string, use it
-        if title:
+        if title and len(title.split()) <= 12:
             return title
-        # Last resort: derive from prompt text (first clause, title case-ish)
-        prompt = (input_text or "").strip()
-        if prompt:
-            base = re.split(r"[\.!?\n]\s*", prompt, maxsplit=1)[0].strip()
-            base = re.sub(r"^about\s+|^on\s+|^regarding\s+", "", base, flags=re.IGNORECASE)
-            if len(base) > 80:
-                base = base[:80].rsplit(" ", 1)[0]
-            return base[:1].upper() + base[1:]
+        # Derive from prompt text
+        smart = _smart_title_from_prompt(input_text)
+        if smart:
+            return smart
         return None
 
     deck_title = derive_deck_title(slides) or "Generated Presentation"
@@ -677,9 +781,10 @@ def export_presentation() -> Any:
     try:
         # 1) Title
         s1 = _find_first("title") or {}
+        # Always use the derived deck_title for the Title slide to avoid echoing the raw prompt
         title_slide = {
             "type": "title",
-            "title": (s1.get("title") if isinstance(s1.get("title"), str) else data.get("deck_title")) or deck_title,
+            "title": deck_title,
             "subtitle": (s1.get("subtitle") if isinstance(s1.get("subtitle"), str) else "") or (data.get("subtitle") or ""),
             "_render_exact": True,
         }

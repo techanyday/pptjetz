@@ -14,6 +14,19 @@ from .slide6_takeaways_chevrons import render_takeaways_chevrons
 SLIDE_W_IN = 13.333
 SLIDE_H_IN = 7.5
 
+# --- Color utilities ---
+def _is_dark_rgb(rgb: Tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    # Relative luminance approximation
+    return (0.2126*r + 0.7152*g + 0.0722*b) < 140
+
+def _clamp(x: int) -> int:
+    return max(0, min(255, x))
+
+def _shade(rgb: Tuple[int, int, int], delta: int) -> Tuple[int, int, int]:
+    r, g, b = rgb
+    return (_clamp(r + delta), _clamp(g + delta), _clamp(b + delta))
+
 # Simple theme palettes
 # Each theme maps to: bg, text, primary, secondary
 THEME_PALETTES: Dict[str, Dict[str, Tuple[int, int, int]]] = {
@@ -23,24 +36,36 @@ THEME_PALETTES: Dict[str, Dict[str, Tuple[int, int, int]]] = {
         "text": (33, 37, 41),
         "primary": (41, 98, 255),   # deep blue
         "secondary": (235, 242, 255),
+        "muted": (71, 85, 105),
+    },
+    "NIGHTFALL": {
+        # Dark, high-contrast theme: near-black canvas, light text, warm orange accent
+        "bg": (10, 10, 12),
+        "text": (238, 238, 238),
+        "primary": (255, 145, 77),   # warm orange accent
+        "secondary": (28, 28, 32),   # dark panel slightly lighter than bg
+        "muted": (200, 208, 220),    # light gray for subtitles on dark bg
     },
     "PULSE": {
         "bg": (255, 255, 255),
         "text": (24, 24, 27),
         "primary": (220, 38, 38),   # red
         "secondary": (254, 226, 226),
+        "muted": (75, 85, 99),
     },
     "MINIMAL FLUX": {
         "bg": (255, 255, 255),
         "text": (31, 41, 55),
         "primary": (99, 102, 241),  # indigo
         "secondary": (238, 242, 255),
+        "muted": (71, 85, 105),
     },
     "BLUE HORIZON": {
         "bg": (250, 253, 255),
         "text": (15, 23, 42),
         "primary": (2, 132, 199),   # sky
         "secondary": (219, 234, 254),
+        "muted": (71, 85, 105),
     },
 }
 
@@ -202,6 +227,18 @@ def _add_bullets(slide, x, y, w, h, bullets: List[str], *, font_size_pt: int = 2
             p.space_after = Pt(space_after_pt)
         except Exception:
             pass
+
+    # Final pass: enforce body text color contrast (after any formatting)
+    try:
+        enforce_rgb = (31, 41, 55) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["text"]
+        for rr in range(1, body_rows + 1):
+            for cc in range(2):
+                tf = table.cell(rr, cc).text_frame
+                for p in tf.paragraphs:
+                    for run in p.runs:
+                        run.font.color.rgb = RGBColor(*enforce_rgb)
+    except Exception:
+        pass
         try:
             p.line_spacing = line_spacing
         except Exception:
@@ -261,14 +298,22 @@ def _clean_agenda_items(items: List[str], limit: int = 32) -> List[str]:
     return out
 
 def _agenda_title(slide, title: str, *, pal: Dict[str, Tuple[int, int, int]]):
-    _add_textbox(slide, 1.0, 0.9, 9.0, 0.95, title, font_size_pt=44, bold=True, color=pal["primary"])
+    # White title on dark backgrounds; keep primary on light themes
+    title_rgb = (255, 255, 255) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["primary"]
+    _add_textbox(slide, 1.0, 0.9, 9.0, 0.95, title, font_size_pt=44, bold=True, color=title_rgb, word_wrap=True, auto_fit=True)
     return 0.95  # inches
 
 def _agenda_accent(slide, top_in: float, height_in: float, *, pal: Dict[str, Tuple[int, int, int]]):
     bar_left = 1.0 - 0.35
     h = max(0.5, height_in)
     bar = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(bar_left), Inches(top_in), Inches(0.12), Inches(h))
-    bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(*pal["primary"]) ; bar.line.fill.background()
+    # Subtle gray on dark backgrounds; lighter secondary on light themes
+    if _is_dark_rgb(pal.get("bg", (255,255,255))):
+        bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(96, 102, 112)
+    else:
+        sec = pal.get("secondary", pal.get("text", (120,120,120)))
+        bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(*sec)
+    bar.line.fill.background()
 
 def _render_agenda_rows_column(slide, items: List[str], origin_x_in: float, origin_y_in: float, col_w_in: float, row_h_in: float, gap_in: float, *, pal: Dict[str, Tuple[int, int, int]]):
     y = origin_y_in
@@ -345,7 +390,9 @@ def _render_agenda_zebra_autofit(prs: Presentation, slide, items: List[str], *, 
 
 # --- Background Timeline (Auto-fit, 1-2 rows with continuation) ---
 def _timeline_title(slide, title: str, *, pal: Dict[str, Tuple[int, int, int]]):
-    _add_textbox(slide, 1.0, 0.9, 10.5, 0.95, title, font_size_pt=42, bold=True, color=pal["primary"])
+    # White on dark backgrounds, primary on light; wrap and auto-fit to avoid overflow
+    title_rgb = (255, 255, 255) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["primary"]
+    _add_textbox(slide, 1.0, 0.9, 10.5, 0.95, title, font_size_pt=42, bold=True, color=title_rgb, word_wrap=True, auto_fit=True)
     return 0.95
 
 def _timeline_baseline(slide, x1_in: float, x2_in: float, y_in: float, *, pal: Dict[str, Tuple[int, int, int]]):
@@ -583,7 +630,9 @@ def _clean_takeaways(items: List[str], limit: int = 5) -> List[str]:
     return out
 
 def _takeaways_title(slide, title: str, *, pal: Dict[str, Tuple[int, int, int]]):
-    _add_textbox(slide, 1.0, 0.9, 10.0, 0.95, title, font_size_pt=42, bold=True, color=pal["primary"])
+    # White on dark backgrounds, primary on light; wrap and auto-fit to avoid overflow
+    title_rgb = (255, 255, 255) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["primary"]
+    _add_textbox(slide, 1.0, 0.9, 10.0, 0.95, title, font_size_pt=42, bold=True, color=title_rgb, word_wrap=True, auto_fit=True)
     return 0.95
 
 def _takeaway_node(slide, x_in: float, y_in: float, d_in: float, label: str, *, pal: Dict[str, Tuple[int, int, int]]):
@@ -644,6 +693,58 @@ def _set_cell_text(cell, text: str, size: int = 18, bold: bool = False, align_ce
             p.alignment = PP_ALIGN.CENTER
 
 
+def _draw_table_grid(slide, table, *, rgb: Tuple[int, int, int] = (209, 213, 219), weight_pt: float = 1.0) -> None:
+    """Draw thin grid lines over the table to ensure inner borders are visible."""
+    left, top, total_w, total_h = table.left, table.top, table.width, table.height
+    # Vertical boundaries
+    x_positions = [left]
+    acc = left
+    for col in table.columns:
+        acc += col.width
+        x_positions.append(acc)
+    for xv in x_positions:
+        ln = slide.shapes.add_connector(1, xv, top, xv, top + total_h)
+        ln.line.color.rgb = RGBColor(*rgb)
+        ln.line.width = Pt(weight_pt)
+    # Horizontal boundaries
+    y_positions = [top]
+    acc = top
+    # Prefer explicit row heights when available; otherwise divide evenly
+    explicit = all(getattr(row, 'height', None) for row in table.rows)
+    if explicit:
+        for row in table.rows:
+            acc += row.height
+            y_positions.append(acc)
+    else:
+        step = int(total_h / len(table.rows)) if len(table.rows) else total_h
+        for _ in range(len(table.rows)):
+            acc += step
+            y_positions.append(acc)
+    for yv in y_positions:
+        ln = slide.shapes.add_connector(1, left, yv, left + total_w, yv)
+        ln.line.color.rgb = RGBColor(*rgb)
+        ln.line.width = Pt(weight_pt)
+
+
+def _draw_table_grid_rect(slide, x_in: float, y_in: float, w_in: float, h_in: float, rows: int, cols: int, *, rgb: Tuple[int,int,int] = (209,213,219), weight_pt: float = 1.0) -> None:
+    """Draw grid lines using the rectangle metrics used to create the table.
+    Use this when we don't have access to the Table shape's coordinates.
+    """
+    left = Inches(x_in); top = Inches(y_in); total_w = Inches(w_in); total_h = Inches(h_in)
+    # Vertical lines (cols + 1 boundaries)
+    for i in range(cols + 1):
+        xv = left + int(total_w * i / max(1, cols))
+        ln = slide.shapes.add_connector(1, xv, top, xv, top + total_h)
+        ln.line.color.rgb = RGBColor(*rgb)
+        ln.line.width = Pt(weight_pt)
+    # Horizontal lines (rows + 1 boundaries)
+    for j in range(rows + 1):
+        yv = top + int(total_h * j / max(1, rows))
+        ln = slide.shapes.add_connector(1, left, yv, left + total_w, yv)
+        ln.line.color.rgb = RGBColor(*rgb)
+        ln.line.width = Pt(weight_pt)
+
+
 def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, theme_name: str | None = None) -> str:
     """
     Build a 10-slide deck per user's geometry using python-pptx.
@@ -656,6 +757,18 @@ def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, 
 
     blank = prs.slide_layouts[6]
     pal = _theme(theme_name)
+    # Title color: white on dark backgrounds, otherwise theme primary
+    TITLE_COL = (255, 255, 255) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["primary"]
+    # Title color: white on dark backgrounds, otherwise theme primary
+    TITLE_COL = (255, 255, 255) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["primary"]
+    # Title color: white on dark backgrounds, otherwise theme primary
+    TITLE_COL = (255, 255, 255) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["primary"]
+    # Title color: white on dark theme backgrounds, else theme primary
+    TITLE_COL = (255, 255, 255) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["primary"]
+    # Title color: white on dark backgrounds, otherwise theme primary
+    TITLE_COL = (255, 255, 255) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["primary"]
+    # Title color rule: white on dark themes, primary on light
+    TITLE_COL = (255, 255, 255) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["primary"]
 
     def apply_bg(slide):
         bg = slide.background
@@ -920,23 +1033,55 @@ def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, 
         base = (pos.get(1, {}) or {}).get("title") or "Comparison"
         comp_title = f"{base}: Alternatives"
 
-    _add_textbox(s5, 1.0, 0.9, 11.3, 1.0, comp_title, font_size_pt=32, bold=True, color=pal["primary"])
+    _add_textbox(s5, 1.0, 0.9, 11.3, 1.0, comp_title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
     # Style header row
     for c in range(2):
         cell = table.cell(0, c)
         cell.fill.solid()
         cell.fill.fore_color.rgb = RGBColor(*pal["primary"])
         _set_cell_text(cell, headers[c] or ("Option A" if c == 0 else "Option B"), size=20, bold=True, align_center=True, color=(255, 255, 255))
+        # Header thin inner borders
+        try:
+            from pptx.util import Pt
+            g1 = RGBColor(209, 213, 219)  # cool gray
+            g2 = RGBColor(229, 231, 235)  # lighter for verticals
+            cell.border_bottom.color.rgb = g1
+            cell.border_bottom.width = Pt(0.75)
+            if c == 0:
+                cell.border_left.color.rgb = g2; cell.border_left.width = Pt(0.5)
+            cell.border_right.color.rgb = g2; cell.border_right.width = Pt(0.5)
+            if c == 1:
+                cell.border_right.color.rgb = g2; cell.border_right.width = Pt(0.5)
+        except Exception:
+            pass
     # rows
+    # Body text should be dark against the light table fills across themes
+    body_text_rgb_local = (31, 41, 55)
     for r in range(body_rows):
         li = left_pts[r] if r < len(left_pts) else ""
         ri = right_pts[r] if r < len(right_pts) else ""
-        _set_cell_text(table.cell(r + 1, 0), str(li), size=18, color=pal["text"])
-        _set_cell_text(table.cell(r + 1, 1), str(ri), size=18, color=pal["text"])
+        _set_cell_text(table.cell(r + 1, 0), str(li), size=18, color=body_text_rgb_local)
+        _set_cell_text(table.cell(r + 1, 1), str(ri), size=18, color=body_text_rgb_local)
         if r % 2 == 1:
             for c in range(2):
                 table.cell(r + 1, c).fill.solid()
                 table.cell(r + 1, c).fill.fore_color.rgb = RGBColor(*pal["secondary"])
+        # Thin inner borders on each body row cell
+        try:
+            from pptx.util import Pt
+            g1 = RGBColor(209, 213, 219)
+            g2 = RGBColor(229, 231, 235)
+            for cidx in range(2):
+                cobj = table.cell(r + 1, cidx)
+                # horizontal separators
+                cobj.border_top.color.rgb = g1; cobj.border_top.width = Pt(0.5)
+                cobj.border_bottom.color.rgb = g1; cobj.border_bottom.width = Pt(0.5)
+                # vertical separators
+                if cidx == 0:
+                    cobj.border_left.color.rgb = g2; cobj.border_left.width = Pt(0.5)
+                cobj.border_right.color.rgb = g2; cobj.border_right.width = Pt(0.5)
+        except Exception:
+            pass
 
     # Slide 6 – Key Takeaways (Infographic, python-pptx only)
     s6 = prs.slides.add_slide(blank)
@@ -1011,18 +1156,60 @@ def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, 
         # headers
         if len(headers) < 2:
             headers = (headers + ["Option B"])[:2]
+        # Determine styling based on theme brightness
+        dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
+        # Header: force vivid blue on dark theme to match reference; keep theme primary on light
+        header_rgb = (59, 130, 246) if dark_bg else pal["primary"]
         for c in range(2):
             cell = table.cell(0, c)
-            cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(*pal["primary"])
+            cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(*header_rgb)
             _set_cell_text(cell, headers[c] or ("Option A" if c == 0 else "Option B"), size=20, bold=True, align_center=True, color=(255, 255, 255))
+
+        # Body rows: white with soft gray alternation and dark text on dark theme
+        light_alt = pal.get("secondary", (240, 245, 255))
+        body_text_rgb = (24, 24, 27) if dark_bg else pal["text"]
+        base_fill = (255, 255, 255) if dark_bg else None
+        alt_fill = (248, 250, 252) if dark_bg else light_alt
+
         for r in range(body_rows):
             li = left_pts[r] if r < len(left_pts) else ""
             ri = right_pts[r] if r < len(right_pts) else ""
-            _set_cell_text(table.cell(r + 1, 0), str(li), size=18, color=pal["text"])
-            _set_cell_text(table.cell(r + 1, 1), str(ri), size=18, color=pal["text"])
-            if r % 2 == 1:
-                for c in range(2):
-                    table.cell(r + 1, c).fill.solid(); table.cell(r + 1, c).fill.fore_color.rgb = RGBColor(*pal["secondary"])
+            _set_cell_text(table.cell(r + 1, 0), str(li), size=18, color=body_text_rgb)
+            _set_cell_text(table.cell(r + 1, 1), str(ri), size=18, color=body_text_rgb)
+            for c in range(2):
+                if dark_bg:
+                    fill_rgb = alt_fill if (r % 2 == 1) else base_fill
+                    table.cell(r + 1, c).fill.solid(); table.cell(r + 1, c).fill.fore_color.rgb = RGBColor(*fill_rgb)
+                    try:
+                        table.cell(r + 1, c).border_bottom.color.rgb = RGBColor(209, 213, 219)
+                        table.cell(r + 1, c).border_right.color.rgb = RGBColor(229, 231, 235)
+                    except Exception:
+                        pass
+                else:
+                    if r % 2 == 1:
+                        table.cell(r + 1, c).fill.solid(); table.cell(r + 1, c).fill.fore_color.rgb = RGBColor(*alt_fill)
+    # Add cell padding and vertical centering so text doesn't sit on borders
+    try:
+        from pptx.util import Pt
+        from pptx.enum.text import MSO_ANCHOR
+        for rr in range(total_rows):
+            for cc in range(2):
+                cell = table.cell(rr, cc)
+                cell.margin_left = Pt(6)
+                cell.margin_right = Pt(6)
+                cell.margin_top = Pt(4)
+                cell.margin_bottom = Pt(4)
+                try:
+                    cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+                except Exception:
+                    pass
+                try:
+                    cell.text_frame.word_wrap = True
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    # Avoid overlay grid to prevent lines over text; rely on row fills and header styling
 
     extra_keys = sorted([k for k in pos.keys() if isinstance(k, int) and k >= 8])
     for i in extra_keys:
@@ -1059,7 +1246,7 @@ def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, 
         s = prs.slides.add_slide(blank)
         apply_bg(s)
         title = (data.get("title") or slide_heading(i) or f"Slide {i}")
-        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=pal["primary"])
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL)
 
         # 1) Table-style comparison if available
         if isinstance(table_obj, dict) and table_obj.get("left") and table_obj.get("right"):
@@ -1093,7 +1280,8 @@ def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, 
     # Finally, render Thank You / CTA as the last slide
     s_last = prs.slides.add_slide(blank)
     apply_bg(s_last)
-    _add_textbox(s_last, 1.0, 2.8, 11.3, 1.2, "Thank You", font_size_pt=40, bold=True, align="center", color=pal["primary"])
+    dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
+    _add_textbox(s_last, 1.0, 2.8, 11.3, 1.2, "Thank You", font_size_pt=40, bold=True, align="center", color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
     if d7.get("cta"):
         _add_textbox(s_last, 3.0, 4.2, 7.3, 0.8, d7.get("cta", ""), font_size_pt=18, align="center", color=pal["text"])
 
@@ -1119,6 +1307,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
     blank = prs.slide_layouts[6]
     pal = _theme(theme_name)
+    # Title color for this build scope
+    TITLE_COL = (255, 255, 255) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["primary"]
 
     def apply_bg(slide):
         bg = slide.background
@@ -1267,7 +1457,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         s = prs.slides.add_slide(blank); apply_bg(s)
         title = (sl.get("title") or "Presentation Title").strip()
         subtitle = (sl.get("subtitle") or sl.get("presenter") or "").strip()
-        _add_textbox(s, 1.0, 1.0, 11.3, 2.0, title, font_size_pt=46, bold=True, align="center", color=pal["primary"], word_wrap=True, auto_fit=True)
+        _add_textbox(s, 1.0, 1.0, 11.3, 2.0, title, font_size_pt=46, bold=True, align="center", color=TITLE_COL, word_wrap=True, auto_fit=True)
         # Add ~0.5" (~48px) vertical padding below the title before the presenter/subtitle
         _add_textbox(s, 1.0, 3.5, 11.3, 0.8, subtitle, font_size_pt=20, color=pal["text"], align="center", word_wrap=True, auto_fit=True)
 
@@ -1549,9 +1739,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         if len(t) > 52:
             sz = 16
         if len(t) > 68:
-            sz = 14
-        if len(t) > 84:
-            t = _shorten(t, 84)
+            t = _shorten(t, 68)
         run.text = t
         run.font.size = Pt(sz)
         run.font.bold = True
@@ -1581,10 +1769,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         """Colorful linear timeline: chips on a soft baseline with captions."""
         s = prs.slides.add_slide(blank); apply_bg(s)
         # Title
-        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=42, bold=True, color=pal["primary"])
+        dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
+        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=42, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
         # Subtitle
         sub = _timeline_subtitle(topic_src, points, "linear")
-        _add_textbox(s, 1.0, 1.55, 10.8, 0.5, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center")
+        _add_textbox(s, 1.0, 1.8, 10.8, 0.6, sub, font_size_pt=19, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
 
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
@@ -1641,10 +1830,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def render_timeline_horizontal(title_txt: str, points: List[str], topic_src: str):
         """Colorful horizontal chevrons timeline (steps as colored arrows)."""
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=40, bold=True, color=pal["primary"])
+        dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
+        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=40, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
         sub_raw = _timeline_subtitle(topic_src, points, "horizontal")
         # Full subtitle, wrapped and auto-fit to stay within the presentation area
-        _add_textbox(s, 1.0, 1.55, 10.8, 0.8, sub_raw, font_size_pt=16, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
+        _add_textbox(s, 1.0, 1.8, 10.8, 0.8, sub_raw, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
             items = ["Step 1", "Step 2", "Step 3", "Step 4"]
@@ -1688,8 +1878,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         # recompute row start after clamping
         y = cont_y + 0.34
         container = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cont_x), Inches(cont_y), Inches(cont_w), Inches(cont_h))
-        container.fill.solid(); container.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240, 245, 255))))
-        container.line.color.rgb = RGBColor(229, 231, 235)
+        container.fill.solid(); container.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240,245,255))))
+        container.line.color.rgb = RGBColor(229,231,235)
         try:
             container.shadow.inherit = False; container.shadow.visible = True; container.shadow.blur = 14; container.shadow.distance = 3
         except Exception:
@@ -1723,7 +1913,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 except Exception:
                     pass
                 p = tb.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.CENTER; p.space_before = 0; p.space_after = 0
-                r = p.add_run(); r.text = str(lab); r.font.size = Pt(16); r.font.bold = True; r.font.color.rgb = RGBColor(255, 255, 255)
+                r = p.add_run(); r.text = str(lab); r.font.size = Pt(16); r.font.bold = True; r.font.color.rgb = RGBColor(255,255,255)
                 centers.append(x + chev_w/2)
                 x += chev_w - overlap
             # separator dots between chevrons
@@ -1738,9 +1928,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     # --- Alternate non-sequential friendly process layout (colored blocks with icons) ---
     def render_process_timeline_alt(title_txt: str, points: List[str], topic_src: str):
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Process", font_size_pt=40, bold=True, color=pal["primary"])
+        dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
+        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Process", font_size_pt=40, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
         sub = _timeline_subtitle(topic_src, points, "process-alt")
-        _add_textbox(s, 1.0, 1.55, 10.8, 0.8, sub, font_size_pt=16, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
+        _add_textbox(s, 1.0, 1.8, 10.8, 0.8, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
 
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
@@ -1833,9 +2024,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def render_timeline_bubbles(title_txt: str, points: List[str], topic_src: str):
         """Horizontal bubble timeline: large colored circles sitting on a soft spine."""
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Key Takeaways", font_size_pt=40, bold=True, color=pal["primary"])
+        dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
+        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Key Takeaways", font_size_pt=40, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
         sub = _timeline_subtitle(topic_src, points, "bubbles")
-        _add_textbox(s, 1.0, 1.55, 10.8, 0.8, sub, font_size_pt=16, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
+        _add_textbox(s, 1.0, 1.8, 10.8, 0.8, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
 
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
@@ -1880,7 +2072,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         spine = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(1.0), Inches(spine_y - 0.06), Inches(SLIDE_W_IN - 2.0), Inches(0.12))
         spine.fill.solid(); spine.fill.fore_color.rgb = RGBColor(252, 231, 243)
         spine.line.fill.background()
-
+        try:
+            spine.shadow.inherit = False; spine.shadow.visible = True; spine.shadow.blur = 6; spine.shadow.distance = 2
+        except Exception:
+            pass
         STEP_COLS = _step_colors()
         left_margin, right_margin = 0.8, 0.8
         total_w = SLIDE_W_IN - left_margin - right_margin
@@ -2006,13 +2201,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def render_timeline_vchevrons(title_txt: str, points: List[str], topic_src: str):
         """Vertical chevron stack: left icon bar + right chevron rows (like provided sample)."""
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=40, bold=True, color=pal["primary"])
+        dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
+        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=40, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
         sub = _timeline_subtitle(topic_src, points, "v-chevrons")
-        _add_textbox(s, 1.0, 1.55, 10.8, 0.6, sub, font_size_pt=16, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
+        _add_textbox(s, 1.0, 1.8, 10.8, 0.7, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
 
         items = [str(x).strip() for x in (points or []) if str(x).strip()] or ["Step 1", "Step 2", "Step 3", "Step 4"]
         n = min(6, max(4, len(items)))
-        items = items[:n]
         STEP_COLS = _step_colors()
 
         # Layout metrics & container
@@ -2048,7 +2243,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             pass
 
         y_top = cont_y + 0.33
-        chev_w = SLIDE_W_IN - 2 * margin_x - icon_w - spine_gap - 0.4
+        # Slightly widen available width for label text inside the chevron
+        chev_w = SLIDE_W_IN - 2 * margin_x - icon_w - spine_gap - 0.2
         for i, lab in enumerate(items):
             y = y_top + i * (row_h)
             base_x = margin_x
@@ -2074,27 +2270,19 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             except Exception:
                 pass
             try:
+                # Add safe insets so text stays away from the chevron tip and edges (slightly smaller to avoid truncation)
                 from pptx.util import Inches as _In
-                # Add safe insets so text stays away from the chevron tip and edges
-                tf.margin_left = int(_In(0.18))
-                tf.margin_right = int(_In(0.18))
+                tf.margin_left = int(_In(0.12))
+                tf.margin_right = int(_In(0.12))
                 tf.margin_top = int(_In(0.10))
                 tf.margin_bottom = int(_In(0.10))
             except Exception:
                 pass
             p = tf.paragraphs[0]; p.alignment = PP_ALIGN.LEFT
             head, tail = _split_head_tail(lab)
-            # Shorten to avoid spill; autosize will handle edge cases
-            try:
-                head = _shorten(head or lab, 42)
-            except Exception:
-                head = head or lab
-            r1 = p.add_run(); r1.text = head; r1.font.size = Pt(19); r1.font.bold = True; r1.font.color.rgb = RGBColor(255,255,255)
+            # Allow full label content; rely on word wrap and auto-fit to avoid truncation
+            r1 = p.add_run(); r1.text = head or lab; r1.font.size = Pt(19); r1.font.bold = True; r1.font.color.rgb = RGBColor(255,255,255)
             if tail:
-                try:
-                    tail = _shorten(tail, 80)
-                except Exception:
-                    tail = tail
                 p2 = tf.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(12); r2.font.color.rgb = RGBColor(235,244,255)
 
     def render_process_variant(title_txt: str, points: List[str], topic_src: str):
@@ -2113,10 +2301,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def render_timeline_vertical(title_txt: str, points: List[str], topic_src: str):
         """Colorful vertical timeline with soft spine and numbered bubbles."""
         s = prs.slides.add_slide(blank); apply_bg(s)
+        dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
         # Title
-        _add_textbox(s, 1.0, 0.9, 10.5, 0.95, title_txt or "Timeline", font_size_pt=42, bold=True, color=pal["primary"])
+        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=42, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
         sub = _timeline_subtitle(topic_src, points, "vertical")
-        _add_textbox(s, 1.0, 1.55, 10.8, 0.5, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center")
+        _add_textbox(s, 1.0, 1.8, 10.8, 0.5, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
         # Items and layout metrics with fit-to-available-height
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
@@ -2184,9 +2373,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def render_timeline_roadmap(title_txt: str, points: List[str], topic_src: str):
         """Roadmap path with colored location pins along a meandering soft path."""
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Roadmap", font_size_pt=42, bold=True, color=pal["primary"])
+        _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Roadmap", font_size_pt=42, bold=True, color=pal["primary"], word_wrap=True, auto_fit=True)
         sub = _timeline_subtitle(topic_src, points, "roadmap")
-        _add_textbox(s, 1.0, 1.55, 10.8, 0.5, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center")
+        _add_textbox(s, 1.0, 1.8, 10.8, 0.5, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
             items = ["Step 1", "Step 2", "Step 3", "Step 4"]
@@ -2308,7 +2497,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             title = (sl.get("title") or "Discussion").strip() or "Discussion"
             if page > 0:
                 title = f"{title} (cont.)"
-            _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=pal["primary"])
+            _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
 
             # Layout metrics matching reference
             gutter = 0.9
@@ -2367,20 +2556,68 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         right_pts = [str(x) for x in (right.get("points") or [])]
         # Title uses the provided slide title (topic-aligned)
         comp_title = sl.get("title") or "Comparison"
-        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, comp_title, font_size_pt=32, bold=True, color=pal["primary"])
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, comp_title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
         body_rows = max(3, min(max(len(left_pts), len(right_pts)), 6))
         table = _add_table(s, 1.6665, 2.2, 10.0, 3.0, rows=body_rows + 1, cols=2)
         # header row
+        dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
+        header_rgb = (59, 130, 246) if dark_bg else pal["primary"]
         for cidx in range(2):
             cell = table.cell(0, cidx)
-            cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(*pal["primary"])
+            cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(*header_rgb)
             _set_cell_text(cell, headers[cidx] or ("Option A" if cidx == 0 else "Option B"), size=20, bold=True, align_center=True, color=(255, 255, 255))
-        # rows
+        # Populate body rows with text and zebra fills
+        # Body text should be dark against the light table fills across themes
+        body_rgb = (31, 41, 55)
         for r in range(body_rows):
             li = left_pts[r] if r < len(left_pts) else ""
             ri = right_pts[r] if r < len(right_pts) else ""
-            _set_cell_text(table.cell(r + 1, 0), str(li), size=18, color=pal["text"])
-            _set_cell_text(table.cell(r + 1, 1), str(ri), size=18, color=pal["text"])
+            _set_cell_text(table.cell(r + 1, 0), str(li), size=18, color=body_rgb)
+            _set_cell_text(table.cell(r + 1, 1), str(ri), size=18, color=body_rgb)
+            # subtle zebra striping
+            try:
+                base_fill = (248,250,252)
+                alt_fill = (226,232,240)
+                for cidx in range(2):
+                    if r % 2 == 1:
+                        cell = table.cell(r + 1, cidx)
+                        cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(*alt_fill)
+            except Exception:
+                pass
+        # rows: padding, centering, wrapping, and thin inner borders (header+body)
+        try:
+            from pptx.util import Pt
+            from pptx.enum.text import MSO_ANCHOR
+            g1 = RGBColor(209, 213, 219)
+            g2 = RGBColor(229, 231, 235)
+            for rr in range(body_rows + 1):
+                for cc in range(2):
+                    cell = table.cell(rr, cc)
+                    # padding
+                    cell.margin_left = Pt(6)
+                    cell.margin_right = Pt(6)
+                    cell.margin_top = Pt(4)
+                    cell.margin_bottom = Pt(4)
+                    # vertical center + wrap
+                    try:
+                        cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+                    except Exception:
+                        pass
+                    try:
+                        cell.text_frame.word_wrap = True
+                    except Exception:
+                        pass
+                    # borders
+                    try:
+                        cell.border_top.color.rgb = g1; cell.border_top.width = Pt(0.5)
+                        cell.border_bottom.color.rgb = g1; cell.border_bottom.width = Pt(0.5)
+                        if cc == 0:
+                            cell.border_left.color.rgb = g2; cell.border_left.width = Pt(0.5)
+                        cell.border_right.color.rgb = g2; cell.border_right.width = Pt(0.5)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
         # Simple centered layout metrics for the comparison table; no pagination here
         # (the above body_rows limits rows to a reasonable amount per slide)
@@ -2394,14 +2631,14 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
     def render_bullets(sl):
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, (sl.get("title") or "Slide"), font_size_pt=32, bold=True, color=pal["primary"])
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, (sl.get("title") or "Slide"), font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
         c = _content(sl)
         _add_bullets(s, 1.0, 2.0, 11.0, 4.5, [str(x) for x in (c.get("bullets") or [])], font_size_pt=20, color=pal["text"], word_wrap=True, auto_fit=True)
 
     def render_infographic(sl):
         s = prs.slides.add_slide(blank); apply_bg(s)
         title = (sl.get("title") or "Key Takeaways").strip()
-        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=36, bold=True, color=pal["primary"])
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=36, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
         c = _content(sl)
         pts = [str(x).strip() for x in (c.get("bullets") or c.get("takeaways") or []) if str(x).strip()]
         if not pts:
