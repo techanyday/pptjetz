@@ -134,7 +134,10 @@
     if (typeof gtag === 'function') {
       gtag('event', 'export_click', {
         event_category: 'engagement',
-        event_label: 'outline_export'
+        event_label: 'outline_export',
+        value: 0.009,
+        currency: 'USD',
+        export_value: 0.009
       });
     }
     try {

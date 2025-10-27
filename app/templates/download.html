@@ -65,9 +65,12 @@
   if (!a) return;
   a.addEventListener('click', function(){
     if (typeof gtag === 'function') {
-      gtag('event', 'download_click', {
+      gtag('event', 'file_download', {
         event_category: 'file',
-        event_label: 'pptx_download'
+        event_label: 'pptx_download',
+        value: 0.009,
+        currency: 'USD',
+        export_value: 0.009
       });
     }
   });
