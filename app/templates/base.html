@@ -101,7 +101,20 @@
 
       gtag('config', 'AW-16828504707');
       // GA4 Measurement ID
-      gtag('config', 'G-MDQNEZKM61');
+      (function(){
+        try {
+          var isLocal = ['localhost','127.0.0.1'].indexOf(location.hostname) > -1;
+          var usp = new URLSearchParams(location.search);
+          var debugOn = isLocal || usp.get('debug') === '1';
+          if (debugOn) {
+            gtag('config', 'G-MDQNEZKM61', { debug_mode: true });
+          } else {
+            gtag('config', 'G-MDQNEZKM61');
+          }
+        } catch(e) {
+          gtag('config', 'G-MDQNEZKM61');
+        }
+      })();
     </script>
 </head>
 <body class="bg-gray-100 min-h-screen">
