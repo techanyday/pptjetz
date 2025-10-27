@@ -19,7 +19,7 @@ PAL = [
     RGBColor(255, 224, 178),  # sandy
 ]
 INK = RGBColor(35, 35, 35)
-TITLE = RGBColor(42, 94, 255)
+TITLE = RGBColor(255, 255, 255)
 STROKE = RGBColor(255, 255, 255)  # thin white divider
 
 
@@ -37,7 +37,17 @@ def _title(slide, text, kicker=None, color_rgb=None):
     p.text = text
     p.font.size = Pt(36)
     p.font.bold = True
-    p.font.color.rgb = RGBColor(*color_rgb) if isinstance(color_rgb, (tuple, list)) and len(color_rgb) == 3 else TITLE
+    # Apply color at both paragraph and run level (handles theme overrides)
+    chosen = RGBColor(*color_rgb) if isinstance(color_rgb, (tuple, list)) and len(color_rgb) == 3 else TITLE
+    try:
+        p.font.color.rgb = chosen
+    except Exception:
+        pass
+    for r in p.runs:
+        try:
+            r.font.color.rgb = chosen
+        except Exception:
+            pass
 
     # Kicker (optional)
     if kicker:

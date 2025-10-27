@@ -18,7 +18,7 @@ FILL = RGBColor(238, 245, 255)
 INK  = RGBColor(35, 35, 35)
 MUTED= RGBColor(120, 130, 145)
 LINE = RGBColor(210, 220, 235)
-TITLE= RGBColor(42, 94, 255)
+TITLE= RGBColor(255, 255, 255)
 
 """
 Emoji helpers: choose a color emoji font per OS and force emoji presentation with VS-16.

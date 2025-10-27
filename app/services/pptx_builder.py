@@ -630,8 +630,8 @@ def _clean_takeaways(items: List[str], limit: int = 5) -> List[str]:
     return out
 
 def _takeaways_title(slide, title: str, *, pal: Dict[str, Tuple[int, int, int]]):
-    # White on dark backgrounds, primary on light; wrap and auto-fit to avoid overflow
-    title_rgb = (255, 255, 255) if _is_dark_rgb(pal.get("bg", (255,255,255))) else pal["primary"]
+    # Consistent white title for Key Takeaways
+    title_rgb = (255, 255, 255)
     _add_textbox(slide, 1.0, 0.9, 10.0, 0.95, title, font_size_pt=42, bold=True, color=title_rgb, word_wrap=True, auto_fit=True)
     return 0.95
 
@@ -1136,7 +1136,52 @@ def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, 
                 labels.append(filler)
 
     # Render as chevron roadmap (python-pptx only)
-    render_takeaways_chevrons(s6, labels, title="Key Takeaways", kicker="At-a-glance summary", title_color=pal["primary"])
+    render_takeaways_chevrons(s6, labels, title="Key Takeaways", kicker="At-a-glance summary", title_color=(255, 255, 255))
+    # Final safeguard: remove any existing title shape and add a new white textbox (non-placeholder)
+    try:
+        # Remove any existing title text shapes that contain the phrase
+        for shp in list(s6.shapes):
+            if not hasattr(shp, "text_frame"):
+                continue
+            tf = shp.text_frame
+            if any("Key Takeaways" in ((p.text or "") + "".join([getattr(r, "text", "") for r in p.runs])) for p in tf.paragraphs):
+                try:
+                    elm = shp.element
+                    elm.getparent().remove(elm)
+                except Exception:
+                    pass
+        # Overlay our own title in white, slightly lower to avoid any theme placeholder area
+        safe_title = "Key\u00A0Takeaways"  # NBSP to break any theme keyword binding while looking identical
+        box = _add_textbox(s6, 1.0, 1.05, 10.8, 0.95, safe_title, font_size_pt=42, bold=True, color=(255, 255, 255), word_wrap=True, auto_fit=True)
+        # Force white at run level to avoid theme overrides
+        try:
+            tf2 = box.text_frame
+            for p in tf2.paragraphs:
+                for r in p.runs:
+                    r.font.color.rgb = RGBColor(255, 255, 255)
+        except Exception:
+            pass
+    except Exception:
+        pass
+    # Absolute override: set any text within top 2.0in to white
+    try:
+        for shp in s6.shapes:
+            if not hasattr(shp, "text_frame"):
+                continue
+            if shp.top <= Inches(2.0):
+                tf = shp.text_frame
+                for p in tf.paragraphs:
+                    try:
+                        p.font.color.rgb = RGBColor(255, 255, 255)
+                    except Exception:
+                        pass
+                    for r in p.runs:
+                        try:
+                            r.font.color.rgb = RGBColor(255, 255, 255)
+                        except Exception:
+                            pass
+    except Exception:
+        pass
     _mark_takeaways_rendered()
 
     # Capture Thank You content source early; render it at the very end
@@ -2624,7 +2669,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
     def render_thanks(sl):
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 2.8, 11.3, 1.2, "Thank You", font_size_pt=40, bold=True, align="center", color=pal["primary"])
+        _add_textbox(s, 1.0, 2.8, 11.3, 1.2, "Thank You", font_size_pt=40, bold=True, align="center", color=TITLE_COL)
         cta = (sl.get("cta") or _content(sl).get("cta") or "").strip()
         if cta:
             _add_textbox(s, 3.0, 4.2, 7.3, 0.8, cta, font_size_pt=18, align="center", color=pal["text"])
