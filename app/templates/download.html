@@ -84,6 +84,13 @@
         debug_mode: true
       });
     }
+    {% if META_PIXEL_ENABLED %}
+    try {
+      if (window.fbq) {
+        fbq('trackCustom', 'file_download', { value: 0.009, currency: 'USD' });
+      }
+    } catch(_e) { /* no-op */ }
+    {% endif %}
   });
 })();
 </script>
