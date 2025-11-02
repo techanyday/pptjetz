@@ -15,6 +15,13 @@
     <div class="bg-white shadow-xl rounded-lg p-6">
         <h1 class="text-3xl font-bold text-center mb-4">AI PowerPoint Generator</h1>
 
+        {% if EZOIC_ENABLED %}
+        <div id="ezoic-pub-ad-placeholder-101" class="my-4"></div>
+        <script>
+          ezstandalone?.cmd.push(function(){ ezstandalone.showAds(101); });
+        </script>
+        {% endif %}
+
         <!-- Ad: generate_top (slot 2740768199) -->
         <ins class="adsbygoogle"
              style="display:block; margin: 16px 0;"
@@ -120,6 +127,26 @@
           <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
         </div>
         {% endif %}
+
+{% if EZOIC_ENABLED %}
+<style>
+@media (min-width: 1280px){
+  .gen-sidebar-ad{position:fixed; top:120px; width:300px; z-index:10;}
+  .gen-sidebar-left{left:10px;}
+  .gen-sidebar-right{right:10px;}
+}
+@media (max-width: 1279px){ .gen-sidebar-ad{ display:none !important; } }
+</style>
+<div class="gen-sidebar-ad gen-sidebar-left">
+  <div id="ezoic-pub-ad-placeholder-104"></div>
+</div>
+<div class="gen-sidebar-ad gen-sidebar-right">
+  <div id="ezoic-pub-ad-placeholder-106"></div>
+</div>
+<script>
+  ezstandalone?.cmd.push(function(){ ezstandalone.showAds(101,111,104,106); });
+  </script>
+{% endif %}
     </div>
 </div>
 
@@ -139,6 +166,12 @@
     </div>
     {% endif %}
     <h2 class="text-2xl font-bold mb-4">Presentation Outline</h2>
+    {% if EZOIC_ENABLED %}
+    <div id="ezoic-pub-ad-placeholder-111" class="mb-4"></div>
+    <script>
+      ezstandalone?.cmd.push(function(){ ezstandalone.showAds(111); });
+    </script>
+    {% endif %}
     <div id="slidesPreview" class="space-y-4"></div>
     {% if ADS_ENABLED and ADSENSE_ENABLED %}
     <!-- AdSense: GENERATE_PREVIEW_BOTTOM (slot 1754118419) -->

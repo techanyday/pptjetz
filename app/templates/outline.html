@@ -21,42 +21,57 @@
     <main>
       <div class="max-w-3xl mx-auto">
         <h1 class="text-2xl font-bold mb-4">Outline Preview</h1>
-  <style>
-    /* Outline card styles */
-    .ol-item{display:flex;align-items:center;gap:.75rem;background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;padding:.75rem 1rem;}
-    .ol-item + .ol-item{margin-top:.75rem}
-    .ol-num{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;border-radius:9999px;background:#ebf5ff;color:#1d4ed8;font-weight:700;font-size:.9rem;border:1px solid #bfdbfe}
-    .ol-title{font-weight:600;color:#111827}
-    .ol-item:hover{box-shadow:0 4px 10px rgba(0,0,0,.05);border-color:#d1d5db}
+        {% if EZOIC_ENABLED %}
+        <div id="ezoic-pub-ad-placeholder-101" class="mb-4"></div>
+        <script>
+          ezstandalone?.cmd.push(function(){ ezstandalone.showAds(101); });
+        </script>
+        {% endif %}
+        <style>
+          /* Outline card styles */
+          .ol-item{display:flex;align-items:center;gap:.75rem;background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;padding:.75rem 1rem;}
+          .ol-item + .ol-item{margin-top:.75rem}
+          .ol-num{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;border-radius:9999px;background:#ebf5ff;color:#1d4ed8;font-weight:700;font-size:.9rem;border:1px solid #bfdbfe}
+          .ol-title{font-weight:600;color:#111827}
+          .ol-item:hover{box-shadow:0 4px 10px rgba(0,0,0,.05);border-color:#d1d5db}
 
-    /* Meta card styles */
-    .ol-meta{display:flex;align-items:center;justify-content:space-between;gap:1rem;background:#f8fafc;border:1px solid #e5e7eb;border-radius:.5rem;padding:.75rem 1rem}
-    .ol-meta-title{font-weight:700;color:#0f172a}
-    .ol-meta-sub{color:#334155;font-size:.9rem}
-    .ol-pill{display:inline-flex;align-items:center;gap:.25rem;background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;border-radius:9999px;padding:.125rem .5rem;font-weight:600}
-  </style>
-  <div id="meta" class="text-gray-600 mb-4"></div>
-  <!-- Ad: outline_top (replace data-ad-slot) -->
-  <ins class="adsbygoogle"
-       style="display:block; margin: 16px 0;"
-       data-ad-client="ca-pub-6405372608012962"
-       data-ad-slot="2030036349"
-       data-ad-format="auto"
-       data-full-width-responsive="true"></ins>
-  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-  <div id="topics" class="mt-4"></div>
-  <div class="mt-6 flex items-center gap-3">
-    <button id="exportBtn" class="bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700">Export PPTX</button>
-    <a href="{{ url_for('main.generate_page') }}" class="px-5 py-2 rounded border hover:bg-gray-50">Back</a>
-  </div>
-  <!-- Ad: outline_bottom (moved below buttons) -->
-  <ins class="adsbygoogle"
-       style="display:block; margin: 16px 0;"
-       data-ad-client="ca-pub-6405372608012962"
-       data-ad-slot="7609951498"
-       data-ad-format="auto"
-       data-full-width-responsive="true"></ins>
-  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+          /* Meta card styles */
+          .ol-meta{display:flex;align-items:center;justify-content:space-between;gap:1rem;background:#f8fafc;border:1px solid #e5e7eb;border-radius:.5rem;padding:.75rem 1rem}
+          .ol-meta-title{font-weight:700;color:#0f172a}
+          .ol-meta-sub{color:#334155;font-size:.9rem}
+          .ol-pill{display:inline-flex;align-items:center;gap:.25rem;background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;border-radius:9999px;padding:.125rem .5rem;font-weight:600}
+        </style>
+        <div id="meta" class="text-gray-600 mb-4"></div>
+        {% if EZOIC_ENABLED %}
+        <div id="ezoic-pub-ad-placeholder-109" class="my-4"></div>
+        {% endif %}
+        <!-- Ad: outline_top (replace data-ad-slot) -->
+        <ins class="adsbygoogle"
+             style="display:block; margin: 16px 0;"
+             data-ad-client="ca-pub-6405372608012962"
+             data-ad-slot="2030036349"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        <div id="topics" class="mt-4"></div>
+        {% if EZOIC_ENABLED %}
+        <div id="ezoic-pub-ad-placeholder-110" class="my-6"></div>
+        <script>
+          ezstandalone?.cmd.push(function(){ ezstandalone.showAds(101,109,110); });
+        </script>
+        {% endif %}
+        <div class="mt-6 flex items-center gap-3">
+          <button id="exportBtn" class="bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700">Export PPTX</button>
+          <a href="{{ url_for('main.generate_page') }}" class="px-5 py-2 rounded border hover:bg-gray-50">Back</a>
+        </div>
+        <!-- Ad: outline_bottom (moved below buttons) -->
+        <ins class="adsbygoogle"
+             style="display:block; margin: 16px 0;"
+             data-ad-client="ca-pub-6405372608012962"
+             data-ad-slot="7609951498"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
       </div>
     </main>
 

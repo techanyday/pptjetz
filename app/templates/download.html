@@ -20,6 +20,12 @@
     <!-- Center content -->
     <main>
       <div class="max-w-3xl mx-auto text-center">
+        {% if EZOIC_ENABLED %}
+        <div id="ezoic-pub-ad-placeholder-101" class="mb-4"></div>
+        <script>
+          ezstandalone?.cmd.push(function(){ ezstandalone.showAds(101); });
+        </script>
+        {% endif %}
         <div class="card">
           <div class="card-body p-6 bg-white rounded shadow">
             <h2 class="card-title mb-4 text-xl font-semibold">Your Presentation is Ready!</h2>
@@ -45,14 +51,18 @@
     <!-- Right sidebar ad (sticky) -->
     <aside class="hidden xl:block">
       <div class="sticky top-24">
-        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Download right ad slot">
-          <ins class="adsbygoogle"
-               style="display:block; width:100%; min-height:600px;"
-               data-ad-client="ca-pub-6405372608012962"
-               data-ad-slot="9962977938"
-               data-ad-format="auto"
-               data-full-width-responsive="true"></ins>
-        </div>
+        {% if EZOIC_ENABLED %}
+        <div id="ezoic-pub-ad-placeholder-104"></div>
+        {% else %}
+          <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Download right ad slot">
+            <ins class="adsbygoogle"
+                 style="display:block; width:100%; min-height:600px;"
+                 data-ad-client="ca-pub-6405372608012962"
+                 data-ad-slot="9962977938"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+          </div>
+        {% endif %}
       </div>
     </aside>
   </div>
@@ -77,6 +87,11 @@
   });
 })();
 </script>
+{% if EZOIC_ENABLED %}
+<script>
+  ezstandalone?.cmd.push(function(){ ezstandalone.showAds(101,104); });
+</script>
+{% endif %}
 {% if ADS_ENABLED and ADSENSE_ENABLED %}
 <script>
 // Trigger AdSense for all slots after load
