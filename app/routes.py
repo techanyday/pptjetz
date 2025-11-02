@@ -123,8 +123,28 @@ def api_transcribe() -> Any:
 
 @bp.get("/ads.txt")
 def ads_txt() -> Any:
-    """Serve ads.txt from the static directory at the site root."""
-    return send_from_directory(current_app.static_folder, "ads.txt")
+    """Provide ads.txt using Ezoic manager when configured, else serve static.
+
+    Adds headers to help verify behavior and avoid caches during setup:
+    - X-AdsTxt-Source: ezoic-redirect | static-file
+    - Cache-Control: no-store, max-age=0
+    """
+    target = os.environ.get("EZOIC_ADSTXT_URL")
+    if target:
+        resp = redirect(target, code=301)
+        try:
+            resp.headers["X-AdsTxt-Source"] = "ezoic-redirect"
+            resp.headers["Cache-Control"] = "no-store, max-age=0"
+        except Exception:
+            pass
+        return resp
+    resp = send_from_directory(current_app.static_folder, "ads.txt")
+    try:
+        resp.headers["X-AdsTxt-Source"] = "static-file"
+        resp.headers["Cache-Control"] = "no-store, max-age=0"
+    except Exception:
+        pass
+    return resp
 
 
 @bp.get("/about")
@@ -208,20 +228,7 @@ def blog_post_page(slug: str) -> Any:
     return render_template("blog_post.html", post=post, image_url=img_url, image_url_abs=img_url_abs)
 
 
-# ---------- Ads.txt (Ezoic-managed) ----------
-@bp.get("/ads.txt")
-def ads_txt_redirect() -> Any:
-    """Redirect /ads.txt to Ezoic-managed ads.txt.
-
-    If EZOIC_ADSTXT_URL is set in the environment, use it. Otherwise, default
-    to the conventional Ezoic manager URL for pptjet.com.
-    """
-    import os
-    target = os.environ.get(
-        "EZOIC_ADSTXT_URL",
-        "https://srv.adstxtmanager.com/19390/pptjet.com",
-    )
-    return redirect(target, code=301)
+# (Removed duplicate /ads.txt route; consolidated into single handler above)
 
 
 @bp.get("/webpushr-sw.js")
