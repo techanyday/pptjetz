@@ -1189,10 +1189,107 @@ def build_pptx_from_positions(pos: Dict[int, Dict[str, Any]], out_path: str, *, 
 
     # --- Extra Slides (8+) Intelligent Rendering ---
     def _render_two_col_bullets(slide, left_pts: List[str], right_pts: List[str]):
-        left_pts = [p for p in (left_pts or []) if str(p).strip()]
-        right_pts = [p for p in (right_pts or []) if str(p).strip()]
-        _add_bullets(slide, 1.0, 2.0, 5.3, 4.2, left_pts, font_size_pt=18, color=pal["text"])  # left
-        _add_bullets(slide, 6.0, 2.0, 5.3, 4.2, right_pts, font_size_pt=18, color=pal["text"])  # right
+        """Render a two-column bullets slide using the same deck-level bullet style
+        and color logic as render_double (consistent per deck).
+        """
+        left_pts = [str(p).strip() for p in (left_pts or []) if str(p).strip()]
+        right_pts = [str(p).strip() for p in (right_pts or []) if str(p).strip()]
+
+        # Color schemes matching render_double
+        schemes = [
+            [(251, 191, 36), (34, 197, 94), (59, 130, 246)],
+            [(147, 51, 234), (99, 102, 241), (56, 189, 248)],
+            [(244, 114, 82), (250, 204, 21), (34, 197, 94)],
+            [(2, 132, 199), (10, 61, 98), (16, 185, 129)],
+            [(251, 146, 60), (244, 114, 182), (165, 180, 252)],
+            [(59, 130, 246), (37, 99, 235), (2, 132, 199)],
+            [(101, 163, 13), (180, 83, 9), (234, 88, 12)],
+        ]
+        right_schemes = [
+            [(139, 92, 246), (59, 130, 246), (56, 189, 248)],
+            [(251, 191, 36), (34, 197, 94), (59, 130, 246)],
+            [(99, 102, 241), (2, 132, 199), (45, 212, 191)],
+            [(244, 114, 82), (250, 204, 21), (34, 197, 94)],
+            [(52, 211, 153), (125, 211, 252), (250, 204, 21)],
+            [(56, 189, 248), (29, 78, 216), (10, 61, 98)],
+            [(16, 185, 129), (234, 179, 8), (124, 45, 18)],
+        ]
+        global DOUBLE_SCHEME_INDEX
+        scheme_idx = DOUBLE_SCHEME_INDEX % len(schemes)
+        left_colors = schemes[scheme_idx]
+        right_colors = right_schemes[scheme_idx]
+
+        def _lighter(rgb: Tuple[int,int,int], pct: float = 0.35) -> Tuple[int,int,int]:
+            r,g,b = rgb
+            return (min(255, int(r + (255-r)*pct)), min(255, int(g + (255-g)*pct)), min(255, int(b + (255-b)*pct)))
+
+        # Layout metrics consistent with render_double
+        gutter = 0.9
+        margin = 1.2
+        col_w = (SLIDE_W_IN - 2 * margin - gutter) / 2.0
+        left_x = margin
+        right_x = margin + col_w + gutter
+        top_y = 2.0
+        row_h = 1.25
+        gap_y = 0.25
+
+        def render_col(items: List[str], base_x: float, colors: List[Tuple[int, int, int]]):
+            y = top_y
+            for i, lab in enumerate(items[:3]):
+                global CURRENT_DOUBLE_BULLET_STYLE
+                global DOUBLE_BULLET_STYLE_INDEX
+                style_id = (CURRENT_DOUBLE_BULLET_STYLE if 'CURRENT_DOUBLE_BULLET_STYLE' in globals() else (DOUBLE_BULLET_STYLE_INDEX % 4))
+                col = colors[i % len(colors)]
+                if style_id == 0:
+                    dot = slide.shapes.add_shape(MsoShape.OVAL, Inches(base_x), Inches(y + 0.20), Inches(0.36), Inches(0.36))
+                    dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(*col)
+                    dot.line.fill.background()
+                elif style_id == 1:
+                    bar = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(base_x), Inches(y + 0.22), Inches(0.48), Inches(0.22))
+                    bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(*col)
+                    bar.line.fill.background()
+                    try:
+                        bar.radius = 0.12
+                    except Exception:
+                        pass
+                elif style_id == 2:
+                    outer = slide.shapes.add_shape(MsoShape.OVAL, Inches(base_x), Inches(y + 0.20), Inches(0.36), Inches(0.36))
+                    outer.fill.solid(); outer.fill.fore_color.rgb = RGBColor(*col)
+                    outer.line.fill.background()
+                    try:
+                        outer.shadow.inherit = False; outer.shadow.visible = True; outer.shadow.blur = 8; outer.shadow.distance = 1
+                    except Exception:
+                        pass
+                    inner = slide.shapes.add_shape(MsoShape.OVAL, Inches(base_x + 0.06), Inches(y + 0.26), Inches(0.24), Inches(0.24))
+                    inner.fill.solid(); inner.fill.fore_color.rgb = RGBColor(*_lighter(col, 0.5))
+                    inner.line.fill.background()
+                else:
+                    circ = slide.shapes.add_shape(MsoShape.OVAL, Inches(base_x), Inches(y + 0.16), Inches(0.40), Inches(0.40))
+                    circ.fill.solid(); circ.fill.fore_color.rgb = RGBColor(*col)
+                    circ.line.fill.background()
+                    tfc = circ.text_frame; tfc.text = str(i + 1)
+                    for pnum in tfc.paragraphs:
+                        for rr in pnum.runs:
+                            rr.font.bold = True; rr.font.size = Pt(14); rr.font.color.rgb = RGBColor(255,255,255)
+                        pnum.alignment = PP_ALIGN.CENTER
+
+                # text block
+                tf = slide.shapes.add_textbox(Inches(base_x + 0.60), Inches(y), Inches(col_w - 0.70), Inches(row_h - 0.05)).text_frame
+                tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                try:
+                    from pptx.enum.text import MSO_ANCHOR
+                    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+                except Exception:
+                    pass
+                p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
+                head, tail = _split_head_tail(lab)
+                r1 = p.add_run(); r1.text = (head or lab); r1.font.size = Pt(20); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal["text"])
+                if tail:
+                    p2 = tf.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(14); r2.font.color.rgb = RGBColor(100,116,139)
+                y += row_h + gap_y
+
+        render_col(left_pts, left_x, left_colors)
+        render_col(right_pts, right_x, right_colors)
 
     def _render_comparison_table(slide, headers: List[str], left_pts: List[str], right_pts: List[str]):
         body_rows = max(3, min(max(len(left_pts), len(right_pts)), 6))
@@ -2533,6 +2630,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         ]
 
         global DOUBLE_SCHEME_INDEX
+        # New: rotate bullet layout styles across double-column slides
+        global DOUBLE_BULLET_STYLE_INDEX
+        if 'DOUBLE_BULLET_STYLE_INDEX' not in globals():
+            DOUBLE_BULLET_STYLE_INDEX = 0  # 0..3
+
         scheme_idx = DOUBLE_SCHEME_INDEX % len(schemes)
         left_colors = schemes[scheme_idx]
         right_colors = right_schemes[scheme_idx]
@@ -2563,14 +2665,56 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             lp = left_pages[page] if page < len(left_pages) else []
             rp = right_pages[page] if page < len(right_pages) else []
 
+            def _lighter(rgb: Tuple[int,int,int], pct: float = 0.35) -> Tuple[int,int,int]:
+                r,g,b = rgb
+                return (min(255, int(r + (255-r)*pct)), min(255, int(g + (255-g)*pct)), min(255, int(b + (255-b)*pct)))
+
             def render_col(items: List[str], base_x: float, colors: List[Tuple[int, int, int]]):
                 y = top_y
                 for i, lab in enumerate(items[:3]):
-                    sq = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(base_x), Inches(y + 0.18), Inches(0.38), Inches(0.38))
-                    sq.fill.solid(); sq.fill.fore_color.rgb = RGBColor(*colors[i % len(colors)])
-                    sq.line.fill.background(); sq.radius = 0  # sharp square
+                    # Use deck-level chosen style so all double-column slides in this deck match
+                    global CURRENT_DOUBLE_BULLET_STYLE
+                    style_id = (CURRENT_DOUBLE_BULLET_STYLE if 'CURRENT_DOUBLE_BULLET_STYLE' in globals() else (DOUBLE_BULLET_STYLE_INDEX % 4))
+                    col = colors[i % len(colors)]
+                    # Draw bullet shape based on style
+                    if style_id == 0:
+                        # 1) Colored round bullets (alternating colors)
+                        dot = s.shapes.add_shape(MsoShape.OVAL, Inches(base_x), Inches(y + 0.20), Inches(0.36), Inches(0.36))
+                        dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(*col)
+                        dot.line.fill.background()
+                    elif style_id == 1:
+                        # 2) Rounded color bar bullets
+                        bar = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(base_x), Inches(y + 0.22), Inches(0.48), Inches(0.22))
+                        bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(*col)
+                        bar.line.fill.background();
+                        try:
+                            bar.radius = 0.12
+                        except Exception:
+                            pass
+                    elif style_id == 2:
+                        # 3) "Gradient" bullets: two concentric ovals (lighter inner) with soft shadow
+                        outer = s.shapes.add_shape(MsoShape.OVAL, Inches(base_x), Inches(y + 0.20), Inches(0.36), Inches(0.36))
+                        outer.fill.solid(); outer.fill.fore_color.rgb = RGBColor(*col)
+                        outer.line.fill.background()
+                        try:
+                            outer.shadow.inherit = False; outer.shadow.visible = True; outer.shadow.blur = 8; outer.shadow.distance = 1
+                        except Exception:
+                            pass
+                        inner = s.shapes.add_shape(MsoShape.OVAL, Inches(base_x + 0.06), Inches(y + 0.26), Inches(0.24), Inches(0.24))
+                        inner.fill.solid(); inner.fill.fore_color.rgb = RGBColor(*_lighter(col, 0.5))
+                        inner.line.fill.background()
+                    else:
+                        # 4) Numbered colored circles
+                        circ = s.shapes.add_shape(MsoShape.OVAL, Inches(base_x), Inches(y + 0.16), Inches(0.40), Inches(0.40))
+                        circ.fill.solid(); circ.fill.fore_color.rgb = RGBColor(*col)
+                        circ.line.fill.background()
+                        tfc = circ.text_frame; tfc.text = str(i + 1)
+                        for pnum in tfc.paragraphs:
+                            for rr in pnum.runs:
+                                rr.font.bold = True; rr.font.size = Pt(14); rr.font.color.rgb = RGBColor(255,255,255)
+                            pnum.alignment = PP_ALIGN.CENTER
 
-                    # text with bold head + normal tail
+                    # text with bold head + normal tail (consistent spacing)
                     tf = s.shapes.add_textbox(Inches(base_x + 0.60), Inches(y), Inches(col_w - 0.70), Inches(row_h - 0.05)).text_frame
                     tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
                     try:
@@ -2746,6 +2890,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 if not bs:
                     c["bullets"] = _synthesize_topic_bullets(sl.get("title") or "")
                     sl["content"] = c
+
+    # Deck-level bullet style selection for double-column slides
+    global DOUBLE_BULLET_STYLE_INDEX
+    if 'DOUBLE_BULLET_STYLE_INDEX' not in globals():
+        DOUBLE_BULLET_STYLE_INDEX = 0
+    global CURRENT_DOUBLE_BULLET_STYLE
+    CURRENT_DOUBLE_BULLET_STYLE = DOUBLE_BULLET_STYLE_INDEX % 4
 
     for sl in slides_norm:
         t = _ctype(sl)
@@ -3098,6 +3249,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         uniq_norm = {str(x).strip().lower() for x in summary_pts}
         if len(uniq_norm) >= 3:
             render_summary_slide(summary_pts)
+
+    # After rendering the deck, rotate the double-column bullet style for the next deck
+    try:
+        DOUBLE_BULLET_STYLE_INDEX = (DOUBLE_BULLET_STYLE_INDEX + 1) % 4
+    except Exception:
+        pass
 
     # Always ensure a Thank You at the end
     thanks_sl = next((s for s in slides_norm if _ctype(s) in {"thank_you", "cta"}), None)
