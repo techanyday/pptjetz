@@ -27,8 +27,20 @@
 <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
     <!-- Hero Section -->
     <div class="text-center py-16 sm:py-24">
-        <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-8">Create Smart PowerPoint Presentations in 60 Seconds – Free to Use</h1>
-        <p class="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">Turn any idea into a professionally designed presentation with AI.</p>
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4">Create Smart PowerPoint Presentations in 60 Seconds – Free to Use</h1>
+        <p class="text-xl text-gray-600 mb-4 max-w-3xl mx-auto">Turn any idea into a professionally designed presentation with AI.</p>
+        {% if ADS_ENABLED and ADSENSE_ENABLED %}
+        <!-- AdSense: HERO_TOP (moved here to be above-the-fold on mobile) -->
+        <div class="mb-6">
+          <ins class="adsbygoogle"
+               style="display:block"
+               data-ad-client="ca-pub-6405372608012962"
+               data-ad-slot="6909693439"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        </div>
+        {% endif %}
         {% if user.is_authenticated %}
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
             Start Creating
@@ -133,18 +145,7 @@
       </div>
     </section>
 
-    {% if ADS_ENABLED and ADSENSE_ENABLED %}
-    <!-- AdSense: Landing page above-features unit (slot 6909693439) -->
-    <div class="my-6">
-      <ins class="adsbygoogle"
-           style="display:block"
-           data-ad-client="ca-pub-6405372608012962"
-           data-ad-slot="6909693439"
-           data-ad-format="auto"
-           data-full-width-responsive="true"></ins>
-      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-    </div>
-    {% endif %}
+    
 
     <!-- Features Section -->
     <div class="py-12 bg-gray-50 rounded-xl">

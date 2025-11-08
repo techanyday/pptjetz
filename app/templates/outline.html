@@ -20,7 +20,19 @@
     <!-- Main column -->
     <main>
       <div class="max-w-3xl mx-auto">
-        <h1 class="text-2xl font-bold mb-4">Outline Preview</h1>
+        <h1 class="text-2xl font-bold mb-2">Outline Preview</h1>
+        {% if ADS_ENABLED and ADSENSE_ENABLED %}
+        <!-- AdSense: OUTLINE_ABOVE_FOLD (new, under heading) -->
+        <div class="mb-3">
+          <ins class="adsbygoogle"
+               style="display:block"
+               data-ad-client="ca-pub-6405372608012962"
+               data-ad-slot="2030036349"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        </div>
+        {% endif %}
         {% if EZOIC_ENABLED %}
         <div id="ezoic-pub-ad-placeholder-101" class="mb-4"></div>
         <script>
@@ -45,14 +57,6 @@
         {% if EZOIC_ENABLED %}
         <div id="ezoic-pub-ad-placeholder-109" class="my-4"></div>
         {% endif %}
-        <!-- Ad: outline_top (replace data-ad-slot) -->
-        <ins class="adsbygoogle"
-             style="display:block; margin: 16px 0;"
-             data-ad-client="ca-pub-6405372608012962"
-             data-ad-slot="2030036349"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
         <div id="topics" class="mt-4"></div>
         {% if EZOIC_ENABLED %}
         <div id="ezoic-pub-ad-placeholder-110" class="my-6"></div>
