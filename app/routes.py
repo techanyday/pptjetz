@@ -28,7 +28,7 @@ from app.services.ai_content import create_deck_slides, derive_topic_bullets
 # Preview PNG generation is removed; only PPTX export remains
 from app.services.pptx_builder import build_pptx_from_positions, build_pptx_from_slides
 from app import db
-from app.models import User, BlogPost
+from app.models import User, BlogPost, Pricing, LLMCall, ProviderCost
 from app.presentation_log import PresentationLog
 from app.transcriber.services import (
     parse_youtube_id,
@@ -152,6 +152,13 @@ def about() -> Any:
     return render_template("about_us.html")
 
 
+@bp.get('/media/<path:filename>')
+def media_file(filename: str) -> Any:
+    """Serve files from instance/media securely."""
+    base = os.path.join(current_app.instance_path, 'media')
+    return send_from_directory(base, filename)
+
+
 @bp.get("/blog")
 def blog_index() -> Any:
     """Blog index page rendering published posts from DB."""
@@ -166,6 +173,9 @@ def blog_index() -> Any:
             # If it's already an absolute URL, return as-is
             if s.startswith("http://") or s.startswith("https://"):
                 return s
+            # If stored under instance media (persistent), serve via /media
+            if s.lower().startswith("media/"):
+                return url_for('main.media_file', filename=s[6:])
             # Strip leading slashes
             while s.startswith("/"):
                 s = s[1:]
@@ -211,6 +221,9 @@ def blog_post_page(slug: str) -> Any:
             if s.startswith("http://") or s.startswith("https://"):
                 # Relative URL not needed; use absolute for both
                 return s, s
+            if s.lower().startswith("media/"):
+                u = url_for('main.media_file', filename=s[6:])
+                return u, u
             while s.startswith("/"):
                 s = s[1:]
             if s.lower().startswith("static/"):
@@ -486,6 +499,10 @@ def generate() -> Any:
         except Exception:
             presenter = None
 
+    # Create a deck_id early so LLM logging can link to this export
+    import uuid
+    deck_id = uuid.uuid4().hex[:8]
+
     slides, errors = create_deck_slides(
         title=title,
         subtitle=subtitle,
@@ -494,13 +511,14 @@ def generate() -> Any:
         theme_name=theme_name,
         input_text=input_text,
         num_slides=num_slides,
+        deck_id=deck_id,
+        user_id=(getattr(current_user, "id", None) or None),
     )
     if errors or not slides:
         return jsonify({"ok": False, "errors": errors or ["No slides generated"]}), 422
 
     # Multi-page change: persist slides and return deck_id + redirect URL
-    import uuid
-    deck_id = uuid.uuid4().hex[:8]
+    # deck_id already created earlier for logging
     
     # Derive a better deck title
     def _smart_title_from_prompt(prompt_text: str) -> str | None:
@@ -997,18 +1015,23 @@ def admin_blog_new() -> Any:
         summary = (request.form.get("summary") or "").strip() or None
         content = (request.form.get("content") or "").strip()
         published = bool(request.form.get("published"))
-        # Handle featured image upload (optional)
+        # Handle featured image via URL (preferred) or upload (optional)
         img_rel_path = None
-        file = request.files.get('featured_image')
-        if file and file.filename:
-            fname = secure_filename(file.filename)
-            # store under static/uploads/blog/<slug>-<timestamp>-<fname>
-            ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
-            fname = f"{slug or 'post'}-{ts}-{fname}"
-            dest_dir = os.path.join(current_app.static_folder, 'uploads', 'blog')
-            os.makedirs(dest_dir, exist_ok=True)
-            file.save(os.path.join(dest_dir, fname))
-            img_rel_path = os.path.join('uploads', 'blog', fname).replace('\\', '/')
+        url_in = (request.form.get('featured_image_url') or '').strip()
+        if url_in.startswith('http://') or url_in.startswith('https://'):
+            img_rel_path = url_in
+        else:
+            file = request.files.get('featured_image')
+            if file and file.filename:
+                fname = secure_filename(file.filename)
+                # store under static/uploads/blog/<slug>-<timestamp>-<fname>
+                ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+                fname = f"{slug or 'post'}-{ts}-{fname}"
+                # persist under instance/media/blog
+                dest_dir = os.path.join(current_app.instance_path, 'media', 'blog')
+                os.makedirs(dest_dir, exist_ok=True)
+                file.save(os.path.join(dest_dir, fname))
+                img_rel_path = os.path.join('media', 'blog', fname).replace('\\', '/')
         if not title or not content:
             return render_template("admin/blog_form.html", error="Title and content are required", post=None)
         if BlogPost.query.filter_by(slug=slug).first():
@@ -1040,16 +1063,20 @@ def admin_blog_edit(slug: str) -> Any:
         summary = (request.form.get("summary") or post.summary or "").strip() or None
         content = (request.form.get("content") or post.content).strip()
         published = bool(request.form.get("published"))
-        # Handle optional featured image replacement
-        file = request.files.get('featured_image')
-        if file and file.filename:
-            fname = secure_filename(file.filename)
-            ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
-            fname = f"{new_slug or 'post'}-{ts}-{fname}"
-            dest_dir = os.path.join(current_app.static_folder, 'uploads', 'blog')
-            os.makedirs(dest_dir, exist_ok=True)
-            file.save(os.path.join(dest_dir, fname))
-            post.featured_image = os.path.join('uploads', 'blog', fname).replace('\\', '/')
+        # Handle optional featured image replacement (URL has priority)
+        url_in = (request.form.get('featured_image_url') or '').strip()
+        if url_in.startswith('http://') or url_in.startswith('https://'):
+            post.featured_image = url_in
+        else:
+            file = request.files.get('featured_image')
+            if file and file.filename:
+                fname = secure_filename(file.filename)
+                ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+                fname = f"{new_slug or 'post'}-{ts}-{fname}"
+                dest_dir = os.path.join(current_app.instance_path, 'media', 'blog')
+                os.makedirs(dest_dir, exist_ok=True)
+                file.save(os.path.join(dest_dir, fname))
+                post.featured_image = os.path.join('media', 'blog', fname).replace('\\', '/')
         if new_slug != post.slug and BlogPost.query.filter_by(slug=new_slug).first():
             return render_template("admin/blog_form.html", error="Slug already exists", post=post)
         post.title = title
@@ -1069,10 +1096,14 @@ def admin_blog_edit(slug: str) -> Any:
 def admin_blog_delete(slug: str) -> Any:
     _admin_guard()
     post = BlogPost.query.filter_by(slug=slug).first_or_404()
-    # Optionally remove the featured image from disk
+    # Optionally remove the featured image from disk (only if it's a local file)
     try:
-        if post.featured_image:
-            img_path = os.path.join(current_app.static_folder, post.featured_image)
+        if post.featured_image and not str(post.featured_image).startswith(('http://','https://')):
+            s = str(post.featured_image)
+            if s.lower().startswith('media/'):
+                img_path = os.path.join(current_app.instance_path, s)
+            else:
+                img_path = os.path.join(current_app.static_folder, s)
             if os.path.isfile(img_path):
                 os.remove(img_path)
     except Exception:
@@ -1133,6 +1164,7 @@ def admin_usage_api() -> Any:
     _admin_guard()
     try:
         from sqlalchemy import func
+        # Base per-user presentation counts
         q = (
             db.session.query(
                 User.id.label("id"),
@@ -1144,20 +1176,257 @@ def admin_usage_api() -> Any:
             .group_by(User.id)
             .order_by(func.max(PresentationLog.created_at).desc().nullslast(), User.email.asc())
         )
-        usage = [
-            {
+        rows = q.all()
+
+        # Date window (UTC) with query params: ?start=YYYY-MM-DD&end=YYYY-MM-DD
+        from datetime import datetime, timezone, timedelta
+        q_start = (request.args.get("start") or "").strip()
+        q_end = (request.args.get("end") or "").strip()
+        def _parse_ymd(s: str):
+            try:
+                return datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            except Exception:
+                return None
+        now = datetime.now(timezone.utc)
+        start = _parse_ymd(q_start) or datetime(year=now.year, month=now.month, day=now.day, tzinfo=timezone.utc)
+        end = _parse_ymd(q_end) or start
+        if end <= start:
+            end = start + timedelta(days=1)
+        else:
+            end = end + timedelta(days=1)  # make end exclusive
+
+        usage = []
+        for r in rows:
+            # Presentations in range and last presentation in range
+            pres_q = (
+                db.session.query(func.count(PresentationLog.id), func.max(PresentationLog.created_at))
+                .filter(PresentationLog.user_id == r.id)
+                .filter(PresentationLog.created_at >= start.replace(tzinfo=None))
+                .filter(PresentationLog.created_at < end.replace(tzinfo=None))
+            )
+            pres_count_range, last_in_range = pres_q.first()
+            # Aggregate LLM calls in range for this user, prefer provider cost when present
+            lq = (
+                db.session.query(
+                    func.count(LLMCall.id),
+                    func.coalesce(func.sum(LLMCall.prompt_tokens), 0),
+                    func.coalesce(func.sum(LLMCall.completion_tokens), 0),
+                    func.coalesce(func.sum(func.coalesce(ProviderCost.cost_usd, LLMCall.cost_usd)), 0.0),
+                )
+                .outerjoin(ProviderCost, ProviderCost.request_id == LLMCall.request_id)
+                .filter(LLMCall.user_id == r.id)
+                .filter(LLMCall.created_at >= start.replace(tzinfo=None))
+                .filter(LLMCall.created_at < end.replace(tzinfo=None))
+            )
+            calls_today, in_tok, out_tok, cost_today = lq.first()
+
+            # Per-export counts for avg calculations
+            ex_q = (
+                db.session.query(LLMCall.export_id, func.count(LLMCall.id))
+                .filter(LLMCall.user_id == r.id)
+                .filter(LLMCall.created_at >= start.replace(tzinfo=None))
+                .filter(LLMCall.created_at < end.replace(tzinfo=None))
+                .group_by(LLMCall.export_id)
+            )
+            export_counts = ex_q.all()
+            # Prefer number of exports actually created in the range (from PresentationLog)
+            export_n = int(pres_count_range or 0)
+            avg_calls_per_export = (float(calls_today) / export_n) if export_n else 0.0
+            avg_cost_per_export = (float(cost_today) / export_n) if export_n else 0.0
+
+            usage.append({
                 "user_id": r.id,
                 "email": r.email,
-                "presentations": int(r.presentations or 0),
-                "last_date": (r.last_presentation.isoformat() if r.last_presentation else ""),
-            }
-            for r in q.all()
-        ]
+                "presentations": int(r.presentations or 0),  # lifetime (compat)
+                "presentations_range": int(pres_count_range or 0),
+                "last_date": (last_in_range.isoformat() if last_in_range else (r.last_presentation.isoformat() if r.last_presentation else "")),
+                "llm_calls": int(calls_today or 0),
+                "tokens_in": int(in_tok or 0),
+                "tokens_out": int(out_tok or 0),
+                "avg_calls_per_export": round(avg_calls_per_export, 2),
+                "avg_cost_per_export": round(avg_cost_per_export, 4),
+            })
         # Match template expectation: { usage: [...] }
         return jsonify({"usage": usage})
     except Exception as exc:  # pragma: no cover
         # In dev, the table may not yet exist; avoid 500ing the dashboard
         return jsonify({"usage": [], "error": str(exc)}), 200
+
+
+@bp.get("/admin/usage/user/<user_id>/exports")
+@login_required
+def admin_usage_user_exports(user_id: str) -> Any:
+    _admin_guard()
+    from sqlalchemy import func
+    # Date window (UTC) with query params: ?start=YYYY-MM-DD&end=YYYY-MM-DD
+    from datetime import datetime, timezone, timedelta
+    q_start = (request.args.get("start") or "").strip()
+    q_end = (request.args.get("end") or "").strip()
+    def _parse_ymd(s: str):
+        try:
+            return datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except Exception:
+            return None
+    now = datetime.now(timezone.utc)
+    start = _parse_ymd(q_start) or datetime(year=now.year, month=now.month, day=now.day, tzinfo=timezone.utc)
+    end = _parse_ymd(q_end) or start
+    if end <= start:
+        end = start + timedelta(days=1)
+    else:
+        end = end + timedelta(days=1)
+    q = (
+        db.session.query(
+            LLMCall.export_id,
+            func.count(LLMCall.id).label("calls"),
+            func.coalesce(func.sum(LLMCall.prompt_tokens), 0).label("tokens_in"),
+            func.coalesce(func.sum(LLMCall.completion_tokens), 0).label("tokens_out"),
+            func.coalesce(func.sum(LLMCall.cost_usd), 0.0).label("cost_usd"),
+        )
+        .filter(LLMCall.user_id == user_id)
+        .filter(LLMCall.created_at >= start.replace(tzinfo=None))
+        .filter(LLMCall.created_at < end.replace(tzinfo=None))
+        .group_by(LLMCall.export_id)
+        .order_by(func.max(LLMCall.created_at).desc())
+    )
+    rows = [
+        {
+            "export_id": e.export_id,
+            "calls": int(e.calls or 0),
+            "tokens_in": int(e.tokens_in or 0),
+            "tokens_out": int(e.tokens_out or 0),
+            "cost_usd": float(e.cost_usd or 0.0),
+        }
+        for e in q.all()
+    ]
+    return jsonify({"ok": True, "rows": rows})
+
+
+# ---------- Admin: Pricing CRUD ----------
+@bp.get("/admin/pricing")
+@login_required
+def admin_pricing_page() -> Any:
+    _admin_guard()
+    rows = []
+    error = None
+    try:
+        rows = Pricing.query.order_by(Pricing.model_id.asc(), Pricing.effective_from.desc()).all()
+    except Exception as exc:
+        error = str(exc)
+    return render_template("admin/pricing.html", rows=rows, error=error)
+
+
+@bp.post("/admin/pricing")
+@login_required
+def admin_pricing_create() -> Any:
+    _admin_guard()
+    data = request.get_json(silent=True) or request.form or {}
+    try:
+        model_id = str(data.get("model_id") or "").strip()
+        input_per_1k = float(data.get("input_per_1k"))
+        output_per_1k = float(data.get("output_per_1k"))
+        currency = (data.get("currency") or "USD").strip().upper()
+        source = (data.get("source") or "admin").strip()
+        source_url = (data.get("source_url") or "").strip()
+        from datetime import datetime
+        eff = datetime.utcnow()
+        row = Pricing(
+            model_id=model_id,
+            input_per_1k=input_per_1k,
+            output_per_1k=output_per_1k,
+            currency=currency,
+            effective_from=eff,
+            source=source,
+            source_url=source_url,
+            notes=(data.get("notes") or "")[:255],
+        )
+        db.session.add(row); db.session.commit()
+        return jsonify({"ok": True, "id": row.id})
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+# ---------- Admin: Provider Costs (CSV upload) ----------
+@bp.get("/admin/provider_costs")
+@login_required
+def admin_provider_costs_page() -> Any:
+    _admin_guard()
+    rows = ProviderCost.query.order_by(ProviderCost.created_at.desc()).limit(200).all()
+    return render_template("admin/provider_costs.html", rows=rows)
+
+
+@bp.post("/admin/provider_costs/upload")
+@login_required
+def admin_provider_costs_upload() -> Any:
+    _admin_guard()
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({"ok": False, "error": "No file"}), 400
+    import csv, io
+    created, updated = 0, 0
+    try:
+        stream = io.StringIO(file.stream.read().decode('utf-8'))
+        reader = csv.DictReader(stream)
+        from datetime import datetime
+        for row in reader:
+            rid = (row.get('request_id') or row.get('id') or '').strip()
+            if not rid:
+                continue
+            try:
+                cost_val = float(row.get('cost_usd') or row.get('amount_usd') or row.get('cost'))
+            except Exception:
+                continue
+            model = (row.get('model') or '').strip() or None
+            ts = None
+            for k in ('timestamp','created_at','time'):
+                v = row.get(k)
+                if v:
+                    try:
+                        ts = datetime.fromisoformat(v.replace('Z','+00:00'))
+                        break
+                    except Exception:
+                        pass
+            existing = ProviderCost.query.filter_by(request_id=rid).first()
+            if existing:
+                existing.cost_usd = cost_val
+                existing.model = model or existing.model
+                existing.usage_at = ts or existing.usage_at
+                updated += 1
+            else:
+                pc = ProviderCost(request_id=rid, model=model, cost_usd=cost_val, usage_at=ts)
+                db.session.add(pc)
+                created += 1
+        db.session.commit()
+        return jsonify({"ok": True, "created": created, "updated": updated})
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@bp.post("/admin/pricing/delete")
+@login_required
+def admin_pricing_delete() -> Any:
+    _admin_guard()
+    data = request.get_json(silent=True) or {}
+    try:
+        rid = int(data.get("id"))
+        row = Pricing.query.get(rid)
+        if not row:
+            return jsonify({"ok": False, "error": "Not found"}), 404
+        db.session.delete(row); db.session.commit()
+        return jsonify({"ok": True})
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 # ---------- SEO: robots.txt and sitemap.xml ----------

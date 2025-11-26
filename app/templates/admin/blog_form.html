@@ -39,11 +39,21 @@
       <label class="block text-sm font-medium mb-1">Featured Image</label>
       {% if post and post.featured_image %}
       <div class="mb-2">
+        {% set _fi = post.featured_image or '' %}
+        {% if _fi.startswith('http://') or _fi.startswith('https://') %}
+        <img src="{{ _fi }}" alt="Featured" class="h-28 rounded border">
+        {% else %}
         <img src="{{ url_for('static', filename=post.featured_image) }}" alt="Featured" class="h-28 rounded border">
+        {% endif %}
       </div>
       {% endif %}
       <input type="file" name="featured_image" accept="image/*" class="w-full border rounded p-2 bg-white">
       <p class="text-xs text-gray-500 mt-1">Recommended: 1200×630px (JPG/PNG). Max ~5MB depending on server limits.</p>
+      <div class="mt-2">
+        <label class="block text-sm font-medium mb-1">or paste Image URL</label>
+        <input type="url" name="featured_image_url" placeholder="https://..." value="{{ post.featured_image if post and (post.featured_image or '').startswith('http') else '' }}" class="w-full border rounded p-2">
+        <p class="text-xs text-gray-500 mt-1">If both file and URL are provided, the URL will be used.</p>
+      </div>
     </div>
 
     <div class="flex items-center">

@@ -117,9 +117,10 @@ def create_app():
         from .models import User
         return User.get(user_id)
     
-    # Import models so Alembic can detect them
+    # Import models so Alembic and dev auto-create can detect them
     from .presentation_log import PresentationLog  # noqa: F401
     from .models import BlogPost  # noqa: F401
+    from .models import LLMCall, Pricing, ProviderCost  # noqa: F401
 
     # Register blueprint with URL prefix
     from .routes import bp as main_bp
@@ -178,7 +179,7 @@ def create_app():
             from sqlalchemy import inspect as _sa_inspect
             with app.app_context():
                 insp = _sa_inspect(db.engine)
-                expected = {"users", "presentation_logs", "blog_posts"}
+                expected = {"users", "presentation_logs", "blog_posts", "llm_calls", "pricing", "provider_costs"}
                 missing = [t for t in expected if not insp.has_table(t)]
                 if missing:
                     print(f"DB init (dev): creating missing tables {missing} via db.create_all()")

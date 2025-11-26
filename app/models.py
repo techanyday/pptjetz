@@ -145,3 +145,46 @@ class BlogPost(db.Model):
         base = _re.sub(r"[^a-z0-9\s-]", "", base)
         base = _re.sub(r"\s+", "-", base).strip("-")
         return base[:150]
+
+
+class LLMCall(db.Model):
+    __tablename__ = 'llm_calls'
+
+    id = db.Column(db.Integer, primary_key=True)
+    deck_id = db.Column(db.String(64), index=True)
+    export_id = db.Column(db.String(64), index=True)
+    user_id = db.Column(db.String(100), index=True)
+    route = db.Column(db.String(64))
+    model = db.Column(db.String(80))
+    request_id = db.Column(db.String(120), index=True)
+    prompt_tokens = db.Column(db.Integer)
+    completion_tokens = db.Column(db.Integer)
+    total_tokens = db.Column(db.Integer)
+    cost_usd = db.Column(db.Float)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+
+class Pricing(db.Model):
+    __tablename__ = 'pricing'
+
+    id = db.Column(db.Integer, primary_key=True)
+    model_id = db.Column(db.String(120), index=True, nullable=False)
+    input_per_1k = db.Column(db.Float, nullable=False)
+    output_per_1k = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(8), default='USD')
+    effective_from = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    source = db.Column(db.String(80))
+    source_url = db.Column(db.String(255))
+    notes = db.Column(db.String(255))
+
+
+class ProviderCost(db.Model):
+    __tablename__ = 'provider_costs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.String(120), unique=True, index=True, nullable=False)
+    model = db.Column(db.String(120))
+    cost_usd = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(8), default='USD')
+    usage_at = db.Column(db.DateTime, nullable=True, index=True)  # provider timestamp if provided
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)

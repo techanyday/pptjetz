@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Pricing - Admin{% endblock %}
+
+{% block content %}
+<h2 class="text-3xl font-bold mb-6">Model Pricing</h2>
+
+<div class="grid md:grid-cols-2 gap-6">
+  <div class="bg-white p-6 rounded shadow">
+    <h3 class="text-lg font-semibold mb-4">Add Pricing</h3>
+    <form id="pricingForm" class="space-y-3" onsubmit="return false;">
+      <div>
+        <label class="block text-sm font-medium mb-1">Model ID</label>
+        <input id="model_id" class="w-full border rounded px-3 py-2" placeholder="gpt-3.5-turbo" required />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium mb-1">Input $/1K</label>
+          <input id="input_per_1k" type="number" step="0.0001" class="w-full border rounded px-3 py-2" placeholder="0.50" required />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Output $/1K</label>
+          <input id="output_per_1k" type="number" step="0.0001" class="w-full border rounded px-3 py-2" placeholder="1.50" required />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium mb-1">Currency</label>
+          <input id="currency" class="w-full border rounded px-3 py-2" value="USD" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Source</label>
+          <input id="source" class="w-full border rounded px-3 py-2" value="admin" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Source URL (optional)</label>
+        <input id="source_url" class="w-full border rounded px-3 py-2" placeholder="https://..." />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Notes (optional)</label>
+        <input id="notes" class="w-full border rounded px-3 py-2" />
+      </div>
+      <button id="saveBtn" class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
+    </form>
+  </div>
+
+  <div class="bg-white p-6 rounded shadow">
+    <h3 class="text-lg font-semibold mb-4">Existing Rates</h3>
+    <table class="min-w-full text-sm text-left">
+      <thead>
+        <tr class="border-b bg-gray-50">
+          <th class="py-2 px-3">Model</th>
+          <th class="py-2 px-3">Input</th>
+          <th class="py-2 px-3">Output</th>
+          <th class="py-2 px-3">Currency</th>
+          <th class="py-2 px-3">Effective</th>
+          <th class="py-2 px-3"></th>
+        </tr>
+      </thead>
+      <tbody id="rowsBody">
+        {% for r in rows %}
+        <tr class="border-b">
+          <td class="py-2 px-3">{{ r.model_id }}</td>
+          <td class="py-2 px-3">${{ '%.4f' % r.input_per_1k }}/1K</td>
+          <td class="py-2 px-3">${{ '%.4f' % r.output_per_1k }}/1K</td>
+          <td class="py-2 px-3">{{ r.currency }}</td>
+          <td class="py-2 px-3">{{ r.effective_from.strftime('%Y-%m-%d %H:%M') if r.effective_from else '' }}</td>
+          <td class="py-2 px-3 text-right">
+            <button class="text-red-600" onclick="delPricing({{ r.id }})">Delete</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="py-3 px-3 text-gray-500">No pricing rows yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function savePricing() {
+  const payload = {
+    model_id: document.getElementById('model_id').value.trim(),
+    input_per_1k: parseFloat(document.getElementById('input_per_1k').value),
+    output_per_1k: parseFloat(document.getElementById('output_per_1k').value),
+    currency: document.getElementById('currency').value.trim() || 'USD',
+    source: document.getElementById('source').value.trim() || 'admin',
+    source_url: document.getElementById('source_url').value.trim(),
+    notes: document.getElementById('notes').value.trim(),
+  };
+  const res = await fetch('/admin/pricing', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (data.ok) { location.reload(); } else { alert(data.error || 'Error'); }
+}
+
+async function delPricing(id) {
+  if (!confirm('Delete this pricing row?')) return;
+  const res = await fetch('/admin/pricing/delete', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id})
+  });
+  const data = await res.json();
+  if (data.ok) { location.reload(); } else { alert(data.error || 'Error'); }
+}
+
+document.getElementById('saveBtn').addEventListener('click', savePricing);
+</script>
+{% endblock %}

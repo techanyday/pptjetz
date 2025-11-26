@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 
 from app.core.config import settings
+from datetime import datetime
+from app import db
+from app.models import LLMCall, Pricing
 
 
 def _themes_palette() -> dict[str, dict[str, str]]:
@@ -224,6 +227,52 @@ def build_prompt(
     ]
 
 
+def _compute_cost(model_id: str, prompt_tokens: int, completion_tokens: int) -> float:
+    try:
+        # Find most recent effective pricing for this model
+        row = (
+            Pricing.query
+            .filter(Pricing.model_id == model_id)
+            .order_by(Pricing.effective_from.desc())
+            .first()
+        )
+        if not row:
+            return 0.0
+        return (prompt_tokens/1000.0) * float(row.input_per_1k) + (completion_tokens/1000.0) * float(row.output_per_1k)
+    except Exception:
+        return 0.0
+
+
+def _log_llm_call(*, resp: Any, model: str, route: str, deck_id: str | None = None, export_id: str | None = None, user_id: str | None = None) -> None:
+    try:
+        usage = getattr(resp, 'usage', None) or {}
+        prompt_tokens = int(getattr(usage, 'prompt_tokens', getattr(usage, 'input_tokens', 0)) or 0)
+        completion_tokens = int(getattr(usage, 'completion_tokens', getattr(usage, 'output_tokens', 0)) or 0)
+        total_tokens = int(getattr(usage, 'total_tokens', prompt_tokens + completion_tokens) or 0)
+        request_id = getattr(resp, 'id', None) or getattr(resp, 'request_id', None) or ''
+        cost = _compute_cost(model, prompt_tokens, completion_tokens)
+        rec = LLMCall(
+            deck_id=deck_id,
+            export_id=export_id or deck_id,
+            user_id=user_id,
+            route=route,
+            model=model,
+            request_id=str(request_id),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            cost_usd=cost,
+            created_at=datetime.utcnow(),
+        )
+        db.session.add(rec)
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+
 def create_deck_slides(
     *,
     title: str,
@@ -233,6 +282,8 @@ def create_deck_slides(
     theme_name: str,
     input_text: str,
     num_slides: int,
+    deck_id: str | None = None,
+    user_id: str | None = None,
 ) -> tuple[List[Dict[str, Any]], list[str]]:
     """Call ChatGPT 3.5 Turbo and return (slides_json, errors). No fallback."""
     # Lazy import to keep startup light
@@ -263,6 +314,7 @@ def create_deck_slides(
             temperature=0.2,
             max_tokens=1800,
         )
+        _log_llm_call(resp=resp, model=settings.CHATGPT_MODEL or "gpt-3.5-turbo", route="generate", deck_id=deck_id, export_id=deck_id, user_id=user_id)
         content = (resp.choices[0].message.content or "").strip()
         # Log short snippet for diagnostics
         try:
@@ -293,7 +345,13 @@ def create_deck_slides(
         pass
     # Post-pass: rewrite generic table headers contextually with AI and sync titles
     try:
-        slides = _ai_rewrite_table_headers(client, slides)
+        tmp = _ai_rewrite_table_headers(client, slides)
+        try:
+            # tmp call internally uses OpenAI; we cannot directly access its response. Skip logging here.
+            pass
+        except Exception:
+            pass
+        slides = tmp
     except Exception as _:
         pass
     # Post-pass: AI harmonization of titles/bullets to agenda and topic
@@ -488,7 +546,7 @@ def _ensure_title_slide(
     return slides_norm
 
 
-def derive_topic_bullets(*, deck_title: str, topic: str, input_text: str | None = None, n: int = 5) -> List[str]:
+def derive_topic_bullets(*, deck_title: str, topic: str, input_text: str | None = None, n: int = 5, deck_id: str | None = None, user_id: str | None = None) -> List[str]:
     """Ask ChatGPT to derive concise, topic-specific bullets for a topic title.
     Returns up to n bullets; on failure, returns an empty list.
     """
@@ -525,6 +583,7 @@ def derive_topic_bullets(*, deck_title: str, topic: str, input_text: str | None 
             temperature=0.2,
             max_tokens=300,
         )
+        _log_llm_call(resp=resp, model=settings.CHATGPT_MODEL or "gpt-3.5-turbo", route="derive_topic_bullets", deck_id=deck_id, export_id=deck_id, user_id=user_id)
         import json
         raw = (resp.choices[0].message.content or "").strip()
         data = json.loads(raw)
