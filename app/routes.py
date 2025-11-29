@@ -1220,7 +1220,13 @@ def admin_usage_api() -> Any:
                         func.count(LLMCall.id),
                         func.coalesce(func.sum(LLMCall.prompt_tokens), 0),
                         func.coalesce(func.sum(LLMCall.completion_tokens), 0),
-                        func.coalesce(func.sum(func.coalesce(ProviderCost.cost_usd, LLMCall.cost_usd)), 0.0),
+                        # Use provider cost if available, otherwise use LLMCall.cost_usd if not null, otherwise 0.0
+                        func.coalesce(
+                            func.sum(
+                                func.coalesce(ProviderCost.cost_usd, LLMCall.cost_usd, 0.0)
+                            ), 
+                            0.0
+                        ),
                     )
                     .outerjoin(ProviderCost, ProviderCost.request_id == LLMCall.request_id)
                     .filter(LLMCall.user_id == r.id)
@@ -1233,7 +1239,7 @@ def admin_usage_api() -> Any:
                         func.count(LLMCall.id),
                         func.coalesce(func.sum(LLMCall.prompt_tokens), 0),
                         func.coalesce(func.sum(LLMCall.completion_tokens), 0),
-                        func.coalesce(func.sum(LLMCall.cost_usd), 0.0),
+                        func.coalesce(func.sum(func.coalesce(LLMCall.cost_usd, 0.0)), 0.0),
                     )
                     .filter(LLMCall.user_id == r.id)
                     .filter(LLMCall.created_at >= start.replace(tzinfo=None))
@@ -1250,10 +1256,15 @@ def admin_usage_api() -> Any:
                 .group_by(LLMCall.export_id)
             )
             export_counts = ex_q.all()
-            # Prefer number of exports actually created in the range (from PresentationLog)
+            # Use the actual number of exports in the date range
             export_n = int(pres_count_range or 0)
-            avg_calls_per_export = (float(calls_today) / export_n) if export_n else 0.0
-            avg_cost_per_export = (float(cost_today) / export_n) if export_n else 0.0
+            
+            # Calculate averages with proper null handling
+            calls_today = int(calls_today or 0)
+            cost_today = float(cost_today or 0.0)
+            
+            avg_calls_per_export = (calls_today / export_n) if export_n > 0 else 0.0
+            avg_cost_per_export = (cost_today / export_n) if export_n > 0 else 0.0
 
             usage.append({
                 "user_id": r.id,
