@@ -18,6 +18,7 @@
       <button class="bg-gray-100 px-3 py-2 rounded" onclick="loadUsage()">Apply</button>
     </div>
     <div id="usage">
+    <div id="usageError" class="hidden mb-3 p-3 rounded bg-red-50 text-red-700 text-sm"></div>
     <h3 class="text-xl font-semibold mb-4">Usage by User</h3>
     <table class="min-w-full text-sm text-left">
         <thead>
@@ -76,9 +77,30 @@ function _qs() {
   return q ? ('?' + q) : '';
 }
 
+function _initDatesIfEmpty() {
+  const sEl = document.getElementById('startDate');
+  const eEl = document.getElementById('endDate');
+  if (!sEl.value && !eEl.value) {
+    const now = new Date();
+    const past = new Date(now.getTime() - 29*24*60*60*1000);
+    const f = (d)=> d.toISOString().slice(0,10);
+    sEl.value = f(past);
+    eEl.value = f(now);
+  }
+}
+
 async function loadUsage() {
+    _initDatesIfEmpty();
     const res = await fetch('/admin/usage' + _qs());
     const data = await res.json();
+    const errBox = document.getElementById('usageError');
+    if (data.error) {
+      errBox.textContent = `Warning: ${data.error}`;
+      errBox.classList.remove('hidden');
+    } else {
+      errBox.classList.add('hidden');
+      errBox.textContent = '';
+    }
     const tbody = document.getElementById('usageBody');
     tbody.innerHTML = '';
     data.usage.forEach(u => {

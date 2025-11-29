@@ -1196,6 +1196,14 @@ def admin_usage_api() -> Any:
             end = end + timedelta(days=1)  # make end exclusive
 
         usage = []
+        # ProviderCost may not exist in some deployments; detect safely
+        has_provider_costs = False
+        try:
+            from sqlalchemy import inspect as _sa_inspect
+            insp = _sa_inspect(db.engine)
+            has_provider_costs = insp.has_table('provider_costs')
+        except Exception:
+            has_provider_costs = False
         for r in rows:
             # Presentations in range and last presentation in range
             pres_q = (
@@ -1206,18 +1214,31 @@ def admin_usage_api() -> Any:
             )
             pres_count_range, last_in_range = pres_q.first()
             # Aggregate LLM calls in range for this user, prefer provider cost when present
-            lq = (
-                db.session.query(
-                    func.count(LLMCall.id),
-                    func.coalesce(func.sum(LLMCall.prompt_tokens), 0),
-                    func.coalesce(func.sum(LLMCall.completion_tokens), 0),
-                    func.coalesce(func.sum(func.coalesce(ProviderCost.cost_usd, LLMCall.cost_usd)), 0.0),
+            if has_provider_costs:
+                lq = (
+                    db.session.query(
+                        func.count(LLMCall.id),
+                        func.coalesce(func.sum(LLMCall.prompt_tokens), 0),
+                        func.coalesce(func.sum(LLMCall.completion_tokens), 0),
+                        func.coalesce(func.sum(func.coalesce(ProviderCost.cost_usd, LLMCall.cost_usd)), 0.0),
+                    )
+                    .outerjoin(ProviderCost, ProviderCost.request_id == LLMCall.request_id)
+                    .filter(LLMCall.user_id == r.id)
+                    .filter(LLMCall.created_at >= start.replace(tzinfo=None))
+                    .filter(LLMCall.created_at < end.replace(tzinfo=None))
                 )
-                .outerjoin(ProviderCost, ProviderCost.request_id == LLMCall.request_id)
-                .filter(LLMCall.user_id == r.id)
-                .filter(LLMCall.created_at >= start.replace(tzinfo=None))
-                .filter(LLMCall.created_at < end.replace(tzinfo=None))
-            )
+            else:
+                lq = (
+                    db.session.query(
+                        func.count(LLMCall.id),
+                        func.coalesce(func.sum(LLMCall.prompt_tokens), 0),
+                        func.coalesce(func.sum(LLMCall.completion_tokens), 0),
+                        func.coalesce(func.sum(LLMCall.cost_usd), 0.0),
+                    )
+                    .filter(LLMCall.user_id == r.id)
+                    .filter(LLMCall.created_at >= start.replace(tzinfo=None))
+                    .filter(LLMCall.created_at < end.replace(tzinfo=None))
+                )
             calls_today, in_tok, out_tok, cost_today = lq.first()
 
             # Per-export counts for avg calculations
@@ -1247,7 +1268,7 @@ def admin_usage_api() -> Any:
                 "avg_cost_per_export": round(avg_cost_per_export, 4),
             })
         # Match template expectation: { usage: [...] }
-        return jsonify({"usage": usage})
+        return jsonify({"usage": usage, "provider_costs": has_provider_costs})
     except Exception as exc:  # pragma: no cover
         # In dev, the table may not yet exist; avoid 500ing the dashboard
         return jsonify({"usage": [], "error": str(exc)}), 200
