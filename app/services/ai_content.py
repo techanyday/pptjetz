@@ -6,6 +6,16 @@ from app.core.config import settings
 from datetime import datetime
 from app import db
 from app.models import LLMCall, Pricing
+import os
+
+
+MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "1200"))
+MAX_TOKENS_HARMONIZE = int(os.getenv("MAX_TOKENS_HARMONIZE", "900"))
+MAX_TOKENS_TOPIC_BULLETS = int(os.getenv("MAX_TOKENS_TOPIC_BULLETS", "260"))
+MAX_TOKENS_TABLE_HEADERS = int(os.getenv("MAX_TOKENS_TABLE_HEADERS", "128"))
+MAX_TOKENS_RETRY = int(os.getenv("MAX_TOKENS_RETRY", "1200"))
+ENABLE_TABLE_HEADER_AI = os.getenv("ENABLE_TABLE_HEADER_AI", "0") == "1"
+ENABLE_LLM_RETRY = os.getenv("ENABLE_LLM_RETRY", "0") == "1"
 
 
 def _themes_palette() -> dict[str, dict[str, str]]:
@@ -312,7 +322,7 @@ def create_deck_slides(
             model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
             messages=messages,  # type: ignore[arg-type]
             temperature=0.2,
-            max_tokens=1800,
+            max_tokens=MAX_TOKENS_DECK,
         )
         _log_llm_call(resp=resp, model=settings.CHATGPT_MODEL or "gpt-3.5-turbo", route="generate", deck_id=deck_id, export_id=deck_id, user_id=user_id)
         content = (resp.choices[0].message.content or "").strip()
@@ -346,13 +356,8 @@ def create_deck_slides(
     # Post-pass: rewrite generic table headers contextually with AI and sync titles
     try:
         tmp = _ai_rewrite_table_headers(client, slides)
-        try:
-            # tmp call internally uses OpenAI; we cannot directly access its response. Skip logging here.
-            pass
-        except Exception:
-            pass
         slides = tmp
-    except Exception as _:
+    except Exception:
         pass
     # Post-pass: AI harmonization of titles/bullets to agenda and topic
     try:
@@ -370,9 +375,9 @@ def create_deck_slides(
         slides = _harmonize_titles_to_agenda(slides)
     except Exception:
         pass
-    # Post-check quality and coherency; perform one corrective retry if needed
+    # Post-check quality and coherency; perform one corrective retry if enabled
     issues, agenda = _quality_issues(slides)
-    if issues:
+    if issues and ENABLE_LLM_RETRY:
         try:
             fixed = _retry_with_agenda(
                 client=client,
@@ -581,7 +586,7 @@ def derive_topic_bullets(*, deck_title: str, topic: str, input_text: str | None 
                 {"role": "user", "content": _json_dump(payload)},
             ],
             temperature=0.2,
-            max_tokens=300,
+            max_tokens=MAX_TOKENS_TOPIC_BULLETS,
         )
         _log_llm_call(resp=resp, model=settings.CHATGPT_MODEL or "gpt-3.5-turbo", route="derive_topic_bullets", deck_id=deck_id, export_id=deck_id, user_id=user_id)
         import json
@@ -840,7 +845,7 @@ def _ai_harmonize_to_agenda(
             {"role": "user", "content": _json_dump(payload)},
         ],
         temperature=0.2,
-        max_tokens=1800,
+        max_tokens=MAX_TOKENS_HARMONIZE,
     )
     content = (resp.choices[0].message.content or "").strip()
     edited, err = _parse_json_array(content)
@@ -896,7 +901,18 @@ def _ai_rewrite_table_headers(client: Any, slides: List[Dict[str, Any]]) -> List
         rhead = (right.get("heading") or "").strip()
         if not (_is_generic(lhead) or _is_generic(rhead)):
             continue
-        # Prepare prompt for AI rewrite
+        # First try deterministic heuristic pair
+        h = _heuristic_pair(title, agenda)
+        if h:
+            table.setdefault("left", {})["heading"] = h[0]
+            table.setdefault("right", {})["heading"] = h[1]
+            s["title"] = f"{h[0]} vs {h[1]}"
+            content["table"] = table
+            s["content"] = content
+            changed = True
+            continue
+        if not ENABLE_TABLE_HEADER_AI:
+            continue
         prompt = {
             "task": "Rewrite comparison headers to reflect the true dimension of comparison for the topic.",
             "topic": title,
@@ -921,7 +937,7 @@ def _ai_rewrite_table_headers(client: Any, slides: List[Dict[str, Any]]) -> List
                 {"role": "user", "content": _json_dump(prompt)},
             ],
             temperature=0.2,
-            max_tokens=128,
+            max_tokens=MAX_TOKENS_TABLE_HEADERS,
         )
         import json
         try:
@@ -931,13 +947,11 @@ def _ai_rewrite_table_headers(client: Any, slides: List[Dict[str, Any]]) -> List
             if new_left and new_right:
                 table.setdefault("left", {})["heading"] = new_left
                 table.setdefault("right", {})["heading"] = new_right
-                # Refresh title to A vs B when appropriate
                 s["title"] = f"{new_left} vs {new_right}"
                 content["table"] = table
                 s["content"] = content
                 changed = True
         except Exception:
-            # If parsing fails, try deterministic heuristic fallback
             h = _heuristic_pair(title, agenda)
             if h and (lhead.lower() in {"option a","a","traditional","left"} or rhead.lower() in {"option b","b","ai-driven","ai driven","right"}):
                 table.setdefault("left", {})["heading"] = h[0]
@@ -1020,7 +1034,7 @@ def _retry_with_agenda(
         model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
         messages=messages,  # type: ignore[arg-type]
         temperature=0.2,
-        max_tokens=1800,
+        max_tokens=MAX_TOKENS_RETRY,
     )
     content = (resp.choices[0].message.content or "").strip()
     slides, err = _parse_json_array(content)
