@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     # ChatGPT (OpenAI-compatible) – API token and model
     CHATGPT_API_TOKEN: str | None = None
-    CHATGPT_MODEL: str = "gpt-3.5-turbo"
+    CHATGPT_MODEL: str = "gpt-4o-mini"
     # Backward-compat: accept OPENAI_API_KEY as alias for CHATGPT_API_TOKEN
     OPENAI_API_KEY: str | None = None
 

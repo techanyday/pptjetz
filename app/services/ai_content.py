@@ -9,13 +9,15 @@ from app.models import LLMCall, Pricing
 import os
 
 
-MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "1200"))
-MAX_TOKENS_HARMONIZE = int(os.getenv("MAX_TOKENS_HARMONIZE", "900"))
-MAX_TOKENS_TOPIC_BULLETS = int(os.getenv("MAX_TOKENS_TOPIC_BULLETS", "260"))
-MAX_TOKENS_TABLE_HEADERS = int(os.getenv("MAX_TOKENS_TABLE_HEADERS", "128"))
-MAX_TOKENS_RETRY = int(os.getenv("MAX_TOKENS_RETRY", "1200"))
+MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "800"))
+MAX_TOKENS_HARMONIZE = int(os.getenv("MAX_TOKENS_HARMONIZE", "600"))
+MAX_TOKENS_TOPIC_BULLETS = int(os.getenv("MAX_TOKENS_TOPIC_BULLETS", "180"))
+MAX_TOKENS_TABLE_HEADERS = int(os.getenv("MAX_TOKENS_TABLE_HEADERS", "96"))
+MAX_TOKENS_RETRY = int(os.getenv("MAX_TOKENS_RETRY", "900"))
 ENABLE_TABLE_HEADER_AI = os.getenv("ENABLE_TABLE_HEADER_AI", "0") == "1"
 ENABLE_LLM_RETRY = os.getenv("ENABLE_LLM_RETRY", "0") == "1"
+ENABLE_EXPORT_BULLETS_AI = os.getenv("ENABLE_EXPORT_BULLETS_AI", "0") == "1"
+ENABLE_LLM_HARMONIZE = os.getenv("ENABLE_LLM_HARMONIZE", "1") == "1"
 
 
 def _themes_palette() -> dict[str, dict[str, str]]:
@@ -359,17 +361,6 @@ def create_deck_slides(
         slides = tmp
     except Exception:
         pass
-    # Post-pass: AI harmonization of titles/bullets to agenda and topic
-    try:
-        slides = _ai_harmonize_to_agenda(
-            client=client,
-            system_msg=messages[0]["content"],
-            title=title,
-            input_text=input_text,
-            slides=slides,
-        )
-    except Exception:
-        pass
     # Post-pass: harmonize titles/content to agenda; remove template phrases
     try:
         slides = _harmonize_titles_to_agenda(slides)
@@ -377,6 +368,23 @@ def create_deck_slides(
         pass
     # Post-check quality and coherency; perform one corrective retry if enabled
     issues, agenda = _quality_issues(slides)
+    # Post-pass: AI harmonization of titles/bullets to agenda and topic
+    if issues and ENABLE_LLM_HARMONIZE:
+        try:
+            slides = _ai_harmonize_to_agenda(
+                client=client,
+                system_msg=messages[0]["content"],
+                title=title,
+                input_text=input_text,
+                slides=slides,
+            )
+            try:
+                slides = _harmonize_titles_to_agenda(slides)
+            except Exception:
+                pass
+            issues, agenda = _quality_issues(slides)
+        except Exception:
+            pass
     if issues and ENABLE_LLM_RETRY:
         try:
             fixed = _retry_with_agenda(

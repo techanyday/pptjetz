@@ -24,7 +24,7 @@ from flask import (
 )
 from flask_login import login_user, logout_user, current_user, login_required
 
-from app.services.ai_content import create_deck_slides, derive_topic_bullets
+from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI
 # Preview PNG generation is removed; only PPTX export remains
 from app.services.pptx_builder import build_pptx_from_positions, build_pptx_from_slides
 from app import db
@@ -770,6 +770,30 @@ def export_presentation() -> Any:
             h2 = d2
         return h1, h2
 
+    def topic_comparison_headers(topic: str, deck_title: str) -> tuple[str, str]:
+        text = f"{deck_title} {topic}".lower()
+        if any(k in text for k in ["drug", "substance", "opioid", "addiction"]):
+            return "Risk Factors", "Protective Factors"
+        if any(k in text for k in ["health", "disease", "care", "clinic", "hospital"]):
+            return "Symptoms", "Interventions"
+        if any(k in text for k in ["education", "learning", "school", "students", "curriculum"]):
+            return "Traditional Methods", "Modern Strategies"
+        if any(k in text for k in ["skill", "skills", "competency", "competencies", "training"]):
+            return "Skill Areas", "Outcomes"
+        if any(k in text for k in ["market", "finance", "economy", "pricing", "growth"]):
+            return "Challenges", "Opportunities"
+        if any(k in text for k in ["policy", "regulation", "compliance", "governance"]):
+            return "Current State", "Proposed Reforms"
+        if any(k in text for k in ["covid", "pandemic", "crisis"]):
+            return "Pre-Crisis", "Post-Crisis"
+        if any(k in text for k in ["impact", "effects", "outcomes", "results"]):
+            return "Drivers", "Impacts"
+        if any(k in text for k in ["applications", "use cases", "use-cases", "usecase", "adoption"]):
+            return "Use Cases", "Benefits"
+        if any(k in text for k in ["strategy", "roadmap", "plan"]):
+            return "Current State", "Future Direction"
+        return "Key Factors", "Outcomes"
+
     def sanitize_steps(steps):
         steps = [d.get("label") if isinstance(d, dict) else str(d) for d in (steps or [])]
         steps = [re.sub(r"(?i)^step\s*\d+\s*$", "", (s or "").strip()) for s in steps]
@@ -849,8 +873,10 @@ def export_presentation() -> Any:
                     pts = clean_list(pts)
                     if pts:
                         return pts
-            # Derive via ChatGPT if nothing found
-            return derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=5) or []
+            # Derive via ChatGPT if nothing found (optional, behind feature flag)
+            if ENABLE_EXPORT_BULLETS_AI:
+                return derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=5) or []
+            return []
 
         topic_slides: List[Dict[str, Any]] = []
         for idx, topic in enumerate(agenda_topics, start=1):
@@ -863,7 +889,7 @@ def export_presentation() -> Any:
                     return src[::2][:6], src[1::2][:6]
                 left, right = split_lr(pool)
                 guard = 0
-                while (len(left) < 3 or len(right) < 3) and guard < 1:
+                while (len(left) < 3 or len(right) < 3) and guard < 1 and ENABLE_EXPORT_BULLETS_AI:
                     more = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=4) or []
                     for m in clean_list(more):
                         if m not in pool:
@@ -888,7 +914,7 @@ def export_presentation() -> Any:
                 left_pts = pool[:mid][:6]
                 right_pts = pool[mid:][:6]
                 guard = 0
-                while (len(left_pts) < 3 or len(right_pts) < 3) and guard < 1:
+                while (len(left_pts) < 3 or len(right_pts) < 3) and guard < 1 and ENABLE_EXPORT_BULLETS_AI:
                     more = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=4) or []
                     for m in clean_list(more):
                         if m not in pool:
@@ -901,17 +927,18 @@ def export_presentation() -> Any:
                     left_pts.append("(to be refined)")
                 while len(right_pts) < 3:
                     right_pts.append("(to be refined)")
+                left_head, right_head = topic_comparison_headers(topic, deck_title)
                 topic_slides.append({
                     "type": "comparison",
                     "title": topic,
-                    "content": {"table": {"left": {"heading": "Aspects", "points": left_pts}, "right": {"heading": "Implications", "points": right_pts}}},
+                    "content": {"table": {"left": {"heading": left_head, "points": left_pts}, "right": {"heading": right_head, "points": right_pts}}},
                     "_render_exact": True,
                 })
             elif pat in {4, 5}:  # Cards
                 # Ensure at least 5 cards
                 cards = list(clean_list(pts))
                 guard = 0
-                while len(cards) < 5 and guard < 1:
+                while len(cards) < 5 and guard < 1 and ENABLE_EXPORT_BULLETS_AI:
                     more = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=5) or []
                     for m in clean_list(more):
                         if m not in cards:
