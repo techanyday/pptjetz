@@ -9,7 +9,17 @@ MARGIN_L, MARGIN_R, MARGIN_T, MARGIN_B = Inches(0.7), Inches(0.7), Inches(1.0), 
 SAFE_W = SLIDE_W - MARGIN_L - MARGIN_R
 EPS = Inches(0.05)  # small fudge to avoid pixel rounding bleed
 
-# Palette (alternating light/dark; feel free to tweak)
+
+def _is_dark_rgb(rgb_tuple):
+    """Simple luminance check used to pick light/dark accent colors."""
+    try:
+        r, g, b = rgb_tuple
+    except Exception:  # pragma: no cover - defensive only
+        return False
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 140
+
+
+# Default palette (used only when no theme palette is provided)
 PAL = [
     RGBColor(173, 216, 230),  # light blue
     RGBColor(248, 203, 173),  # peach
@@ -148,7 +158,44 @@ def _split_rows(items):
     return items[:4], items[4:8]
 
 
-def render_takeaways_chevrons(slide, items, title="Key Takeaways", kicker="At-a-glance summary", title_color=None):
+def render_takeaways_chevrons(slide, items, title="Key Takeaways", kicker="At-a-glance summary", title_color=None, pal=None):
+    """Render Key Takeaways chevrons using the active theme palette.
+
+    The slide layout, chevron geometry, and spacing remain unchanged.
+    When a `pal` dict is provided, all fills and inks are derived from
+    its bg / text / primary / secondary colors so the slide stays
+    visually on-brand with the selected theme.
+    """
+    global PAL, INK, STROKE
+
+    # If a theme palette is provided (from pptx_builder._theme), derive
+    # our local color system from it. This keeps chevrons visually
+    # consistent with the rest of the deck while avoiding arbitrary
+    # pastel colors.
+    if isinstance(pal, dict):
+        bg = pal.get("bg", (255, 255, 255))
+        primary = pal.get("primary", (59, 130, 246))
+        secondary = pal.get("secondary", bg)
+        muted = pal.get("muted", pal.get("text", secondary))
+        text_rgb = pal.get("text", (35, 35, 35))
+
+        # Rebuild PAL as theme-aligned chevron fills
+        base_triplets = [primary, secondary, muted]
+        new_pal = []
+        for i in range(6):
+            r, g, b = base_triplets[i % len(base_triplets)]
+            new_pal.append(RGBColor(r, g, b))
+        PAL = new_pal
+
+        # Ink and stroke derived from theme
+        INK = RGBColor(*text_rgb)
+        if _is_dark_rgb(bg):
+            STROKE = RGBColor(255, 255, 255)
+        else:
+            # thin outline in a softened secondary accent
+            sr, sg, sb = secondary
+            STROKE = RGBColor(sr, sg, sb)
+
     items = _clean(items, 4, 8)
 
     title_bottom = _title(slide, title, kicker, color_rgb=title_color)

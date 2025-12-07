@@ -51,7 +51,6 @@ THEME_OPTIONS = [
     "PULSE",
     "MINIMAL FLUX",
     "BLUE HORIZON",
-    "NIGHTFALL",
 ]
 
 # Root directory for per-request preview images (legacy temp + static web-served)
