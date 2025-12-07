@@ -13,10 +13,12 @@ MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "800"))
 MAX_TOKENS_HARMONIZE = int(os.getenv("MAX_TOKENS_HARMONIZE", "600"))
 MAX_TOKENS_TOPIC_BULLETS = int(os.getenv("MAX_TOKENS_TOPIC_BULLETS", "180"))
 MAX_TOKENS_TABLE_HEADERS = int(os.getenv("MAX_TOKENS_TABLE_HEADERS", "96"))
+MAX_TOKENS_EXPORT_COMPARISON = int(os.getenv("MAX_TOKENS_EXPORT_COMPARISON", "220"))
 MAX_TOKENS_RETRY = int(os.getenv("MAX_TOKENS_RETRY", "900"))
 ENABLE_TABLE_HEADER_AI = os.getenv("ENABLE_TABLE_HEADER_AI", "0") == "1"
 ENABLE_LLM_RETRY = os.getenv("ENABLE_LLM_RETRY", "0") == "1"
 ENABLE_EXPORT_BULLETS_AI = os.getenv("ENABLE_EXPORT_BULLETS_AI", "0") == "1"
+ENABLE_EXPORT_COMPARISON_AI = os.getenv("ENABLE_EXPORT_COMPARISON_AI", "0") == "1"
 ENABLE_LLM_HARMONIZE = os.getenv("ENABLE_LLM_HARMONIZE", "1") == "1"
 
 
@@ -612,6 +614,92 @@ def derive_topic_bullets(*, deck_title: str, topic: str, input_text: str | None 
     except Exception:
         return []
     return []
+
+
+def derive_topic_comparison_table(*, deck_title: str, topic: str, input_text: str | None = None, bullets: List[str] | None = None, deck_id: str | None = None, user_id: str | None = None) -> Dict[str, Any] | None:
+    """Ask ChatGPT to generate a paired comparison table for a topic.
+
+    Returns a dict with keys left_heading, right_heading, left_points, right_points,
+    or None on failure.
+    """
+    try:
+        from openai import OpenAI  # type: ignore
+    except Exception:
+        return None
+
+    api_key = settings.CHATGPT_API_TOKEN or settings.OPENAI_API_KEY
+    if not api_key:
+        return None
+    client = OpenAI(api_key=api_key)
+    payload = {
+        "task": "Design a two-column comparison table with paired rows for a presentation slide.",
+        "deck_title": deck_title,
+        "topic": topic,
+        "context": (input_text or ""),
+        "existing_points": list(bullets or []),
+        "output_format": {
+            "type": "object",
+            "properties": {
+                "left_heading": {"type": "string"},
+                "right_heading": {"type": "string"},
+                "left_points": {"type": "array", "items": {"type": "string"}},
+                "right_points": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["left_heading", "right_heading", "left_points", "right_points"],
+        },
+        "rules": [
+            "Return ONLY a JSON object matching output_format. No prose, no markdown.",
+            "Each row's left and right entries must be logically related (e.g., challenge vs corresponding impact, dimension A vs dimension B).",
+            "4–6 rows total is ideal.",
+            "Do not use placeholder text like 'Point 1' or generic labels.",
+        ],
+    }
+    try:
+        resp = client.chat.completions.create(
+            model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You output ONLY a compact JSON object; no extra text."},
+                {"role": "user", "content": _json_dump(payload)},
+            ],
+            temperature=0.2,
+            max_tokens=MAX_TOKENS_EXPORT_COMPARISON,
+        )
+        _log_llm_call(resp=resp, model=settings.CHATGPT_MODEL or "gpt-3.5-turbo", route="derive_topic_comparison_table", deck_id=deck_id, export_id=deck_id, user_id=user_id)
+        import json
+        raw = (resp.choices[0].message.content or "").strip()
+        obj = json.loads(raw)
+        if not isinstance(obj, dict):
+            return None
+        left_h = str(obj.get("left_heading") or "").strip()
+        right_h = str(obj.get("right_heading") or "").strip()
+        left_pts_raw = obj.get("left_points") or []
+        right_pts_raw = obj.get("right_points") or []
+        if not isinstance(left_pts_raw, list) or not isinstance(right_pts_raw, list):
+            return None
+        left_points: List[str] = []
+        right_points: List[str] = []
+        for x in left_pts_raw:
+            s = str(x or "").strip()
+            if s:
+                left_points.append(s)
+            if len(left_points) >= 6:
+                break
+        for x in right_pts_raw:
+            s = str(x or "").strip()
+            if s:
+                right_points.append(s)
+            if len(right_points) >= 6:
+                break
+        if not left_h or not right_h or not left_points or not right_points:
+            return None
+        return {
+            "left_heading": left_h,
+            "right_heading": right_h,
+            "left_points": left_points,
+            "right_points": right_points,
+        }
+    except Exception:
+        return None
 
 
 def _quality_issues(slides: List[Dict[str, Any]]) -> Tuple[List[str], List[str]]:

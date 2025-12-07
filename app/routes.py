@@ -24,7 +24,7 @@ from flask import (
 )
 from flask_login import login_user, logout_user, current_user, login_required
 
-from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI
+from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI, derive_topic_comparison_table, ENABLE_EXPORT_COMPARISON_AI
 # Preview PNG generation is removed; only PPTX export remains
 from app.services.pptx_builder import build_pptx_from_positions, build_pptx_from_slides
 from app import db
@@ -771,27 +771,34 @@ def export_presentation() -> Any:
         return h1, h2
 
     def topic_comparison_headers(topic: str, deck_title: str) -> tuple[str, str]:
-        text = f"{deck_title} {topic}".lower()
-        if any(k in text for k in ["drug", "substance", "opioid", "addiction"]):
+        t = (topic or "").lower()
+        dt = (deck_title or "").lower()
+        if any(k in t for k in ["drug", "substance", "opioid", "addiction"]):
             return "Risk Factors", "Protective Factors"
-        if any(k in text for k in ["health", "disease", "care", "clinic", "hospital"]):
+        if any(k in t for k in ["health", "disease", "care", "clinic", "hospital"]):
             return "Symptoms", "Interventions"
-        if any(k in text for k in ["education", "learning", "school", "students", "curriculum"]):
+        if any(k in t for k in ["education", "learning", "school", "students", "curriculum"]):
             return "Traditional Methods", "Modern Strategies"
-        if any(k in text for k in ["skill", "skills", "competency", "competencies", "training"]):
+        if any(k in t for k in ["skill", "skills", "competency", "competencies", "training"]):
             return "Skill Areas", "Outcomes"
-        if any(k in text for k in ["market", "finance", "economy", "pricing", "growth"]):
+        if any(k in t for k in ["trend", "trends", "future", "emerging"]):
+            return "Key Trends", "Opportunities"
+        if any(k in t for k in ["market", "finance", "economy", "pricing", "growth"]):
             return "Challenges", "Opportunities"
-        if any(k in text for k in ["policy", "regulation", "compliance", "governance"]):
+        if any(k in t for k in ["policy", "regulation", "compliance", "governance"]):
             return "Current State", "Proposed Reforms"
-        if any(k in text for k in ["covid", "pandemic", "crisis"]):
+        if any(k in t for k in ["covid", "pandemic", "crisis"]):
             return "Pre-Crisis", "Post-Crisis"
-        if any(k in text for k in ["impact", "effects", "outcomes", "results"]):
+        if any(k in t for k in ["challenge", "challenges", "barrier", "barriers", "risk", "risks"]):
+            return "Barriers", "Concerns"
+        if any(k in t for k in ["impact", "impacts", "effects", "outcomes", "results"]):
             return "Drivers", "Impacts"
-        if any(k in text for k in ["applications", "use cases", "use-cases", "usecase", "adoption"]):
+        if any(k in t for k in ["applications", "use cases", "use-cases", "usecase", "adoption"]):
             return "Use Cases", "Benefits"
-        if any(k in text for k in ["strategy", "roadmap", "plan"]):
+        if any(k in t for k in ["strategy", "roadmap", "plan"]):
             return "Current State", "Future Direction"
+        if any(k in dt for k in ["market", "finance", "economy", "pricing", "growth"]):
+            return "Challenges", "Opportunities"
         return "Key Factors", "Outcomes"
 
     def sanitize_steps(steps):
@@ -908,6 +915,28 @@ def export_presentation() -> Any:
                     "_render_exact": True,
                 })
             elif pat in {2, 3}:  # Table (comparison)
+                # Prefer an AI-structured comparison table when enabled
+                table_spec = None
+                if ENABLE_EXPORT_COMPARISON_AI:
+                    table_spec = derive_topic_comparison_table(deck_title=deck_title, topic=topic, input_text=input_text, bullets=pts) or None
+                if table_spec:
+                    left_pts = clean_list(table_spec.get("left_points") or [])[:6]
+                    right_pts = clean_list(table_spec.get("right_points") or [])[:6]
+                    while len(left_pts) < 3:
+                        left_pts.append("(to be refined)")
+                    while len(right_pts) < 3:
+                        right_pts.append("(to be refined)")
+                    lh = (table_spec.get("left_heading") or "").strip()
+                    rh = (table_spec.get("right_heading") or "").strip()
+                    if not lh or not rh:
+                        lh, rh = topic_comparison_headers(topic, deck_title)
+                    topic_slides.append({
+                        "type": "comparison",
+                        "title": topic,
+                        "content": {"table": {"left": {"heading": lh, "points": left_pts}, "right": {"heading": rh, "points": right_pts}}},
+                        "_render_exact": True,
+                    })
+                    continue
                 # Ensure at least 3 per column
                 pool = list(pts)
                 mid = max(1, len(pool)//2)
