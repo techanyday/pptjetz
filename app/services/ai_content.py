@@ -14,11 +14,13 @@ MAX_TOKENS_HARMONIZE = int(os.getenv("MAX_TOKENS_HARMONIZE", "600"))
 MAX_TOKENS_TOPIC_BULLETS = int(os.getenv("MAX_TOKENS_TOPIC_BULLETS", "180"))
 MAX_TOKENS_TABLE_HEADERS = int(os.getenv("MAX_TOKENS_TABLE_HEADERS", "96"))
 MAX_TOKENS_EXPORT_COMPARISON = int(os.getenv("MAX_TOKENS_EXPORT_COMPARISON", "220"))
+MAX_TOKENS_ONE_IDEA_INTRO = int(os.getenv("MAX_TOKENS_ONE_IDEA_INTRO", "96"))
 MAX_TOKENS_RETRY = int(os.getenv("MAX_TOKENS_RETRY", "900"))
 ENABLE_TABLE_HEADER_AI = os.getenv("ENABLE_TABLE_HEADER_AI", "0") == "1"
 ENABLE_LLM_RETRY = os.getenv("ENABLE_LLM_RETRY", "0") == "1"
 ENABLE_EXPORT_BULLETS_AI = os.getenv("ENABLE_EXPORT_BULLETS_AI", "0") == "1"
 ENABLE_EXPORT_COMPARISON_AI = os.getenv("ENABLE_EXPORT_COMPARISON_AI", "0") == "1"
+ENABLE_EXPORT_ONE_IDEA_AI = os.getenv("ENABLE_EXPORT_ONE_IDEA_AI", "1") == "1"
 ENABLE_LLM_HARMONIZE = os.getenv("ENABLE_LLM_HARMONIZE", "1") == "1"
 
 
@@ -698,6 +700,85 @@ def derive_topic_comparison_table(*, deck_title: str, topic: str, input_text: st
             "left_points": left_points,
             "right_points": right_points,
         }
+    except Exception:
+        return None
+
+
+def derive_one_idea_intro(
+    *,
+    deck_title: str,
+    agenda_topics: List[str] | None = None,
+    input_text: str | None = None,
+    deck_id: str | None = None,
+    user_id: str | None = None,
+) -> Dict[str, str] | None:
+    try:
+        from openai import OpenAI  # type: ignore
+    except Exception:
+        return None
+
+    api_key = settings.CHATGPT_API_TOKEN or settings.OPENAI_API_KEY
+    if not api_key:
+        return None
+
+    client = OpenAI(api_key=api_key)
+    payload = {
+        "task": "Write a one-idea introductory slide from a deck title.",
+        "deck_title": (deck_title or "").strip(),
+        "agenda_topics": list(agenda_topics or []),
+        "context": (input_text or "").strip(),
+        "rules": [
+            "Return ONLY a JSON object with keys 'headline' and 'explainer'.",
+            "Headline: a single clear statement of the core idea; at most 16 words.",
+            "Explainer: 1–2 sentences in simple language, at most 45 words total.",
+            "Do not mention the slide, deck, presentation, or bullets.",
+            "Describe the topic itself and its impact, not what the slide will cover.",
+            "No lists, numbering, or emojis.",
+        ],
+    }
+    try:
+        resp = client.chat.completions.create(
+            model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You output ONLY a compact JSON object with keys 'headline' and 'explainer'; no prose or markdown.",
+                },
+                {"role": "user", "content": _json_dump(payload)},
+            ],
+            temperature=0.25,
+            max_tokens=MAX_TOKENS_ONE_IDEA_INTRO,
+        )
+        _log_llm_call(
+            resp=resp,
+            model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
+            route="derive_one_idea_intro",
+            deck_id=deck_id,
+            export_id=deck_id,
+            user_id=user_id,
+        )
+        import json
+        import re
+
+        raw = (resp.choices[0].message.content or "").strip()
+        obj = json.loads(raw)
+        if not isinstance(obj, dict):
+            return None
+        headline = str(obj.get("headline") or "").strip()
+        explainer = str(obj.get("explainer") or "").strip()
+        if not headline and not explainer:
+            return None
+        if explainer:
+            parts = re.split(r"(?<=[.!?])\s+", explainer.strip())
+            parts = [p for p in parts if p]
+            explainer = " ".join(parts[:2]).strip()
+            if len(explainer) > 260:
+                e_trim = explainer[:260]
+                explainer = (e_trim.rsplit(" ", 1)[0] or e_trim).rstrip(",.;:- ") + "…"
+        if headline and len(headline) > 140:
+            h_trim = headline[:140]
+            headline = (h_trim.rsplit(" ", 1)[0] or h_trim).rstrip(",.;:- ")
+        return {"headline": headline, "explainer": explainer}
     except Exception:
         return None
 

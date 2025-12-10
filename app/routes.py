@@ -24,7 +24,7 @@ from flask import (
 )
 from flask_login import login_user, logout_user, current_user, login_required
 
-from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI, derive_topic_comparison_table, ENABLE_EXPORT_COMPARISON_AI
+from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI, derive_topic_comparison_table, ENABLE_EXPORT_COMPARISON_AI, derive_one_idea_intro, ENABLE_EXPORT_ONE_IDEA_AI
 # Preview PNG generation is removed; only PPTX export remains
 from app.services.pptx_builder import build_pptx_from_positions, build_pptx_from_slides
 from app import db
@@ -861,6 +861,77 @@ def export_presentation() -> Any:
             agenda_topics = clean_list(agenda_topics)[:32]
         agenda_slide = {"type": "agenda", "content": {"bullets": agenda_topics[:32]}, "_render_exact": True}
 
+        # 2b) One-Idea intro slide immediately after Agenda
+        def _build_one_idea_slide() -> Dict[str, Any]:
+            # Headline: prefer the overall deck title; fall back to first agenda topic
+            headline_src = (deck_title or "").strip() or (agenda_topics[0] if agenda_topics else "Overview")
+            headline = str(headline_src).strip()
+            # Soft character cap to keep it readable on one or two lines
+            if len(headline) > 140:
+                h_trim = headline[:140]
+                headline = (h_trim.rsplit(" ", 1)[0] or h_trim).rstrip(",.;:- ")
+
+            # Explainer: natural, topic-level sentence in simple language
+            # Prefer a short subject phrase rather than repeating the full title
+            base_title = (deck_title or "").strip()
+            first_topic = (agenda_topics[0].strip() if agenda_topics else "")
+            src = base_title or first_topic or "This topic"
+
+            expl = ""
+
+            if ENABLE_EXPORT_ONE_IDEA_AI:
+                ai_spec: Dict[str, Any] | None = None
+                try:
+                    ai_spec = derive_one_idea_intro(
+                        deck_title=deck_title,
+                        agenda_topics=agenda_topics,
+                        input_text=input_text or "",
+                        deck_id=deck_id,
+                        user_id=(current_user.id if getattr(current_user, "is_authenticated", False) else None),
+                    ) or None
+                except Exception:
+                    ai_spec = None
+                if isinstance(ai_spec, dict):
+                    ai_headline = str(ai_spec.get("headline") or "").strip()
+                    ai_expl = str(ai_spec.get("explainer") or "").strip()
+                    if ai_headline:
+                        headline = ai_headline
+                    if ai_expl:
+                        expl = ai_expl
+
+            if not expl:
+                # Pattern: "The Impact of X on Y" -> "X is changing how Y ..."
+                m = re.search(r"The Impact of (.+?) on (.+)", src, flags=re.IGNORECASE)
+                if m:
+                    tech = m.group(1).strip()
+                    area = m.group(2).strip()
+                    if "startup" in area.lower():
+                        expl = f"{tech} is changing how startups build, launch, and grow products, from first ideas through scale-up."
+                    else:
+                        expl = f"{tech} is changing how {area.lower()} works and opening new ways to create value."
+                elif agenda_topics:
+                    # Use the first agenda item as a simple anchor
+                    simple_topic = agenda_topics[0].strip()
+                    expl = f"{simple_topic} focuses on what the idea is, why it matters, and how it changes everyday work."
+                else:
+                    # Generic fallback when we only know the deck title
+                    subj = base_title or "this topic"
+                    expl = f"{subj} is about the core idea, why it matters, and the difference it can make in practice."
+
+            # Keep explainer reasonably tight
+            if len(expl) > 230:
+                e_trim = expl[:230]
+                expl = (e_trim.rsplit(" ", 1)[0] or e_trim).rstrip(",.;:- ") + "…"
+
+            return {
+                "type": "one_idea",
+                "title": headline,
+                "content": {"headline": headline, "explainer": expl},
+                "_render_exact": True,
+            }
+
+        one_idea_slide = _build_one_idea_slide()
+
         # 3) For each topic, pick bullets from existing slides or derive via AI
         def topic_bullets(topic: str) -> List[str]:
             # Search any slide with matching title for bullets/cards/table points
@@ -995,8 +1066,8 @@ def export_presentation() -> Any:
         s7 = _find_first("thank_you", "cta") or {}
         thanks_slide = {"type": "thank_you", "title": "Thank You", "cta": (s7.get("cta") or data.get("cta") or ""), "_render_exact": True}
 
-        # Build final slides list
-        slides_out: List[Dict[str, Any]] = [title_slide, agenda_slide] + topic_slides + [thanks_slide]
+        # Build final slides list: Title → Agenda → One-Idea Intro → Topic slides → Thank You
+        slides_out: List[Dict[str, Any]] = [title_slide, agenda_slide, one_idea_slide] + topic_slides + [thanks_slide]
 
         # Build PPTX locally
         import uuid

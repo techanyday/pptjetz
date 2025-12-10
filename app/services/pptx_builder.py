@@ -1689,6 +1689,54 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         # Single-slide agenda per topic; extra items are ignored instead of paginated
         _render_agenda_zebra_autofit(prs, s, c.get("bullets", [])[:32], pal=pal, title="Agenda", is_cont=False)
 
+    def render_one_idea(sl):
+        """Render a simple one-idea intro slide: bold headline + short paragraph.
+
+        This slide is theme-aware via background and typography colors, and is
+        intentionally minimal: no bullets, icons, or extra structure.
+        """
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        c = _content(sl)
+        headline = (c.get("headline") or sl.get("title") or "Overview").strip()
+        explainer = (c.get("explainer") or c.get("paragraph") or "").strip()
+        if not explainer:
+            topic_txt = (slides_norm[0].get("title") or "this topic").strip()
+            explainer = f"An accessible summary of what {topic_txt} is, why it matters, and the core ideas to know."
+
+        # Headline: large, bold, centered; color follows theme title rules
+        dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
+        headline_color = (255, 255, 255) if dark_bg else pal.get("primary", (59, 130, 246))
+        _add_textbox(
+            s,
+            1.0,
+            1.4,
+            11.3,
+            1.4,
+            headline,
+            font_size_pt=40,
+            bold=True,
+            align="center",
+            color=headline_color,
+            word_wrap=True,
+            auto_fit=True,
+        )
+
+        # Explainer paragraph: smaller, muted text below headline
+        expl_color = pal.get("muted", pal.get("text", (55, 65, 81)))
+        _add_textbox(
+            s,
+            2.0,
+            3.0,
+            9.3,
+            1.6,
+            explainer,
+            font_size_pt=22,
+            align="center",
+            color=expl_color,
+            word_wrap=True,
+            auto_fit=True,
+        )
+
     # --- Timeline helpers (conditional insertion after Agenda) ---
     def _is_timeline_irrelevant(topic: str, agenda_items: List[str]) -> bool:
         """Return True only when a timeline would add no value at all.
@@ -2926,6 +2974,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     render_timeline_roadmap(title_txt, pts, topic_title)
                 else:
                     render_timeline_vertical(title_txt, pts, topic_title)
+        elif t == "one_idea":
+            render_one_idea(sl)
         elif t in {"double_column", "deep_dive"}:
             render_double(sl)
         elif t in {"comparison", "table"}:
