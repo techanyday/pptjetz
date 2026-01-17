@@ -18,7 +18,7 @@ MAX_TOKENS_ONE_IDEA_INTRO = int(os.getenv("MAX_TOKENS_ONE_IDEA_INTRO", "96"))
 MAX_TOKENS_RETRY = int(os.getenv("MAX_TOKENS_RETRY", "900"))
 ENABLE_TABLE_HEADER_AI = os.getenv("ENABLE_TABLE_HEADER_AI", "0") == "1"
 ENABLE_LLM_RETRY = os.getenv("ENABLE_LLM_RETRY", "0") == "1"
-ENABLE_EXPORT_BULLETS_AI = os.getenv("ENABLE_EXPORT_BULLETS_AI", "0") == "1"
+ENABLE_EXPORT_BULLETS_AI = os.getenv("ENABLE_EXPORT_BULLETS_AI", "1") == "1"
 ENABLE_EXPORT_COMPARISON_AI = os.getenv("ENABLE_EXPORT_COMPARISON_AI", "0") == "1"
 ENABLE_EXPORT_ONE_IDEA_AI = os.getenv("ENABLE_EXPORT_ONE_IDEA_AI", "1") == "1"
 ENABLE_LLM_HARMONIZE = os.getenv("ENABLE_LLM_HARMONIZE", "1") == "1"
@@ -583,9 +583,14 @@ def derive_topic_bullets(*, deck_title: str, topic: str, input_text: str | None 
         "context": (input_text or ""),
         "rules": [
             "Return ONLY a JSON array of strings. No prose, no markdown.",
-            "Each bullet should be 5–14 words, informative, and topic-specific.",
+            "Each bullet must have two parts: a short headline and a short explainer, separated by an em dash (—) or a colon (:).",
+            "Example format: 'AI automates repetitive tasks — improves operational efficiency for teams.'",
+            "Headline (before the dash/colon) should be 3–8 words and stand alone as the main idea.",
+            "Explainer (after the dash/colon) should be 1 short sentence (or clause) expanding that idea in simple language.",
+            "Total length per bullet (headline + explainer) should stay roughly within 8–22 words.",
             "Avoid template phrases and placeholders (e.g., 'Definition and scope', 'Point 1').",
             "Avoid repeating the topic title text verbatim.",
+            "Do NOT mention slides, decks, or bullet points; describe the idea itself.",
             "No numbering or trailing punctuation-only entries.",
         ],
         "max_items": int(max(3, min(6, n))),

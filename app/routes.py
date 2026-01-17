@@ -723,6 +723,9 @@ def export_presentation() -> Any:
     theme_name = (data.get("theme_name") or "SLEEK").strip()
     input_text = (data.get("input_text") or "").strip() or None
     deck_id = (data.get("deck_id") or "").strip() or None
+    # Optional, internal-only mode used to showcase all infographic types deterministically.
+    # Default is normal behaviour (no special showcase handling).
+    mode = (data.get("mode") or "").strip().lower()
 
     # If client only sends deck_id, load persisted deck (memory or disk)
     if (not slides) and deck_id:
@@ -801,6 +804,113 @@ def export_presentation() -> Any:
             return "Challenges", "Opportunities"
         return "Key Factors", "Outcomes"
 
+    # --- Semantic eligibility for infographic intents (deterministic, keyword-based) ---
+
+    def _topic_blob(topic: str, bullets: list[str]) -> str:
+        parts = [str(topic or "").lower()]
+        parts.extend(str(b or "").lower() for b in (bullets or []))
+        return " ".join(parts)
+
+    def _eligible_impact(blob: str) -> bool:
+        if not blob:
+            return False
+        actors = [
+            "stakeholder", "stakeholders", "user", "users", "end user", "end-user",
+            "customer", "customers", "client", "clients", "audience", "audiences",
+            "persona", "personas", "beneficiary", "beneficiaries", "team", "teams",
+        ]
+        outcomes = [
+            "impact", "impacts", "outcome", "outcomes", "result", "results",
+            "value", "roi", "return on investment", "kpi", "kpis", "metric", "metrics",
+            "benefit", "benefits", "success metric", "performance indicator",
+        ]
+        if any(k in blob for k in actors) and any(k in blob for k in outcomes):
+            return True
+        if any(phrase in blob for phrase in ["who is affected", "who benefits", "who we serve", "where value is created"]):
+            return True
+        return False
+
+    def _eligible_process(blob: str, bullets: list[str]) -> bool:
+        if len(bullets or []) < 3:
+            return False
+        keys = [
+            "step ", "steps", "phase", "phases", "roadmap", "timeline", "milestone", "milestones",
+            "implementation", "rollout", "roll-out", "sequence", "lifecycle", "life cycle",
+            "journey", "workflow", "process", "pipeline", "from \"", "then ", "after that",
+        ]
+        return any(k in blob for k in keys)
+
+    def _eligible_risk(blob: str) -> bool:
+        if not blob:
+            return False
+        risk_words = [
+            "risk", "risks", "risk management", "mitigate", "mitigation", "threat", "threats",
+            "vulnerability", "vulnerabilities", "exposure", "downtime", "incident", "failure",
+        ]
+        challenge_words = ["challenge", "challenges", "issue", "issues", "trade-off", "tradeoffs", "trade offs"]
+        governance_words = ["governance", "compliance", "regulation", "regulations", "policy", "policies"]
+        if any(k in blob for k in risk_words):
+            return True
+        if any(k in blob for k in governance_words) and any(k in blob for k in ["uncertain", "uncertainty", "complex"]):
+            return True
+        if any(k in blob for k in challenge_words) and "risk" in blob:
+            return True
+        return False
+
+    def _eligible_cycle(blob: str) -> bool:
+        if not blob:
+            return False
+        keys = [
+            "optimize", "optimization", "optimisation", "iterate", "iteration", "iterative",
+            "continuous improvement", "continuous-improvement", "feedback loop", "feedback loops",
+            "feedback", "monitor", "monitoring", "refine", "refinement", "improve", "improving",
+            "loop", "loops", "cycle", "cycles", "learn", "learning", "measure and improve",
+        ]
+        return any(k in blob for k in keys)
+
+    def _eligible_benefits(blob: str) -> bool:
+        if not blob:
+            return False
+        benefit_words = [
+            "benefit", "benefits", "advantage", "advantages", "value", "values", "value proposition",
+            "gain", "gains", "positive impact", "outcomes", "results",
+        ]
+        layering_words = [
+            "foundational", "foundation", "baseline", "core", "advanced", "maturity", "mature",
+            "tier", "tiers", "level 1", "level 2", "level 3", "phase 1", "phase 2", "phase 3",
+            "scale", "scaling", "scaled", "stack", "layer", "layers",
+        ]
+        if any(k in blob for k in benefit_words) and any(k in blob for k in layering_words):
+            return True
+        return False
+
+    # Priority: prefer higher-value infographic intents when multiple are eligible
+    _INTENT_PRIORITY: dict[str, int] = {
+        "IMPACT": 0,
+        "PROCESS": 1,
+        "OPTIMIZATION": 2,
+        "RISK": 3,
+        "BENEFITS": 4,
+    }
+
+    def _primary_infographic_intent(topic: str, bullets: list[str]) -> str | None:
+        blob = _topic_blob(topic, bullets)
+        intents: list[str] = []
+        if _eligible_impact(blob):
+            intents.append("IMPACT")
+        if _eligible_process(blob, bullets):
+            intents.append("PROCESS")
+        if _eligible_cycle(blob):
+            intents.append("OPTIMIZATION")
+        if _eligible_risk(blob):
+            intents.append("RISK")
+        if _eligible_benefits(blob):
+            intents.append("BENEFITS")
+        if not intents:
+            return None
+        intents.sort(key=lambda k: _INTENT_PRIORITY.get(k, 99))
+        return intents[0]
+
     def sanitize_steps(steps):
         steps = [d.get("label") if isinstance(d, dict) else str(d) for d in (steps or [])]
         steps = [re.sub(r"(?i)^step\s*\d+\s*$", "", (s or "").strip()) for s in steps]
@@ -832,6 +942,160 @@ def export_presentation() -> Any:
     def _content(sl: Dict[str, Any]) -> Dict[str, Any]:
         return (sl.get("content") or {}) if isinstance(sl.get("content"), dict) else {}
 
+    # Internal, non-user-visible classification of the deck's primary intent.
+    # Used only to bias layout selection; never written into slide data.
+    CATEGORY_PATTERNS: Dict[str, List[str]] = {
+        # Project / Planning – emphasize process/timeline + action bullets
+        "project_planning": [
+            "cards",          # process / steps
+            "double_column",  # action-oriented bullets
+            "cards",
+            "double_column",
+            "cards",
+            "double_column",
+            "comparison",     # occasional structured comparison
+        ],
+        # Marketing / Growth – big visuals, funnels, icon+explainer, light on grids
+        "marketing_growth": [
+            "infographic",
+            "double_column",
+            "infographic",
+            "cards",          # funnel / flow
+            "double_column",
+            "infographic",
+            "comparison",     # limited structured contrast slide
+        ],
+        # Educational / Training – concept→explanation bullets + simple diagrams/steps
+        "educational_training": [
+            "double_column",
+            "infographic",
+            "double_column",
+            "cards",
+            "double_column",
+            "infographic",
+            "cards",
+        ],
+        # Business / Strategy – comparisons and structured insights; minimal playful layouts
+        "business_strategy": [
+            "comparison",
+            "double_column",
+            "comparison",
+            "infographic",
+            "comparison",
+            "double_column",
+            "comparison",
+        ],
+        # Technical / Product – flows, sequences, feature breakdowns with structured bullets
+        "technical_product": [
+            "cards",
+            "double_column",
+            "comparison",
+            "cards",
+            "double_column",
+            "cards",
+            "comparison",
+        ],
+        # Executive / Reporting – summary-first tables and minimal bullets; avoid processes
+        "executive_reporting": [
+            "comparison",
+            "infographic",
+            "comparison",
+            "comparison",
+            "infographic",
+            "comparison",
+            "comparison",
+        ],
+        # General / Mixed – neutral blend of bullets + simple infographics
+        "general_mixed": [
+            "double_column",
+            "infographic",
+            "double_column",
+            "infographic",
+            "comparison",
+            "double_column",
+            "infographic",
+        ],
+    }
+
+    def _classify_deck_category(deck_title: str, input_text: str | None, agenda_topics: List[str]) -> str:
+        """Return a single dominant category string for the deck.
+
+        Classification is lightweight and deterministic, based only on keywords
+        in the deck title / input text / agenda topics. The returned key is an
+        internal hint for layout selection; it is never surfaced to users or
+        written into slide structures.
+        """
+        parts: List[str] = []
+        if deck_title:
+            parts.append(str(deck_title))
+        if input_text:
+            parts.append(str(input_text))
+        parts.extend([str(x) for x in (agenda_topics or [])])
+        blob = " ".join(parts).lower()
+
+        # Executive / Reporting: KPIs, quarterly updates, formal reports
+        if any(k in blob for k in [
+            "kpi", "key performance indicator", "quarter", "q1", "q2", "q3", "q4",
+            "board", "executive", "leadership", "status update", "monthly report",
+            "weekly report", "okr", "objective and key result", "forecast",
+            "revenue", "profit", "loss", "p&l", "kpis", "metrics dashboard",
+        ]):
+            return "executive_reporting"
+
+        # Project / Planning: plans, roadmaps, milestones, implementations
+        if any(k in blob for k in [
+            "project plan", "implementation plan", "rollout plan", "roadmap",
+            "milestone", "milestones", "sprint", "backlog", "timeline",
+            "deployment plan", "execution plan", "project charter", "workstream",
+            "gantt", "deliverable", "implementation timeline",
+        ]):
+            return "project_planning"
+
+        # Marketing / Growth: campaigns, funnels, go-to-market, acquisition
+        if any(k in blob for k in [
+            "campaign", "marketing", "growth", "acquisition", "lead gen",
+            "lead generation", "brand", "branding", "awareness", "funnel",
+            "go-to-market", "gotomarket", "g2m", "promotion", "ad copy",
+            "advertising", "paid search", "social media", "seo", "content marketing",
+        ]):
+            return "marketing_growth"
+
+        # Educational / Training: lessons, curriculum, workshops, learning outcomes
+        if any(k in blob for k in [
+            "training", "course", "lesson", "curriculum", "module", "syllabus",
+            "workshop", "classroom", "students", "learning objective",
+            "learning outcome", "education", "tutorial", "onboarding training",
+        ]):
+            return "educational_training"
+
+        # Technical / Product: architecture, APIs, engineering-focused language
+        if any(k in blob for k in [
+            "architecture", "system design", "api", "endpoint", "database",
+            "schema", "microservice", "micro-service", "infra", "infrastructure",
+            "deployment", "pipeline", "devops", "kubernetes", "docker",
+            "latency", "scalability", "throughput", "backend", "front-end",
+            "frontend", "sdk", "integration", "algorithm", "ml", "machine learning",
+            "model", "feature flag", "release notes", "product spec", "technical",
+        ]):
+            return "technical_product"
+
+        # Business / Strategy: positioning, SWOT, business model, vision, strategy
+        if any(k in blob for k in [
+            "strategy", "strategic", "business model", "swot", "positioning",
+            "governance", "operating model", "vision", "mission", "competitive",
+            "market analysis", "value proposition", "okrs", "objectives and key results",
+        ]):
+            return "business_strategy"
+
+        return "general_mixed"
+
+    def _topic_layout_for_index(idx: int, category: str) -> str:
+        pattern = CATEGORY_PATTERNS.get(category) or CATEGORY_PATTERNS["general_mixed"]
+        if not pattern:
+            pattern = CATEGORY_PATTERNS["general_mixed"]
+        pos = max(0, idx - 1) % len(pattern)
+        return pattern[pos]
+
     # Build slides strictly from agenda topics with pattern mapping
     try:
         # 1) Title
@@ -860,6 +1124,9 @@ def export_presentation() -> Any:
                     agenda_topics.append(ttl)
             agenda_topics = clean_list(agenda_topics)[:32]
         agenda_slide = {"type": "agenda", "content": {"bullets": agenda_topics[:32]}, "_render_exact": True}
+
+        # Classify deck intent once for deterministic, intent-driven layout selection.
+        deck_category = _classify_deck_category(deck_title, input_text or "", agenda_topics)
 
         # 2b) One-Idea intro slide immediately after Agenda
         def _build_one_idea_slide() -> Dict[str, Any]:
@@ -949,22 +1216,92 @@ def export_presentation() -> Any:
                         right_pts = [str(x) for x in (table.get("right", {}).get("points") or [])]
                         pts = left_pts + right_pts
                     pts = clean_list(pts)
-                    if pts:
+                    if pts and not ENABLE_EXPORT_BULLETS_AI:
                         return pts
-            # Derive via ChatGPT if nothing found (optional, behind feature flag)
+            # Derive via ChatGPT when enabled (preferred) and fall back to any existing points
             if ENABLE_EXPORT_BULLETS_AI:
-                return derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=5) or []
-            return []
+                ai_pts = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=5) or []
+                ai_pts = clean_list(ai_pts)
+                if ai_pts:
+                    return ai_pts
+            return pts if 'pts' in locals() else []
 
-        topic_slides: List[Dict[str, Any]] = []
+        # First pass: collect topic specs with base layout and semantic infographic intent
+        topic_specs: List[Dict[str, Any]] = []
         for idx, topic in enumerate(agenda_topics, start=1):
             pts = topic_bullets(topic)
-            pat = (idx - 1) % 7
-            if pat in {0, 1}:  # Double Column
+            layout = _topic_layout_for_index(idx, deck_category)
+            intent = _primary_infographic_intent(topic, pts)
+            topic_specs.append({
+                "idx": idx,
+                "topic": topic,
+                "pts": pts,
+                "base_layout": layout,
+                "intent": intent,
+            })
+
+        # Decide which topics will actually render as infographic slides.
+        # Infographics are eligible, not mandatory: only use them when a semantic
+        # intent is present, and fall back to simpler layouts otherwise.
+        showcase_mode = mode == "showcase"
+        eligible_specs = [s for s in topic_specs if s.get("intent")]
+
+        for spec in topic_specs:
+            spec["final_layout"] = spec["base_layout"]
+            spec["use_infographic"] = False
+
+        if showcase_mode:
+            # In showcase mode, upgrade all semantically-eligible topics to
+            # infographics, regardless of the base category pattern.
+            for spec in topic_specs:
+                if spec.get("intent"):
+                    spec["use_infographic"] = True
+                    spec["final_layout"] = "infographic"
+        else:
+            # Normal mode: start from the category pattern, but only honour
+            # 'infographic' slots when the topic is semantically eligible.
+            for spec in topic_specs:
+                if spec["base_layout"] == "infographic" and spec.get("intent"):
+                    spec["use_infographic"] = True
+                    spec["final_layout"] = "infographic"
+
+            # Demote non-eligible 'infographic' slots to simpler layouts.
+            for spec in topic_specs:
+                if spec["base_layout"] == "infographic" and not spec.get("intent"):
+                    pts = spec.get("pts") or []
+                    # Prefer two-column bullets when there is enough content;
+                    # otherwise use cards. This keeps behaviour deterministic.
+                    spec["final_layout"] = "double_column" if len(pts) >= 4 else "cards"
+
+            total_eligible = len(eligible_specs)
+            current_infographics = sum(1 for s in topic_specs if s["use_infographic"])
+
+            # Minimum visual richness guardrail: when there are at least two
+            # semantically-eligible topics, ensure that at least two render as
+            # infographics (never by adding new topics or bullets).
+            if total_eligible >= 2 and current_infographics < 2:
+                need = 2 - current_infographics
+                candidates = [s for s in topic_specs if s.get("intent") and not s["use_infographic"]]
+                candidates.sort(key=lambda s: (_INTENT_PRIORITY.get(str(s.get("intent")), 99), s["idx"]))
+                for spec in candidates[:need]:
+                    spec["use_infographic"] = True
+                    spec["final_layout"] = "infographic"
+
+        # Second pass: build topic slides from the resolved layouts.
+        topic_slides: List[Dict[str, Any]] = []
+        for spec in topic_specs:
+            topic = spec["topic"]
+            pts = spec["pts"]
+            layout = spec["final_layout"]
+            intent = spec["intent"] if spec["use_infographic"] else None
+
+            if layout == "double_column":  # Double Column
                 # Ensure at least 3 per column; derive extras if needed
                 pool = list(pts)
+
                 def split_lr(src):
                     return src[::2][:6], src[1::2][:6]
+
                 left, right = split_lr(pool)
                 guard = 0
                 while (len(left) < 3 or len(right) < 3) and guard < 1 and ENABLE_EXPORT_BULLETS_AI:
@@ -985,7 +1322,7 @@ def export_presentation() -> Any:
                     "content": {"left_points": left, "right_points": right},
                     "_render_exact": True,
                 })
-            elif pat in {2, 3}:  # Table (comparison)
+            elif layout == "comparison":  # Table (comparison)
                 # Prefer an AI-structured comparison table when enabled
                 table_spec = None
                 if ENABLE_EXPORT_COMPARISON_AI:
@@ -1010,7 +1347,7 @@ def export_presentation() -> Any:
                     continue
                 # Ensure at least 3 per column
                 pool = list(pts)
-                mid = max(1, len(pool)//2)
+                mid = max(1, len(pool) // 2)
                 left_pts = pool[:mid][:6]
                 right_pts = pool[mid:][:6]
                 guard = 0
@@ -1019,7 +1356,7 @@ def export_presentation() -> Any:
                     for m in clean_list(more):
                         if m not in pool:
                             pool.append(m)
-                    mid = max(1, len(pool)//2)
+                    mid = max(1, len(pool) // 2)
                     left_pts = pool[:mid][:6]
                     right_pts = pool[mid:][:6]
                     guard += 1
@@ -1034,7 +1371,7 @@ def export_presentation() -> Any:
                     "content": {"table": {"left": {"heading": left_head, "points": left_pts}, "right": {"heading": right_head, "points": right_pts}}},
                     "_render_exact": True,
                 })
-            elif pat in {4, 5}:  # Cards
+            elif layout == "cards":  # Cards / process steps
                 # Ensure at least 5 cards
                 cards = list(clean_list(pts))
                 guard = 0
@@ -1054,11 +1391,29 @@ def export_presentation() -> Any:
                     "content": {"cards": cards[:6]},
                     "_render_exact": True,
                 })
-            else:  # Infographic
+            else:  # Infographic / semantic visual summary
+                bullets = list(pts or [])[:5]
+                content: Dict[str, Any] = {"bullets": bullets}
+                if intent:
+                    # Map coarse intent to a specific infographic layout identifier
+                    if intent == "IMPACT":
+                        tag = "IMPACT_MAP_COMPLEX" if len(bullets) > 4 else "IMPACT_MAP_SIMPLE"
+                    elif intent == "PROCESS":
+                        tag = "PROCESS_FLOW_CHEVRON"
+                    elif intent == "RISK":
+                        tag = "RISK_MATRIX_ADVANCED"
+                    elif intent == "OPTIMIZATION":
+                        tag = "CYCLIC_OPTIMIZATION_LOOP"
+                    elif intent == "BENEFITS":
+                        tag = "LAYERED_BENEFITS_STACK"
+                    else:
+                        tag = "IMPACT_MAP_SIMPLE"
+                    content["infographic_intent"] = tag
+                    content["intent"] = tag
                 topic_slides.append({
                     "type": "infographic",
                     "title": topic,
-                    "content": {"bullets": pts[:5]},
+                    "content": content,
                     "_render_exact": True,
                 })
 

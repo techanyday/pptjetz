@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 import random
 import re
+import math
 from pptx import Presentation  # type: ignore
 from pptx.util import Inches, Pt
 from .content_synthesis import synthesize_key_concepts, is_placeholder, BANNED
 from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE  # type: ignore
-from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE as MsoShape  # type: ignore
+from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE as MsoShape, MSO_CONNECTOR_TYPE  # type: ignore
 from pptx.dml.color import RGBColor  # type: ignore
 from .slide6_takeaways_chevrons import render_takeaways_chevrons
 
@@ -168,16 +169,19 @@ def _split_head_tail(txt: str) -> Tuple[str, str]:
     if not t:
         return "", ""
     import re as _re
-    m = _re.search(r"[:;\u2013\u2014\-\.\,]", t)
+    # 1) Prefer explicit separators the AI is instructed to use
+    #    (em dash, en dash, colon, semicolon, or a standalone hyphen with spaces).
+    #    This avoids splitting on hyphens inside words such as "AI-powered".
+    m = _re.search(r"[:;\u2013\u2014]|(?<=\s)-(?!\s*$)(?=\s)", t)
     if m and m.start() > 0:
         head = t[:m.start()].strip()
         # drop the matched separator itself and trim remainder
         tail = t[m.start() + 1 :].lstrip()
-        # ignore meaningless tails that are too short or just punctuation
-        if not tail or len(tail.strip('.-–—,')) < 2:
-            tail = ""
-        return head, tail
-    # fallback: first 4 words bold
+        # ignore meaningless tails that are too short
+        if tail and len(tail.strip()) >= 3:
+            return head, tail
+
+    # 2) Fallback: first 4 words become the headline, remainder the explainer.
     parts = t.split()
     head = " ".join(parts[:4])
     tail = " ".join(parts[4:])
@@ -235,35 +239,50 @@ def _add_bullets(
         r0 = p.add_run()
         r0.text = "• "
 
-        # Main text runs
-        if bold_first_phrase:
-            head, tail = _split_head_tail(txt)
-            if head:
-                r1 = p.add_run()
-                r1.text = head + (" " if tail else "")
-            if tail:
-                r2 = p.add_run()
-                r2.text = tail
-        else:
-            r = p.add_run()
-            r.text = txt
+        # Split into headline + explainer
+        head, tail = _split_head_tail(txt)
+        headline = head or txt
+        explainer = tail
 
+        # Headline on first line (bold)
+        r1 = p.add_run()
+        r1.text = headline
+
+        # Configure paragraph spacing and font for headline
         p.level = 0
         try:
             p.space_before = Pt(space_before_pt)
-            p.space_after = Pt(space_after_pt)
+            p.space_after = Pt(2)  # tight gap before explainer
             p.line_spacing = line_spacing
         except Exception:
             pass
 
-        # Harmonise font sizes, bolding, and colors across all runs in
-        # this paragraph using the theme-provided `color`.
+        # Explainer as a separate paragraph immediately underneath
+        if explainer:
+            p2 = tf.add_paragraph()
+            p2.text = explainer
+            p2.level = 1
+            try:
+                p2.space_before = Pt(0)
+                p2.space_after = Pt(space_after_pt)
+                p2.line_spacing = line_spacing
+            except Exception:
+                pass
+
+        # Harmonise font sizes, bolding, and colors across runs/paragraphs
         for idx, run in enumerate(p.runs):
             run.font.size = Pt(font_size_pt)
-            if bold_first_phrase and idx == 1:
+            if idx >= 1:  # r1 is the headline
                 run.font.bold = True
             if color is not None:
                 run.font.color.rgb = RGBColor(*color)
+
+        if explainer:
+            for run in p2.runs:
+                run.font.size = Pt(max(12, font_size_pt - 4))
+                run.font.bold = False
+                if color is not None:
+                    run.font.color.rgb = RGBColor(*color)
 
     return box
 
@@ -2841,6 +2860,407 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         # Simple centered layout metrics for the comparison table; no pagination here
         # (the above body_rows limits rows to a reasonable amount per slide)
 
+    # --- Infographic layouts (topic-level, deterministic) ---
+
+    def _infographic_items(sl) -> tuple[str, List[str], Dict[str, Any]]:
+        c = _content(sl)
+        title = (sl.get("title") or "Overview").strip() or "Overview"
+        bullets = [str(x).strip() for x in (c.get("bullets") or []) if str(x).strip()]
+        return title, bullets, c
+
+    def _infer_infographic_intent(title: str, content: Dict[str, Any]) -> str:
+        # Explicit hint wins if present; normalise known tags into coarse intents
+        raw = str(content.get("infographic_intent") or content.get("intent") or "").strip().upper()
+        if raw:
+            if raw in {"IMPACT_MAP_COMPLEX", "IMPACT_MAP_SIMPLE", "IMPACT_MAP", "IMPACT"}:
+                return "IMPACT"
+            if raw in {"PROCESS_FLOW_CHEVRON", "PROCESS_CHEVRON", "PROCESS_FLOW", "PROCESS"}:
+                return "PROCESS"
+            if raw in {"RISK_MATRIX_ADVANCED", "RISK_MATRIX", "RISK"}:
+                return "RISK"
+            if raw in {"CYCLIC_OPTIMIZATION_LOOP", "OPTIMIZATION_LOOP", "CYCLE", "LOOP", "OPTIMIZATION"}:
+                return "OPTIMIZATION"
+            if raw in {"LAYERED_BENEFITS_STACK", "BENEFITS_STACK", "BENEFITS"}:
+                return "BENEFITS"
+            # Unknown explicit tag: treat as GENERAL but remain deterministic
+            return "GENERAL"
+        t = (title or "").lower()
+        txt = t + " " + " ".join(str(x).lower() for x in (content.get("bullets") or []))
+        if "risk" in txt or "risk assessment" in txt or "risk matrix" in txt:
+            return "RISK"
+        if any(k in txt for k in ["impact", "business impact", "effect on"]):
+            return "IMPACT"
+        if any(k in txt for k in ["roadmap", "implementation", "phases", "steps", "process"]):
+            return "PROCESS"
+        if any(k in txt for k in ["optimiz", "continuous", "iteration", "improvement"]):
+            return "OPTIMIZATION"
+        if any(k in txt for k in ["benefit", "value", "advantages", "gains"]):
+            return "BENEFITS"
+        return "GENERAL"
+
+    def _render_impact_map(simple: bool, sl) -> None:
+        title, bullets, content = _infographic_items(sl)
+        if not bullets:
+            bullets = _synthesize_topic_bullets(title)[:5]
+        n = max(3, min(5, len(bullets)))
+        items = bullets[:n]
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        # Soft background band behind the impact map area for visual structure
+        band_x, band_y, band_w, band_h = 0.9, 2.0, SLIDE_W_IN - 1.8, 3.8
+        band = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(band_x), Inches(band_y), Inches(band_w), Inches(band_h))
+        band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
+        band.line.fill.background()
+        try:
+            band.shadow.inherit = False; band.shadow.visible = True; band.shadow.blur = 18; band.shadow.distance = 3
+        except Exception:
+            pass
+
+        # Central node (hexagon-style impact core)
+        hex_w, hex_h = 3.4, 2.0
+        hex_x = (SLIDE_W_IN - hex_w) / 2.0
+        hex_y = 2.6
+        core = s.shapes.add_shape(MsoShape.HEXAGON, Inches(hex_x), Inches(hex_y), Inches(hex_w), Inches(hex_h))
+        core_rgb = pal.get("primary", (59, 130, 246))
+        core.fill.solid(); core.fill.fore_color.rgb = RGBColor(*core_rgb)
+        core.line.color.rgb = RGBColor(*_shade(core_rgb, -20))
+        try:
+            core.shadow.inherit = False; core.shadow.visible = True; core.shadow.blur = 14; core.shadow.distance = 3
+        except Exception:
+            pass
+        center_label = (content.get("center_label") or sl.get("center_label") or sl.get("title") or "Impact").strip()
+        tfc = core.text_frame; tfc.clear()
+        pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+        rc = pc.add_run(); rc.text = center_label or "Impact"
+        rc.font.size = Pt(20); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
+
+        # Positions for surrounding nodes: tuned for up to 5, fully inside the band
+        node_w, node_h = 3.1, 1.30
+        left_x = 1.1
+        right_x = SLIDE_W_IN - 1.1 - node_w
+        top_y = 2.4
+        mid_y = 3.8
+        bot_y = 4.9
+        positions = [
+            (left_x, mid_y),
+            (right_x, mid_y),
+            (left_x, top_y),
+            (right_x, top_y),
+            ((SLIDE_W_IN - node_w) / 2.0, bot_y),
+        ]
+
+        # Draw each surrounding node with icon + title + short text
+        nodes = []
+        for idx, raw in enumerate(items):
+            if idx >= len(positions):
+                break
+            nx, ny = positions[idx]
+            head, tail = _split_head_tail(raw)
+
+            # Constrain heading and body length so text fits comfortably in the card
+            # Even with very long AI bullets, this keeps content to ~3 short lines max.
+            head_txt = head or raw
+            if head_txt:
+                hw = head_txt.split()
+                if len(hw) > 5:
+                    head_txt = " ".join(hw[:5])
+                if len(head_txt) > 32:
+                    cut = head_txt[:32]
+                    head_txt = cut.rsplit(" ", 1)[0] if " " in cut else cut
+
+            body_txt = tail or ""
+            if body_txt:
+                bw = body_txt.split()
+                if len(bw) > 12:
+                    body_txt = " ".join(bw[:12])
+                if len(body_txt) > 70:
+                    cut_b = body_txt[:70]
+                    body_txt = (cut_b.rsplit(" ", 1)[0] if " " in cut_b else cut_b) + "..."
+
+            # If the heading is already fairly long, prefer to drop the body
+            # completely so we never exceed the card height.
+            head_words = len(head_txt.split()) if head_txt else 0
+            body_words = len(body_txt.split()) if body_txt else 0
+            if head_words >= 4 or body_words > 10:
+                body_txt = ""
+
+            node = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(nx), Inches(ny), Inches(node_w), Inches(node_h))
+            # Keep cards light against the band using the deck background color
+            bg_rgb = pal.get("bg", (255, 255, 255))
+            node.fill.solid(); node.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            node.line.color.rgb = RGBColor(*pal.get("primary", (59, 130, 246)))
+            try:
+                node.shadow.inherit = False; node.shadow.visible = True; node.shadow.blur = 6; node.shadow.distance = 2
+            except Exception:
+                pass
+            # icon circle
+            ico = s.shapes.add_shape(MsoShape.OVAL, Inches(nx + 0.18), Inches(ny + 0.26), Inches(0.30), Inches(0.30))
+            ico.fill.solid(); ico.fill.fore_color.rgb = RGBColor(*pal.get("primary", (59, 130, 246)))
+            ico.line.fill.background()
+            nodes.append(node)
+            # text: keep comfortably inside the rounded rectangle with left/right padding
+            tb = s.shapes.add_textbox(Inches(nx + 0.60), Inches(ny + 0.18), Inches(node_w - 0.95), Inches(node_h - 0.40)).text_frame
+            tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            tb.margin_top = Pt(0); tb.margin_bottom = Pt(0)
+            p = tb.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
+            p.line_spacing = 1.0
+            title_txt = head_txt
+            r1 = p.add_run(); r1.text = title_txt; r1.font.size = Pt(15); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+            if not simple and body_txt:
+                p2 = tb.add_paragraph(); p2.alignment = PP_ALIGN.LEFT
+                p2.line_spacing = 1.05
+                r2 = p2.add_run(); r2.text = body_txt; r2.font.size = Pt(10); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+
+        # Optional connectors from center to nodes in complex mode.
+        # Draw straight straight-line connectors from the hexagon edges to the
+        # card edges so that lines attach cleanly without cutting through shapes.
+        if not simple and nodes:
+            for idx, node in enumerate(nodes):
+                try:
+                    # Default: connect midpoints of opposing edges.
+                    end_y = node.top + node.height // 2
+                    start_y = core.top + core.height // 2
+                    end_x = node.left + node.width // 2
+                    start_x = core.left + core.width // 2
+
+                    # Left column cards (indices 0 and 2 in positions list):
+                    # from middle of left hex edge to middle of right card edge.
+                    if idx in (0, 2):
+                        end_x = node.left + node.width
+                        start_x = core.left
+                    # Right column cards (indices 1 and 3):
+                    # from middle of right hex edge to middle of left card edge.
+                    elif idx in (1, 3):
+                        end_x = node.left
+                        start_x = core.left + core.width
+                    # Bottom card (index 4): vertical line from bottom center of hex
+                    # to top center of card.
+                    elif idx == 4:
+                        start_x = core.left + core.width // 2
+                        end_x = start_x
+                        start_y = core.top + core.height
+                        end_y = node.top
+
+                    conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, start_x, start_y, end_x, end_y)
+                    conn.line.color.rgb = RGBColor(*pal.get("primary", (59, 130, 246)))
+                    conn.line.width = Pt(1.75)
+                except Exception:
+                    # If connectors cannot be drawn, skip gracefully without
+                    # impacting the rest of the layout.
+                    continue
+
+    def _render_process_flow_chevron_infographic(sl) -> None:
+        title, bullets, _ = _infographic_items(sl)
+        if not bullets:
+            bullets = _synthesize_topic_bullets(title)[:6]
+        steps = bullets[:6]
+        # Reuse the existing horizontal chevron process renderer for visual consistency
+        render_timeline_horizontal(title or "Process", steps, topic_src=title)
+
+    def _render_risk_matrix_advanced(sl) -> None:
+        title, bullets, content = _infographic_items(sl)
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title or "Risk Assessment Matrix", font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        # Fixed 3x4 grid (Likelihood x Impact)
+        rows, cols = 3, 4
+        x_labels = content.get("x_labels") or ["Low", "Moderate", "High", "Critical"]
+        y_labels = content.get("y_labels") or ["Rare", "Possible", "Likely"]
+
+        grid_x, grid_y, grid_w, grid_h = 2.4, 2.3, 6.4, 3.3
+        cell_w = grid_w / cols
+        cell_h = grid_h / rows
+
+        # Color scale from green (low) to red (high)
+        col_scale = [
+            (34, 197, 94),   # green
+            (234, 179, 8),   # amber
+            (249, 115, 22),  # orange
+            (239, 68, 68),   # red
+        ]
+
+        # Draw cells
+        for r in range(rows):
+            for c_idx in range(cols):
+                x = grid_x + c_idx * cell_w
+                y = grid_y + (rows - 1 - r) * cell_h
+                col_rgb = col_scale[c_idx]
+                rect = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(x), Inches(y), Inches(cell_w), Inches(cell_h))
+                rect.fill.solid(); rect.fill.fore_color.rgb = RGBColor(*col_rgb)
+                rect.line.color.rgb = RGBColor(255, 255, 255)
+        _draw_table_grid_rect(s, grid_x, grid_y, grid_w, grid_h, rows, cols, rgb=(209, 213, 219), weight_pt=0.75)
+
+        # Axis labels
+        # Impact (x-axis)
+        for c_idx in range(cols):
+            lab = str(x_labels[c_idx] if c_idx < len(x_labels) else "")
+            _add_textbox(s, grid_x + c_idx * cell_w, grid_y + grid_h + 0.10, cell_w, 0.40, lab, font_size_pt=14, bold=True, align="center", color=pal.get("text", (24, 24, 27)))
+        _add_textbox(s, grid_x, grid_y + grid_h + 0.60, grid_w, 0.40, "Impact", font_size_pt=14, bold=True, align="center", color=pal.get("muted", pal.get("text", (71, 85, 105))))
+
+        # Likelihood (y-axis)
+        for r in range(rows):
+            lab = str(y_labels[rows - 1 - r] if r < len(y_labels) else "")
+            _add_textbox(s, grid_x - 1.05, grid_y + r * cell_h, 1.0, 0.40, lab, font_size_pt=14, bold=True, align="right", color=pal.get("text", (24, 24, 27)))
+        _add_textbox(s, grid_x - 1.45, grid_y - 0.10, 1.40, 0.60, "Likelihood", font_size_pt=14, bold=True, align="right", color=pal.get("muted", pal.get("text", (71, 85, 105))))
+
+        # Bullet panel for specific risks (if provided)
+        if bullets:
+            panel_x = grid_x + grid_w + 0.45
+            panel_w = max(2.0, SLIDE_W_IN - 1.0 - panel_x)
+            panel_y = grid_y
+            panel_h = grid_h
+            _add_bullets(
+                s,
+                panel_x,
+                panel_y,
+                panel_w,
+                panel_h,
+                bullets[:6],
+                font_size_pt=14,
+                min_items=0,
+                color=pal.get("text", (24, 24, 27)),
+                word_wrap=True,
+                auto_fit=True,
+                line_spacing=1.20,
+                bold_first_phrase=False,
+                space_before_pt=0,
+                space_after_pt=6,
+            )
+
+    def _render_cyclic_optimization_loop(sl) -> None:
+        title, bullets, content = _infographic_items(sl)
+        stages = bullets or _synthesize_topic_bullets(title)[:6]
+        n = max(4, min(6, len(stages)))
+        stages = stages[:n]
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title or "Continuous Optimization", font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        center_lbl = (content.get("center_label") or "Continuous Improvement").strip() or "Continuous Improvement"
+        # Center the loop slightly below mid-height so the title has breathing room
+        cx, cy = SLIDE_W_IN / 2.0, 4.0
+        center_d = 1.9
+        center = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - center_d / 2), Inches(cy - center_d / 2), Inches(center_d), Inches(center_d))
+        center.fill.solid(); center.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal.get("bg", (240, 245, 255))))
+        center.line.color.rgb = RGBColor(*pal.get("primary", (59, 130, 246)))
+        tfc = center.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+        rc = pc.add_run(); rc.text = center_lbl; rc.font.size = Pt(14); rc.font.bold = True; rc.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+
+        # Subtle orbit ring to anchor the loop visually and use more horizontal space
+        ring_outer_d = 5.2
+        ring_inner_d = 4.2
+        outer = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - ring_outer_d / 2), Inches(cy - ring_outer_d / 2), Inches(ring_outer_d), Inches(ring_outer_d))
+        outer.fill.solid(); outer.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
+        outer.line.fill.background()
+        inner = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - ring_inner_d / 2), Inches(cy - ring_inner_d / 2), Inches(ring_inner_d), Inches(ring_inner_d))
+        inner.fill.solid(); inner.fill.fore_color.rgb = RGBColor(*(pal.get("bg", (255, 255, 255))))
+        inner.line.fill.background()
+        # Place stage nodes near the orbit edge so the diagram fills the band
+        radius = 2.1
+        step_cols = _step_colors()
+        for i, raw in enumerate(stages, start=0):
+            angle = 2.0 * math.pi * i / n
+            nx = cx + radius * float(math.cos(angle))
+            ny = cy + radius * float(math.sin(angle))
+            node_d = 1.3
+            node = s.shapes.add_shape(MsoShape.OVAL, Inches(nx - node_d / 2), Inches(ny - node_d / 2), Inches(node_d), Inches(node_d))
+            col_rgb = step_cols[i % len(step_cols)]
+            node.fill.solid(); node.fill.fore_color.rgb = RGBColor(*col_rgb)
+            node.line.fill.background()
+            try:
+                node.shadow.inherit = False; node.shadow.visible = True; node.shadow.blur = 6; node.shadow.distance = 2
+            except Exception:
+                pass
+            head, tail = _split_head_tail(raw)
+            label = (head or raw or "").strip()
+            # Keep bubble labels concise: cap to ~5 words to avoid vertical overflow
+            words = label.split()
+            if len(words) > 5:
+                label = " ".join(words[:5])
+            tfn = node.text_frame; tfn.clear(); tfn.word_wrap = True; tfn.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            pn = tfn.paragraphs[0]; pn.alignment = PP_ALIGN.CENTER
+            rn = pn.add_run(); rn.text = label; rn.font.size = Pt(11); rn.font.bold = True; rn.font.color.rgb = RGBColor(*_contrast_text(col_rgb))
+
+            # Arrow to next node (clockwise)
+            nxt_angle = 2.0 * math.pi * ((i + 1) % n) / n
+            tx = cx + radius * float(math.cos(nxt_angle))
+            ty = cy + radius * float(math.sin(nxt_angle))
+            conn = s.shapes.add_connector(1, Inches(nx), Inches(ny), Inches(tx), Inches(ty))
+            conn.line.color.rgb = RGBColor(*pal.get("primary", (59, 130, 246)))
+            conn.line.width = Pt(2)
+
+    def _render_layered_benefits_stack(sl) -> None:
+        title, bullets, _ = _infographic_items(sl)
+        benefits = bullets or _synthesize_topic_bullets(title)[:6]
+        n = max(4, min(6, len(benefits)))
+        benefits = benefits[:n]
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title or "Benefits", font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        base_col = pal.get("primary", (59, 130, 246))
+        depth_delta = -10
+        layer_w, layer_h = 9.0, 0.90
+        start_x = 2.0
+        start_y = 2.4
+
+        for idx, raw in enumerate(reversed(benefits), start=0):
+            # Bottom layer rendered first; each higher layer shifted up and right
+            x = start_x + idx * 0.25
+            y = start_y + (n - 1 - idx) * (layer_h + 0.18)
+            col_rgb = _shade(base_col, depth_delta * idx)
+            layer = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(layer_w), Inches(layer_h))
+            layer.fill.solid(); layer.fill.fore_color.rgb = RGBColor(*col_rgb)
+            layer.line.fill.background()
+            try:
+                layer.shadow.inherit = False; layer.shadow.visible = True; layer.shadow.blur = 10; layer.shadow.distance = 3
+            except Exception:
+                pass
+            head, tail = _split_head_tail(raw)
+            tb = s.shapes.add_textbox(Inches(x + 0.45), Inches(y + 0.12), Inches(layer_w - 0.75), Inches(layer_h - 0.24)).text_frame
+            tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tb.paragraphs[0]; p.clear()
+            fg = _contrast_text(col_rgb)
+            r1 = p.add_run(); r1.text = head or raw; r1.font.size = Pt(18); r1.font.bold = True; r1.font.color.rgb = RGBColor(*fg)
+            if tail:
+                p2 = tb.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(12); r2.font.color.rgb = RGBColor(235, 244, 255) if fg == (255, 255, 255) else RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+
+    def render_infographic(sl):
+        t = _ctype(sl)
+        title, bullets, content = _infographic_items(sl)
+        intent = _infer_infographic_intent(title, content)
+        count = len(bullets)
+
+        # Deterministic selection rules based on intent and density
+        if intent == "RISK":
+            _render_risk_matrix_advanced(sl)
+            return
+        if intent == "PROCESS" and count >= 4:
+            _render_process_flow_chevron_infographic(sl)
+            return
+        if intent in {"OPTIMIZATION", "CONTINUOUS"} and count >= 4:
+            _render_cyclic_optimization_loop(sl)
+            return
+        if intent == "BENEFITS" and count >= 4:
+            _render_layered_benefits_stack(sl)
+            return
+        if intent == "IMPACT" and count > 4:
+            _render_impact_map(False, sl)  # complex
+            return
+        if intent == "IMPACT" and count <= 4:
+            _render_impact_map(True, sl)   # simple
+            return
+
+        # Fallbacks: use simple impact map for general infographics or treat
+        # key_takeaways as a compact layered stack.
+        if t == "key_takeaways" and count >= 3:
+            _render_layered_benefits_stack(sl)
+        else:
+            _render_impact_map(True, sl)
+
     def render_thanks(sl):
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 2.8, 11.3, 1.2, "Thank You", font_size_pt=40, bold=True, align="center", color=TITLE_COL)
@@ -2850,74 +3270,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
     def render_bullets(sl):
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, (sl.get("title") or "Slide"), font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+        title = (sl.get("title") or "Slide").strip() or "Slide"
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
         c = _content(sl)
-        _add_bullets(s, 1.0, 2.0, 11.0, 4.5, [str(x) for x in (c.get("bullets") or [])], font_size_pt=20, color=pal["text"], word_wrap=True, auto_fit=True)
-
-    def render_infographic(sl):
-        s = prs.slides.add_slide(blank); apply_bg(s)
-        title = (sl.get("title") or "Key Takeaways").strip()
-        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=36, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
-        c = _content(sl)
-        pts = [str(x).strip() for x in (c.get("bullets") or c.get("takeaways") or []) if str(x).strip()]
-        if not pts:
-            pts = ["Insight 1", "Insight 2", "Insight 3", "Insight 4"]
-        pts = pts[:6]
-
-        cols = 3 if len(pts) >= 5 else 2
-        rows = ((len(pts) + cols - 1) // cols)
-        gap_x, gap_y = 0.35, 0.40
-        card_w = (SLIDE_W_IN - 1.4 - (cols + 1) * gap_x) / cols
-        card_h = 1.45
-        total_h = rows * card_h + (rows - 1) * gap_y
-        # place under subtitle with consistent gap
-        sub_bottom = 1.55 + 0.80
-        top = sub_bottom + 0.30
-        # container with soft bg
-        cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(0.7), Inches(top - 0.20), Inches(SLIDE_W_IN - 1.4), Inches(total_h + 0.40))
-        cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240,245,255))))
-        cont.line.color.rgb = RGBColor(229,231,235)
-        try:
-            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 14; cont.shadow.distance = 3
-        except Exception:
-            pass
-        start_x = 0.7 + gap_x
-        STEP_COLS = _step_colors()
-
-        def _card(ix: int, text: str, rr: int, cc: int, x_off: float = 0.0):
-            x = start_x + x_off + cc * (card_w + gap_x)
-            y = top + rr * (card_h + gap_y)
-            card_col = STEP_COLS[ix % len(STEP_COLS)]
-            bg = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(card_w), Inches(card_h))
-            bg.fill.solid(); bg.fill.fore_color.rgb = RGBColor(*card_col)
-            bg.line.fill.background()
-            # icon dot
-            ico = s.shapes.add_shape(MsoShape.OVAL, Inches(x + 0.18), Inches(y + 0.18), Inches(0.22), Inches(0.22))
-            ico.fill.solid(); ico.fill.fore_color.rgb = RGBColor(255,255,255); ico.line.fill.background()
-            tf = s.shapes.add_textbox(Inches(x + 0.50), Inches(y + 0.18), Inches(card_w - 0.80), Inches(card_h - 0.36)).text_frame
-            tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-            p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
-            head, tail = _split_head_tail(text)
-            head_rgb = _contrast_text(card_col)
-            r1 = p.add_run(); r1.text = head or text; r1.font.size = Pt(18); r1.font.bold = True; r1.font.color.rgb = RGBColor(*head_rgb)
-            if tail:
-                p2 = tf.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(14)
-                base_tail = pal.get("muted", pal.get("text", head_rgb))
-                if _is_dark_rgb(card_col):
-                    tail_rgb = (235, 244, 255) if head_rgb == (255, 255, 255) else head_rgb
-                else:
-                    tail_rgb = base_tail if not _is_dark_rgb(base_tail) else pal.get("text", (24, 24, 27))
-                r2.font.color.rgb = RGBColor(*tail_rgb)
-
-        # Center rows with fewer than full columns
-        idx = 0
-        for rr in range(rows):
-            remain = len(pts) - idx
-            m = min(cols, remain)
-            x_off = ((cols - m) * (card_w + gap_x)) / 2.0 if m < cols else 0.0
-            for cc in range(m):
-                _card(idx, pts[idx], rr, cc, x_off)
-                idx += 1
+        bullets = [str(x).strip() for x in (c.get("bullets") or []) if str(x).strip()]
+        if not bullets:
+            bullets = ["(to be refined)"]
+        _add_bullets(s, 1.0, 2.0, 11.0, 4.5, bullets, font_size_pt=20, color=pal["text"], word_wrap=True, auto_fit=True)
 
     # Pre-pass: avoid empty bullets only if we are not in render_exact mode
     if not render_exact:
