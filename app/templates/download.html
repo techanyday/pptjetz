@@ -39,10 +39,54 @@
                  data-full-width-responsive="true"></ins>
             <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
 
-            <a id="downloadLink" href="{{ download_url }}" class="inline-flex items-center gap-2 mb-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md shadow">
+            <a id="downloadLink" href="{{ download_url }}" class="inline-flex items-center gap-2 mb-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md shadow">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v9a1 1 0 11-2 0V4H5v8a1 1 0 11-2 0V3zm3 10a1 1 0 011-1h2V6a1 1 0 112 0v6h2a1 1 0 01.707 1.707l-3 3a1 1 0 01-1.414 0l-3-3A1 1 0 016 13z" clip-rule="evenodd"/></svg>
               Download Presentation
             </a>
+
+            <!-- Sponsored Tools Section -->
+            <div class="mt-6 pt-6 border-t border-gray-200">
+              <h3 class="text-sm font-semibold text-gray-700 mb-2">Sponsored productivity tools</h3>
+              <p class="text-xs text-gray-500 mb-4">Links may earn us a commission at no extra cost.</p>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <!-- SlideAI -->
+                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <h4 class="text-sm font-medium text-gray-900 mb-1">SlideAI</h4>
+                  <p class="text-xs text-gray-600 mb-3">Convert text to slides fast</p>
+                  <a href="https://slidesai.io/?ref=lawrence&utm_source=pptjet&utm_medium=affiliate&utm_campaign=download_page&utm_content=slideai" 
+                     target="_blank" 
+                     rel="sponsored nofollow noopener"
+                     class="inline-flex items-center text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded transition-colors"
+                     data-tool-name="slideai">
+                    Visit →
+                  </a>
+                </div>
+                <!-- Presentia AI -->
+                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <h4 class="text-sm font-medium text-gray-900 mb-1">Presentia AI</h4>
+                  <p class="text-xs text-gray-600 mb-3">Pitch decks + structured outlines</p>
+                  <a href="https://presentia.ai/?ref=lawrence&utm_source=pptjet&utm_medium=affiliate&utm_campaign=download_page&utm_content=presentia" 
+                     target="_blank" 
+                     rel="sponsored nofollow noopener"
+                     class="inline-flex items-center text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded transition-colors"
+                     data-tool-name="presentia">
+                    Visit →
+                  </a>
+                </div>
+                <!-- Decktopus -->
+                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <h4 class="text-sm font-medium text-gray-900 mb-1">Decktopus</h4>
+                  <p class="text-xs text-gray-600 mb-3">Interactive, guided deck builder</p>
+                  <a href="https://www.decktopus.com?via=lawrence&utm_source=pptjet&utm_medium=affiliate&utm_campaign=download_page&utm_content=decktopus" 
+                     target="_blank" 
+                     rel="sponsored nofollow noopener"
+                     class="inline-flex items-center text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded transition-colors"
+                     data-tool-name="decktopus">
+                    Visit →
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -91,6 +135,23 @@
       }
     } catch(_e) { /* no-op */ }
     {% endif %}
+  });
+})();
+
+// Analytics: affiliate tool clicks
+(function(){
+  const affiliateLinks = document.querySelectorAll('[data-tool-name]');
+  affiliateLinks.forEach(link => {
+    link.addEventListener('click', function(e) {
+      const toolName = this.getAttribute('data-tool-name');
+      if (typeof gtag === 'function') {
+        gtag('event', 'affiliate_click', {
+          tool_name: toolName,
+          page: 'download_page',
+          placement: 'below_download_button'
+        });
+      }
+    });
   });
 })();
 </script>
