@@ -403,13 +403,19 @@ def create_deck_slides(
         pass
     # Post-pass: rewrite generic table headers contextually with AI and sync titles
     try:
+        print("DEBUG: Starting table header rewrite...")
         tmp = _ai_rewrite_table_headers(client, slides)
         slides = tmp
+        current_types = [s.get("type", "unknown") for s in slides]
+        print(f"DEBUG: After table header rewrite: {current_types}")
     except Exception:
         pass
     # Post-pass: harmonize titles/content to agenda; remove template phrases
     try:
+        print("DEBUG: Starting title harmonization...")
         slides = _harmonize_titles_to_agenda(slides)
+        current_types = [s.get("type", "unknown") for s in slides]
+        print(f"DEBUG: After title harmonization: {current_types}")
     except Exception:
         pass
     # Post-check quality and coherency; perform one corrective retry if enabled
@@ -417,6 +423,7 @@ def create_deck_slides(
     # Post-pass: AI harmonization of titles/bullets to agenda and topic
     if issues and ENABLE_LLM_HARMONIZE:
         try:
+            print("DEBUG: Starting AI harmonization...")
             slides = _ai_harmonize_to_agenda(
                 client=client,
                 system_msg=messages[0]["content"],
@@ -424,12 +431,17 @@ def create_deck_slides(
                 input_text=input_text,
                 slides=slides,
             )
+            current_types = [s.get("type", "unknown") for s in slides]
+            print(f"DEBUG: After AI harmonization: {current_types}")
             try:
                 slides = _harmonize_titles_to_agenda(slides)
+                current_types = [s.get("type", "unknown") for s in slides]
+                print(f"DEBUG: After second title harmonization: {current_types}")
             except Exception:
                 pass
             issues, agenda = _quality_issues(slides)
-        except Exception:
+        except Exception as e:
+            print(f"DEBUG: AI harmonization failed: {e}")
             pass
     if issues and ENABLE_LLM_RETRY:
         try:
