@@ -372,8 +372,10 @@ def create_deck_slides(
         print(f"DEBUG: AI generated slide types: {generated_types}")
     except Exception:
         pass
+    
     # Ensure a strong, non-generic Title slide at index 0 using AI refinement if needed
     try:
+        print("DEBUG: Starting title slide refinement...")
         slides = _ensure_title_slide(
             slides,
             client=client,
@@ -383,8 +385,10 @@ def create_deck_slides(
             date=date or "",
             input_text=input_text or "",
         )
-    except Exception:
+        print("DEBUG: Title slide refinement completed")
+    except Exception as e:
         # Non-fatal; continue with raw slides
+        print(f"DEBUG: Title slide refinement failed: {e}")
         pass
     # Post-pass: rewrite generic table headers contextually with AI and sync titles
     try:
