@@ -3656,6 +3656,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     for sl in slides_norm:
         t = _ctype(sl)
         print(f"DEBUG: Processing slide type: {t}")
+        print(f"DEBUG: Slide object: {sl}")
         # Force replacement: any slide carrying a 'cards' array should render as a horizontal process timeline
         try:
             cards_arr = _content(sl).get("cards")
