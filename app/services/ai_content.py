@@ -9,7 +9,7 @@ from app.models import LLMCall, Pricing
 import os
 
 
-MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "800"))
+MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "1800"))
 MAX_TOKENS_HARMONIZE = int(os.getenv("MAX_TOKENS_HARMONIZE", "600"))
 MAX_TOKENS_TOPIC_BULLETS = int(os.getenv("MAX_TOKENS_TOPIC_BULLETS", "180"))
 MAX_TOKENS_TABLE_HEADERS = int(os.getenv("MAX_TOKENS_TABLE_HEADERS", "96"))
