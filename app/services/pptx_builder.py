@@ -3655,6 +3655,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
     for sl in slides_norm:
         t = _ctype(sl)
+        print(f"DEBUG: Processing slide type: {t}")
         # Force replacement: any slide carrying a 'cards' array should render as a horizontal process timeline
         try:
             cards_arr = _content(sl).get("cards")
@@ -3727,8 +3728,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             _render_architecture(sl)
         elif t in {"thank_you", "cta"}:
             # skip for now; rendered at end to guarantee last
+            print(f"DEBUG: Skipping {t} slide")
             continue
         else:
+            print(f"DEBUG: Fallback to bullets for unknown type: {t}")
             # Fallback: bullets slide if bullets available
             if _content(sl).get("bullets"):
                 render_bullets(sl)
