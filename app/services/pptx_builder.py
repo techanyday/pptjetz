@@ -1700,11 +1700,37 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         thanks = [s for s in slides_norm if _ctype(s) in {"thank_you", "cta"}]
         slides_norm = [s for s in slides_norm if _ctype(s) not in {"thank_you", "cta"}] + thanks[-1:]
 
+    def _render_timeline(sl) -> None:
+        """Render timeline with phases and descriptions."""
+        content = _content(sl)
+        title = sl.get("title", "Timeline")
+        phases = content.get("timeline", [])
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        
+        # Title
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+        
+        # Timeline phases
+        y = 2.5
+        for i, phase in enumerate(phases[:6]):  # Limit to 6 phases
+            label = phase.get("label", f"Phase {i+1}")
+            description = phase.get("description", "")
+            
+            # Phase label
+            _add_textbox(s, 1.0, y, 2.0, 0.4, label, font_size_pt=14, bold=True, color=TITLE_COL)
+            
+            # Phase description
+            _add_textbox(s, 3.5, y, 8.0, 0.4, description, font_size_pt=12, color=pal["text"])
+            
+            y += 0.8
+
     def _render_roadmap(sl) -> None:
         """Render phase-based roadmap with title, date range, and description per phase."""
         content = _content(sl)
-        title = content.get("title", "Roadmap")
-        phases = content.get("phases", [])
+        title = sl.get("title", "Roadmap")
+        # AI provides timeline structure, not phases
+        phases = content.get("timeline", content.get("phases", []))
         
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
@@ -3706,6 +3732,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             c = _content(sl)
             stages = [str(x).strip() for x in (c.get("cards") or c.get("bullets") or []) if str(x).strip()]
             render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
+        elif t == "timeline":
+            print(f"DEBUG: Rendering timeline slide with content: {_content(sl)}")
+            _render_timeline(sl)
         elif t == "roadmap":
             print(f"DEBUG: Rendering roadmap slide with content: {_content(sl)}")
             _render_roadmap(sl)
