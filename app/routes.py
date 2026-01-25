@@ -1421,8 +1421,12 @@ def export_presentation() -> Any:
         s7 = _find_first("thank_you", "cta") or {}
         thanks_slide = {"type": "thank_you", "title": "Thank You", "cta": (s7.get("cta") or data.get("cta") or ""), "_render_exact": True}
 
-        # Build final slides list: Title → Agenda → One-Idea Intro → Topic slides → Thank You
-        slides_out: List[Dict[str, Any]] = [title_slide, agenda_slide, one_idea_slide] + topic_slides + [thanks_slide]
+        # Build final slides list: Use AI slides directly instead of overriding them
+        # Only create structure if AI slides are empty or invalid
+        if slides and len(slides) > 2:  # Use AI slides when available
+            slides_out = slides
+        else:  # Fallback to original structure generation
+            slides_out: List[Dict[str, Any]] = [title_slide, agenda_slide, one_idea_slide] + topic_slides + [thanks_slide]
 
         # Build PPTX locally
         import uuid
