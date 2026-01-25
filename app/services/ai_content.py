@@ -113,6 +113,13 @@ def build_prompt(
             ],
             "modules_priority": [
                 "Timeline / Background",
+                "Roadmap (phased timeline)",
+                "SWOT Analysis (2x2 grid)",
+                "KPI Metrics (cards with values)",
+                "Pricing Comparison (feature table)",
+                "Risk Matrix (impact vs likelihood)",
+                "Before/After Comparison",
+                "Architecture Diagram (boxes & connections)",
                 "Topic Overview",
                 "Double Column Bullet (2–3 variations max)",
                 "Tabular Comparison",
