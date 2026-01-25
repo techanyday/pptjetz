@@ -1473,6 +1473,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
       - Thank You slide (last)
     Does NOT add Background/Evolution unless present in the outline.
     """
+    # DEBUG: Log what slides this function receives
+    try:
+        slide_types = [s.get("type", "unknown") for s in slides]
+        print(f"DEBUG: build_pptx_from_slides received slide types: {slide_types}")
+    except Exception:
+        pass
+    
     prs = Presentation()
     prs.slide_width = Inches(SLIDE_W_IN)
     prs.slide_height = Inches(SLIDE_H_IN)
