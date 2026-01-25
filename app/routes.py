@@ -1424,6 +1424,9 @@ def export_presentation() -> Any:
         # Build final slides list: Use AI slides directly instead of overriding them
         # Only create structure if AI slides are empty or invalid
         if slides and len(slides) > 2:  # Use AI slides when available
+            # Add _render_exact: True to prevent pattern generation from overwriting AI slides
+            for slide in slides:
+                slide["_render_exact"] = True
             slides_out = slides
         else:  # Fallback to original structure generation
             slides_out: List[Dict[str, Any]] = [title_slide, agenda_slide, one_idea_slide] + topic_slides + [thanks_slide]
