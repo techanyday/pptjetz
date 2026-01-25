@@ -84,6 +84,93 @@ class ImageContent(BaseModel):
     alt_text: str | None = Field(default=None, max_length=255)
 
 
+class RoadmapPhase(BaseModel):
+    title: str = Field(..., max_length=100)
+    date_range: str | None = Field(default=None, max_length=50)
+    description: str | None = Field(default=None, max_length=200)
+
+
+class RoadmapContent(BaseModel):
+    title: str = Field(..., max_length=255)
+    phases: List[RoadmapPhase] = Field(..., min_length=2, max_length=6)
+
+
+class SWOTQuadrant(BaseModel):
+    title: str = Field(..., max_length=50)
+    points: List[str] = Field(..., min_length=1, max_length=5)
+
+
+class SWOTContent(BaseModel):
+    title: str = Field(..., max_length=255)
+    strengths: SWOTQuadrant
+    weaknesses: SWOTQuadrant
+    opportunities: SWOTQuadrant
+    threats: SWOTQuadrant
+
+
+class KPICard(BaseModel):
+    label: str = Field(..., max_length=100)
+    value: str = Field(..., max_length=50)
+    caption: str | None = Field(default=None, max_length=150)
+
+
+class KPIContent(BaseModel):
+    title: str = Field(..., max_length=255)
+    metrics: List[KPICard] = Field(..., min_length=2, max_length=4)
+
+
+class PricingPlan(BaseModel):
+    name: str = Field(..., max_length=100)
+    price: str | None = Field(default=None, max_length=50)
+    features: List[str] = Field(..., min_length=1)
+
+
+class PricingContent(BaseModel):
+    title: str = Field(..., max_length=255)
+    plans: List[PricingPlan] = Field(..., min_length=2, max_length=4)
+
+
+class RiskMatrixQuadrant(BaseModel):
+    title: str = Field(..., max_length=50)
+    points: List[str] = Field(..., min_length=1, max_length=3)
+
+
+class RiskMatrixContent(BaseModel):
+    title: str = Field(..., max_length=255)
+    low_likelihood_low_impact: RiskMatrixQuadrant
+    low_likelihood_high_impact: RiskMatrixQuadrant
+    high_likelihood_low_impact: RiskMatrixQuadrant
+    high_likelihood_high_impact: RiskMatrixQuadrant
+
+
+class BeforeAfterColumn(BaseModel):
+    heading: str = Field(..., max_length=100)
+    points: List[str] = Field(..., min_length=1)
+
+
+class BeforeAfterContent(BaseModel):
+    title: str = Field(..., max_length=255)
+    before: BeforeAfterColumn
+    after: BeforeAfterColumn
+
+
+class ArchitectureBox(BaseModel):
+    label: str = Field(..., max_length=100)
+    description: str | None = Field(default=None, max_length=150)
+
+
+class ArchitectureConnection(BaseModel):
+    from_box: str = Field(..., max_length=100)
+    to_box: str = Field(..., max_length=100)
+    label: str | None = Field(default=None, max_length=50)
+
+
+class ArchitectureContent(BaseModel):
+    title: str = Field(..., max_length=255)
+    boxes: List[ArchitectureBox] = Field(..., min_length=2, max_length=8)
+    connections: List[ArchitectureConnection] = Field(default_factory=list)
+
+
 # ---------------------------------------------------------------------------
 # Slide variants – each carries a *kind* discriminator plus *content*
 # ---------------------------------------------------------------------------
@@ -128,6 +215,41 @@ class ImageSlide(BaseModel):
     content: ImageContent
 
 
+class RoadmapSlide(BaseModel):
+    kind: Literal["roadmap"] = "roadmap"
+    content: RoadmapContent
+
+
+class SWOTSlide(BaseModel):
+    kind: Literal["swot"] = "swot"
+    content: SWOTContent
+
+
+class KPISlide(BaseModel):
+    kind: Literal["kpi"] = "kpi"
+    content: KPIContent
+
+
+class PricingSlide(BaseModel):
+    kind: Literal["pricing"] = "pricing"
+    content: PricingContent
+
+
+class RiskMatrixSlide(BaseModel):
+    kind: Literal["risk_matrix"] = "risk_matrix"
+    content: RiskMatrixContent
+
+
+class BeforeAfterSlide(BaseModel):
+    kind: Literal["before_after"] = "before_after"
+    content: BeforeAfterContent
+
+
+class ArchitectureSlide(BaseModel):
+    kind: Literal["architecture"] = "architecture"
+    content: ArchitectureContent
+
+
 # ---------------------------------------------------------------------------
 # Discriminated union (SlideObject)
 # ---------------------------------------------------------------------------
@@ -142,6 +264,13 @@ SlideObject = Annotated[
         ChartSlide,
         TimelineSlide,
         ImageSlide,
+        RoadmapSlide,
+        SWOTSlide,
+        KPISlide,
+        PricingSlide,
+        RiskMatrixSlide,
+        BeforeAfterSlide,
+        ArchitectureSlide,
     ],
     Field(discriminator="kind"),
 ]
@@ -155,6 +284,13 @@ SLIDE_KINDS: List[str] = [
     "chart",
     "timeline",
     "image",
+    "roadmap",
+    "swot",
+    "kpi",
+    "pricing",
+    "risk_matrix",
+    "before_after",
+    "architecture",
 ]
 
 # Create a TypeAdapter once for runtime validation convenience
@@ -170,6 +306,21 @@ __all__ = [
     "ChartContent",
     "TimelineContent",
     "ImageContent",
+    "RoadmapPhase",
+    "RoadmapContent",
+    "SWOTQuadrant",
+    "SWOTContent",
+    "KPICard",
+    "KPIContent",
+    "PricingPlan",
+    "PricingContent",
+    "RiskMatrixQuadrant",
+    "RiskMatrixContent",
+    "BeforeAfterColumn",
+    "BeforeAfterContent",
+    "ArchitectureBox",
+    "ArchitectureConnection",
+    "ArchitectureContent",
     # slide wrappers
     "HeaderSlide",
     "TextSlide",
@@ -179,6 +330,13 @@ __all__ = [
     "ChartSlide",
     "TimelineSlide",
     "ImageSlide",
+    "RoadmapSlide",
+    "SWOTSlide",
+    "KPISlide",
+    "PricingSlide",
+    "RiskMatrixSlide",
+    "BeforeAfterSlide",
+    "ArchitectureSlide",
     # union helpers
     "SlideObject",
     "SLIDE_KINDS",

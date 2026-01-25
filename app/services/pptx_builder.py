@@ -1693,6 +1693,357 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         thanks = [s for s in slides_norm if _ctype(s) in {"thank_you", "cta"}]
         slides_norm = [s for s in slides_norm if _ctype(s) not in {"thank_you", "cta"}] + thanks[-1:]
 
+    def _render_roadmap(sl) -> None:
+        """Render phase-based roadmap with title, date range, and description per phase."""
+        content = _content(sl)
+        title = content.get("title", "Roadmap")
+        phases = content.get("phases", [])
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Layout: horizontal phases with rounded rectangles
+        start_x, start_y = 1.0, 2.2
+        phase_w, phase_h = 2.8, 2.8
+        gap = 0.6
+        
+        for i, phase in enumerate(phases[:6]):  # Max 6 phases
+            x = start_x + i * (phase_w + gap)
+            
+            # Phase container
+            phase_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(start_y), Inches(phase_w), Inches(phase_h))
+            phase_box.fill.solid(); phase_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            phase_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            
+            # Phase title
+            phase_title = str(phase.get("title", ""))[:50]  # Truncate long titles
+            _add_textbox(s, x + 0.15, start_y + 0.15, phase_w - 0.3, 0.5, phase_title, 
+                        font_size_pt=18, bold=True, color=pal["text"])
+            
+            # Date range
+            date_range = str(phase.get("date_range", ""))[:30]
+            if date_range:
+                _add_textbox(s, x + 0.15, start_y + 0.65, phase_w - 0.3, 0.4, date_range,
+                            font_size_pt=12, color=pal.get("muted", pal["text"]))
+            
+            # Description
+            desc = str(phase.get("description", ""))[:150]  # Limit description length
+            if desc:
+                _add_textbox(s, x + 0.15, start_y + 1.1, phase_w - 0.3, phase_h - 1.25, desc,
+                            font_size_pt=11, color=pal["text"])
+            
+            # Connector arrow to next phase
+            if i < len(phases) - 1:
+                arrow_x = x + phase_w + 0.05
+                arrow = s.shapes.add_shape(MsoShape.RIGHT_ARROW, Inches(arrow_x), Inches(start_y + phase_h/2 - 0.2), Inches(gap - 0.1), Inches(0.4))
+                arrow.fill.solid(); arrow.fill.fore_color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+                arrow.line.fill.background()
+
+    def _render_swot(sl) -> None:
+        """Render 2x2 SWOT grid with quadrants: Strengths, Weaknesses, Opportunities, Threats."""
+        content = _content(sl)
+        title = content.get("title", "SWOT Analysis")
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Grid layout: 2x2
+        start_x, start_y = 1.0, 2.0
+        cell_w, cell_h = 5.5, 2.8
+        gap_x, gap_y = 0.8, 0.6
+        
+        quadrants = [
+            ("strengths", "Strengths", 0, 0),
+            ("weaknesses", "Weaknesses", 1, 0),
+            ("opportunities", "Opportunities", 0, 1),
+            ("threats", "Threats", 1, 1)
+        ]
+        
+        for key, label, col_idx, row_idx in quadrants:
+            x = start_x + col_idx * (cell_w + gap_x)
+            y = start_y + row_idx * (cell_h + gap_y)
+            
+            quadrant_data = content.get(key, {})
+            points = quadrant_data.get("points", [])
+            
+            # Quadrant container
+            quad_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(cell_w), Inches(cell_h))
+            quad_box.fill.solid(); quad_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            quad_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            
+            # Quadrant title
+            _add_textbox(s, x + 0.15, y + 0.1, cell_w - 0.3, 0.4, label,
+                        font_size_pt=16, bold=True, color=pal["primary"])
+            
+            # Bullet points
+            if points:
+                bullet_text = "\n".join(f"• {str(p)[:60]}" for p in points[:5])  # Max 5 points, truncate long text
+                _add_textbox(s, x + 0.15, y + 0.5, cell_w - 0.3, cell_h - 0.65, bullet_text,
+                            font_size_pt=11, color=pal["text"])
+
+    def _render_kpi(sl) -> None:
+        """Render 2-4 KPI metric cards with label, value, and optional caption."""
+        content = _content(sl)
+        title = content.get("title", "Key Metrics")
+        metrics = content.get("metrics", [])
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Layout: 2x2 grid for up to 4 metrics
+        start_x, start_y = 1.0, 2.2
+        card_w, card_h = 5.5, 2.0
+        gap_x, gap_y = 0.8, 0.6
+        
+        for i, metric in enumerate(metrics[:4]):  # Max 4 metrics
+            row, col = i // 2, i % 2
+            x = start_x + col * (card_w + gap_x)
+            y = start_y + row * (card_h + gap_y)
+            
+            # Metric card
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(card_w), Inches(card_h))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            card.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            
+            # Label
+            label = str(metric.get("label", ""))[:40]
+            _add_textbox(s, x + 0.2, y + 0.15, card_w - 0.4, 0.4, label,
+                        font_size_pt=14, bold=True, color=pal["text"])
+            
+            # Value (large)
+            value = str(metric.get("value", ""))[:25]
+            _add_textbox(s, x + 0.2, y + 0.55, card_w - 0.4, 0.6, value,
+                        font_size_pt=28, bold=True, color=pal["primary"])
+            
+            # Caption
+            caption = str(metric.get("caption", ""))[:80]
+            if caption:
+                _add_textbox(s, x + 0.2, y + 1.15, card_w - 0.4, card_h - 1.35, caption,
+                            font_size_pt=10, color=pal.get("muted", pal["text"]))
+
+    def _render_pricing(sl) -> None:
+        """Render pricing comparison table with 2-4 plans and feature rows."""
+        content = _content(sl)
+        title = content.get("title", "Pricing Comparison")
+        plans = content.get("plans", [])
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        if not plans:
+            return
+            
+        # Layout: table with plans as columns
+        start_x, start_y = 1.0, 2.2
+        col_w = 2.5
+        row_h = 0.5
+        header_h = 0.8
+        
+        # Plan headers
+        for i, plan in enumerate(plans[:4]):  # Max 4 plans
+            x = start_x + i * col_w
+            
+            # Header background
+            header = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(start_y), Inches(col_w - 0.1), Inches(header_h))
+            header.fill.solid(); header.fill.fore_color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            header.line.fill.background()
+            
+            # Plan name
+            name = str(plan.get("name", ""))[:30]
+            _add_textbox(s, x + 0.05, start_y + 0.1, col_w - 0.2, 0.3, name,
+                        font_size_pt=16, bold=True, color=(255, 255, 255))
+            
+            # Price
+            price = str(plan.get("price", ""))[:20]
+            if price:
+                _add_textbox(s, x + 0.05, start_y + 0.4, col_w - 0.2, 0.3, price,
+                            font_size_pt=14, color=(255, 255, 255))
+        
+        # Feature rows
+        all_features = set()
+        for plan in plans:
+            all_features.update(plan.get("features", []))
+        
+        feature_list = list(all_features)[:8]  # Max 8 features
+        for j, feature in enumerate(feature_list):
+            y = start_y + header_h + j * row_h
+            
+            # Feature name (first column)
+            feature_text = str(feature)[:40]
+            _add_textbox(s, start_x + 0.05, y + 0.05, col_w - 0.15, row_h - 0.1, feature_text,
+                        font_size_pt=11, color=pal["text"])
+            
+            # Checkmarks for each plan
+            for i, plan in enumerate(plans[:4]):
+                x = start_x + i * col_w
+                has_feature = feature in plan.get("features", [])
+                
+                if has_feature:
+                    # Checkmark
+                    check = s.shapes.add_shape(MsoShape.OVAL, Inches(x + col_w/2 - 0.15), Inches(y + 0.15), Inches(0.3), Inches(0.3))
+                    check.fill.solid(); check.fill.fore_color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+                    check.line.fill.background()
+
+    def _render_risk_matrix(sl) -> None:
+        """Render 2x2 risk matrix with Likelihood vs Impact axes."""
+        content = _content(sl)
+        title = content.get("title", "Risk Matrix")
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Grid layout: 2x2
+        start_x, start_y = 1.0, 2.0
+        cell_w, cell_h = 5.5, 2.5
+        gap_x, gap_y = 0.8, 0.6
+        
+        quadrants = [
+            ("low_likelihood_low_impact", "Low Likelihood\nLow Impact", 0, 0, (200, 230, 201)),
+            ("low_likelihood_high_impact", "Low Likelihood\nHigh Impact", 1, 0, (252, 196, 85)),
+            ("high_likelihood_low_impact", "High Likelihood\nLow Impact", 0, 1, (252, 196, 85)),
+            ("high_likelihood_high_impact", "High Likelihood\nHigh Impact", 1, 1, (248, 113, 113))
+        ]
+        
+        for key, label, col_idx, row_idx, bg_color in quadrants:
+            x = start_x + col_idx * (cell_w + gap_x)
+            y = start_y + row_idx * (cell_h + gap_y)
+            
+            quadrant_data = content.get(key, {})
+            points = quadrant_data.get("points", [])
+            
+            # Quadrant container with risk-based coloring
+            quad_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(cell_w), Inches(cell_h))
+            quad_box.fill.solid(); quad_box.fill.fore_color.rgb = RGBColor(*bg_color)
+            quad_box.line.color.rgb = RGBColor(*pal.get("text", (71, 71, 71)))
+            
+            # Quadrant label
+            _add_textbox(s, x + 0.15, y + 0.1, cell_w - 0.3, 0.6, label,
+                        font_size_pt=12, bold=True, color=pal["text"])
+            
+            # Bullet points
+            if points:
+                bullet_text = "\n".join(f"• {str(p)[:50]}" for p in points[:3])  # Max 3 points
+                _add_textbox(s, x + 0.15, y + 0.7, cell_w - 0.3, cell_h - 0.85, bullet_text,
+                            font_size_pt=10, color=pal["text"])
+        
+        # Axis labels
+        _add_textbox(s, start_x + (cell_w + gap_x) * 0.5, start_y - 0.5, cell_w, 0.4, "Impact →",
+                    font_size_pt=14, bold=True, color=pal["text"], align="center")
+        _add_textbox(s, start_x - 0.8, start_y + (cell_h + gap_y) * 0.5, 0.6, cell_h,
+                    "Likelihood\n↓", font_size_pt=14, bold=True, color=pal["text"], align="center")
+
+    def _render_before_after(sl) -> None:
+        """Render before/after comparison with two columns."""
+        content = _content(sl)
+        title = content.get("title", "Before vs After")
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Two-column layout
+        start_x, start_y = 1.0, 2.2
+        col_w, col_h = 5.5, 4.0
+        gap = 0.8
+        
+        columns = [
+            ("before", "Before", 0),
+            ("after", "After", 1)
+        ]
+        
+        for key, label, col_idx in columns:
+            x = start_x + col_idx * (col_w + gap)
+            col_data = content.get(key, {})
+            heading = str(col_data.get("heading", label))[:50]
+            points = col_data.get("points", [])
+            
+            # Column container
+            col_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(start_y), Inches(col_w), Inches(col_h))
+            col_box.fill.solid(); col_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            col_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            
+            # Column heading
+            _add_textbox(s, x + 0.15, start_y + 0.15, col_w - 0.3, 0.5, heading,
+                        font_size_pt=18, bold=True, color=pal["primary"])
+            
+            # Bullet points
+            if points:
+                bullet_text = "\n".join(f"• {str(p)[:60]}" for p in points[:8])  # Max 8 points
+                _add_textbox(s, x + 0.15, start_y + 0.7, col_w - 0.3, col_h - 0.85, bullet_text,
+                            font_size_pt=12, color=pal["text"])
+
+    def _render_architecture(sl) -> None:
+        """Render architecture diagram with boxes and directional arrows."""
+        content = _content(sl)
+        title = content.get("title", "Architecture Diagram")
+        boxes = content.get("boxes", [])
+        connections = content.get("connections", [])
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Create box positions in a grid layout
+        box_positions = {}
+        start_x, start_y = 1.0, 2.0
+        box_w, box_h = 2.5, 1.2
+        gap_x, gap_y = 0.8, 0.6
+        cols = 4
+        
+        for i, box in enumerate(boxes[:8]):  # Max 8 boxes
+            row, col = i // cols, i % cols
+            x = start_x + col * (box_w + gap_x)
+            y = start_y + row * (box_h + gap_y)
+            
+            box_label = str(box.get("label", ""))[:30]
+            box_positions[box_label] = (x, y, box_w, box_h)
+            
+            # Box shape
+            box_shape = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(box_w), Inches(box_h))
+            box_shape.fill.solid(); box_shape.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            box_shape.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            
+            # Box label
+            _add_textbox(s, x + 0.1, y + 0.1, box_w - 0.2, 0.4, box_label,
+                        font_size_pt=12, bold=True, color=pal["text"])
+            
+            # Box description
+            desc = str(box.get("description", ""))[:60]
+            if desc:
+                _add_textbox(s, x + 0.1, y + 0.5, box_w - 0.2, box_h - 0.6, desc,
+                            font_size_pt=9, color=pal.get("muted", pal["text"]))
+        
+        # Draw connections
+        for conn in connections:
+            from_label = str(conn.get("from_box", ""))[:30]
+            to_label = str(conn.get("to_box", ""))[:30]
+            
+            if from_label in box_positions and to_label in box_positions:
+                from_x, from_y, from_w, from_h = box_positions[from_label]
+                to_x, to_y, to_w, to_h = box_positions[to_label]
+                
+                # Connection from center of from-box to center of to-box
+                start_x_conn = from_x + from_w / 2
+                start_y_conn = from_y + from_h / 2
+                end_x_conn = to_x + to_w / 2
+                end_y_conn = to_y + to_h / 2
+                
+                try:
+                    arrow = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, 
+                                                  Inches(start_x_conn), Inches(start_y_conn),
+                                                  Inches(end_x_conn), Inches(end_y_conn))
+                    arrow.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+                    arrow.line.width = Pt(2)
+                    
+                    # Connection label
+                    conn_label = str(conn.get("label", ""))[:30]
+                    if conn_label:
+                        label_x = (start_x_conn + end_x_conn) / 2
+                        label_y = (start_y_conn + end_y_conn) / 2
+                        _add_textbox(s, label_x - 0.5, label_y - 0.2, 1.0, 0.4, conn_label,
+                                    font_size_pt=8, color=pal["text"])
+                except Exception:
+                    # Skip connection if it fails
+                    continue
+
     # --- Render in order ---
     def render_title(sl):
         s = prs.slides.add_slide(blank); apply_bg(s)
@@ -3346,6 +3697,20 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             c = _content(sl)
             stages = [str(x).strip() for x in (c.get("cards") or c.get("bullets") or []) if str(x).strip()]
             render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
+        elif t == "roadmap":
+            _render_roadmap(sl)
+        elif t == "swot":
+            _render_swot(sl)
+        elif t == "kpi":
+            _render_kpi(sl)
+        elif t == "pricing":
+            _render_pricing(sl)
+        elif t == "risk_matrix":
+            _render_risk_matrix(sl)
+        elif t == "before_after":
+            _render_before_after(sl)
+        elif t == "architecture":
+            _render_architecture(sl)
         elif t in {"thank_you", "cta"}:
             # skip for now; rendered at end to guarantee last
             continue
@@ -3780,6 +4145,357 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 tb2.word_wrap = True; tb2.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
                 p2 = tb2.paragraphs[0]; p2.clear(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(16); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
             y += band_h + gap
+
+    def _render_roadmap(sl) -> None:
+        """Render phase-based roadmap with title, date range, and description per phase."""
+        content = _content(sl)
+        title = content.get("title", "Roadmap")
+        phases = content.get("phases", [])
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Layout: horizontal phases with rounded rectangles
+        start_x, start_y = 1.0, 2.2
+        phase_w, phase_h = 2.8, 2.8
+        gap = 0.6
+        
+        for i, phase in enumerate(phases[:6]):  # Max 6 phases
+            x = start_x + i * (phase_w + gap)
+            
+            # Phase container
+            phase_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(start_y), Inches(phase_w), Inches(phase_h))
+            phase_box.fill.solid(); phase_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            phase_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            
+            # Phase title
+            phase_title = str(phase.get("title", ""))[:50]  # Truncate long titles
+            _add_textbox(s, x + 0.15, start_y + 0.15, phase_w - 0.3, 0.5, phase_title, 
+                        font_size_pt=18, bold=True, color=pal["text"], word_wrap=True)
+            
+            # Date range
+            date_range = str(phase.get("date_range", ""))[:30]
+            if date_range:
+                _add_textbox(s, x + 0.15, start_y + 0.65, phase_w - 0.3, 0.4, date_range,
+                            font_size_pt=12, color=pal.get("muted", pal["text"]), word_wrap=True)
+            
+            # Description
+            desc = str(phase.get("description", ""))[:150]  # Limit description length
+            if desc:
+                _add_textbox(s, x + 0.15, start_y + 1.1, phase_w - 0.3, phase_h - 1.25, desc,
+                            font_size_pt=11, color=pal["text"], word_wrap=True, auto_fit=True)
+            
+            # Connector arrow to next phase
+            if i < len(phases) - 1:
+                arrow_x = x + phase_w + 0.05
+                arrow = s.shapes.add_shape(MsoShape.RIGHT_ARROW, Inches(arrow_x), Inches(start_y + phase_h/2 - 0.2), Inches(gap - 0.1), Inches(0.4))
+                arrow.fill.solid(); arrow.fill.fore_color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+                arrow.line.fill.background()
+
+    def _render_swot(sl) -> None:
+        """Render 2x2 SWOT grid with quadrants: Strengths, Weaknesses, Opportunities, Threats."""
+        content = _content(sl)
+        title = content.get("title", "SWOT Analysis")
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Grid layout: 2x2
+        start_x, start_y = 1.0, 2.0
+        cell_w, cell_h = 5.5, 2.8
+        gap_x, gap_y = 0.8, 0.6
+        
+        quadrants = [
+            ("strengths", "Strengths", 0, 0),
+            ("weaknesses", "Weaknesses", 1, 0),
+            ("opportunities", "Opportunities", 0, 1),
+            ("threats", "Threats", 1, 1)
+        ]
+        
+        for key, label, col_idx, row_idx in quadrants:
+            x = start_x + col_idx * (cell_w + gap_x)
+            y = start_y + row_idx * (cell_h + gap_y)
+            
+            quadrant_data = content.get(key, {})
+            points = quadrant_data.get("points", [])
+            
+            # Quadrant container
+            quad_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(cell_w), Inches(cell_h))
+            quad_box.fill.solid(); quad_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            quad_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            
+            # Quadrant title
+            _add_textbox(s, x + 0.15, y + 0.1, cell_w - 0.3, 0.4, label,
+                        font_size_pt=16, bold=True, color=pal["primary"])
+            
+            # Bullet points
+            if points:
+                bullet_text = "\n".join(f"• {str(p)[:60]}" for p in points[:5])  # Max 5 points, truncate long text
+                _add_textbox(s, x + 0.15, y + 0.5, cell_w - 0.3, cell_h - 0.65, bullet_text,
+                            font_size_pt=11, color=pal["text"], word_wrap=True, auto_fit=True)
+
+    def _render_kpi(sl) -> None:
+        """Render 2-4 KPI metric cards with label, value, and optional caption."""
+        content = _content(sl)
+        title = content.get("title", "Key Metrics")
+        metrics = content.get("metrics", [])
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Layout: 2x2 grid for up to 4 metrics
+        start_x, start_y = 1.0, 2.2
+        card_w, card_h = 5.5, 2.0
+        gap_x, gap_y = 0.8, 0.6
+        
+        for i, metric in enumerate(metrics[:4]):  # Max 4 metrics
+            row, col = i // 2, i % 2
+            x = start_x + col * (card_w + gap_x)
+            y = start_y + row * (card_h + gap_y)
+            
+            # Metric card
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(card_w), Inches(card_h))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            card.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            
+            # Label
+            label = str(metric.get("label", ""))[:40]
+            _add_textbox(s, x + 0.2, y + 0.15, card_w - 0.4, 0.4, label,
+                        font_size_pt=14, bold=True, color=pal["text"], word_wrap=True)
+            
+            # Value (large)
+            value = str(metric.get("value", ""))[:25]
+            _add_textbox(s, x + 0.2, y + 0.55, card_w - 0.4, 0.6, value,
+                        font_size_pt=28, bold=True, color=pal["primary"], word_wrap=True)
+            
+            # Caption
+            caption = str(metric.get("caption", ""))[:80]
+            if caption:
+                _add_textbox(s, x + 0.2, y + 1.15, card_w - 0.4, card_h - 1.35, caption,
+                            font_size_pt=10, color=pal.get("muted", pal["text"]), word_wrap=True, auto_fit=True)
+
+    def _render_pricing(sl) -> None:
+        """Render pricing comparison table with 2-4 plans and feature rows."""
+        content = _content(sl)
+        title = content.get("title", "Pricing Comparison")
+        plans = content.get("plans", [])
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        if not plans:
+            return
+            
+        # Layout: table with plans as columns
+        start_x, start_y = 1.0, 2.2
+        col_w = 2.5
+        row_h = 0.5
+        header_h = 0.8
+        
+        # Plan headers
+        for i, plan in enumerate(plans[:4]):  # Max 4 plans
+            x = start_x + i * col_w
+            
+            # Header background
+            header = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(start_y), Inches(col_w - 0.1), Inches(header_h))
+            header.fill.solid(); header.fill.fore_color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            header.line.fill.background()
+            
+            # Plan name
+            name = str(plan.get("name", ""))[:30]
+            _add_textbox(s, x + 0.05, start_y + 0.1, col_w - 0.2, 0.3, name,
+                        font_size_pt=16, bold=True, color=(255, 255, 255), word_wrap=True)
+            
+            # Price
+            price = str(plan.get("price", ""))[:20]
+            if price:
+                _add_textbox(s, x + 0.05, start_y + 0.4, col_w - 0.2, 0.3, price,
+                            font_size_pt=14, color=(255, 255, 255), word_wrap=True)
+        
+        # Feature rows
+        all_features = set()
+        for plan in plans:
+            all_features.update(plan.get("features", []))
+        
+        feature_list = list(all_features)[:8]  # Max 8 features
+        for j, feature in enumerate(feature_list):
+            y = start_y + header_h + j * row_h
+            
+            # Feature name (first column)
+            feature_text = str(feature)[:40]
+            _add_textbox(s, start_x + 0.05, y + 0.05, col_w - 0.15, row_h - 0.1, feature_text,
+                        font_size_pt=11, color=pal["text"], word_wrap=True)
+            
+            # Checkmarks for each plan
+            for i, plan in enumerate(plans[:4]):
+                x = start_x + i * col_w
+                has_feature = feature in plan.get("features", [])
+                
+                if has_feature:
+                    # Checkmark
+                    check = s.shapes.add_shape(MsoShape.OVAL, Inches(x + col_w/2 - 0.15), Inches(y + 0.15), Inches(0.3), Inches(0.3))
+                    check.fill.solid(); check.fill.fore_color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+                    check.line.fill.background()
+
+    def _render_risk_matrix(sl) -> None:
+        """Render 2x2 risk matrix with Likelihood vs Impact axes."""
+        content = _content(sl)
+        title = content.get("title", "Risk Matrix")
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Grid layout: 2x2
+        start_x, start_y = 1.0, 2.0
+        cell_w, cell_h = 5.5, 2.5
+        gap_x, gap_y = 0.8, 0.6
+        
+        quadrants = [
+            ("low_likelihood_low_impact", "Low Likelihood\nLow Impact", 0, 0, (200, 230, 201)),
+            ("low_likelihood_high_impact", "Low Likelihood\nHigh Impact", 1, 0, (252, 196, 85)),
+            ("high_likelihood_low_impact", "High Likelihood\nLow Impact", 0, 1, (252, 196, 85)),
+            ("high_likelihood_high_impact", "High Likelihood\nHigh Impact", 1, 1, (248, 113, 113))
+        ]
+        
+        for key, label, col_idx, row_idx, bg_color in quadrants:
+            x = start_x + col_idx * (cell_w + gap_x)
+            y = start_y + row_idx * (cell_h + gap_y)
+            
+            quadrant_data = content.get(key, {})
+            points = quadrant_data.get("points", [])
+            
+            # Quadrant container with risk-based coloring
+            quad_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(cell_w), Inches(cell_h))
+            quad_box.fill.solid(); quad_box.fill.fore_color.rgb = RGBColor(*bg_color)
+            quad_box.line.color.rgb = RGBColor(*pal.get("text", (71, 71, 71)))
+            
+            # Quadrant label
+            _add_textbox(s, x + 0.15, y + 0.1, cell_w - 0.3, 0.6, label,
+                        font_size_pt=12, bold=True, color=pal["text"], word_wrap=True)
+            
+            # Bullet points
+            if points:
+                bullet_text = "\n".join(f"• {str(p)[:50]}" for p in points[:3])  # Max 3 points
+                _add_textbox(s, x + 0.15, y + 0.7, cell_w - 0.3, cell_h - 0.85, bullet_text,
+                            font_size_pt=10, color=pal["text"], word_wrap=True, auto_fit=True)
+        
+        # Axis labels
+        _add_textbox(s, start_x + (cell_w + gap_x) * 0.5, start_y - 0.5, cell_w, 0.4, "Impact →",
+                    font_size_pt=14, bold=True, color=pal["text"], align="center")
+        _add_textbox(s, start_x - 0.8, start_y + (cell_h + gap_y) * 0.5, 0.6, cell_h,
+                    "Likelihood\n↓", font_size_pt=14, bold=True, color=pal["text"], align="center")
+
+    def _render_before_after(sl) -> None:
+        """Render before/after comparison with two columns."""
+        content = _content(sl)
+        title = content.get("title", "Before vs After")
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Two-column layout
+        start_x, start_y = 1.0, 2.2
+        col_w, col_h = 5.5, 4.0
+        gap = 0.8
+        
+        columns = [
+            ("before", "Before", 0),
+            ("after", "After", 1)
+        ]
+        
+        for key, label, col_idx in columns:
+            x = start_x + col_idx * (col_w + gap)
+            col_data = content.get(key, {})
+            heading = str(col_data.get("heading", label))[:50]
+            points = col_data.get("points", [])
+            
+            # Column container
+            col_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(start_y), Inches(col_w), Inches(col_h))
+            col_box.fill.solid(); col_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            col_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            
+            # Column heading
+            _add_textbox(s, x + 0.15, start_y + 0.15, col_w - 0.3, 0.5, heading,
+                        font_size_pt=18, bold=True, color=pal["primary"], word_wrap=True)
+            
+            # Bullet points
+            if points:
+                bullet_text = "\n".join(f"• {str(p)[:60]}" for p in points[:8])  # Max 8 points
+                _add_textbox(s, x + 0.15, start_y + 0.7, col_w - 0.3, col_h - 0.85, bullet_text,
+                            font_size_pt=12, color=pal["text"], word_wrap=True, auto_fit=True)
+
+    def _render_architecture(sl) -> None:
+        """Render architecture diagram with boxes and directional arrows."""
+        content = _content(sl)
+        title = content.get("title", "Architecture Diagram")
+        boxes = content.get("boxes", [])
+        connections = content.get("connections", [])
+        
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        
+        # Create box positions in a grid layout
+        box_positions = {}
+        start_x, start_y = 1.0, 2.0
+        box_w, box_h = 2.5, 1.2
+        gap_x, gap_y = 0.8, 0.6
+        cols = 4
+        
+        for i, box in enumerate(boxes[:8]):  # Max 8 boxes
+            row, col = i // cols, i % cols
+            x = start_x + col * (box_w + gap_x)
+            y = start_y + row * (box_h + gap_y)
+            
+            box_label = str(box.get("label", ""))[:30]
+            box_positions[box_label] = (x, y, box_w, box_h)
+            
+            # Box shape
+            box_shape = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(box_w), Inches(box_h))
+            box_shape.fill.solid(); box_shape.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            box_shape.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            
+            # Box label
+            _add_textbox(s, x + 0.1, y + 0.1, box_w - 0.2, 0.4, box_label,
+                        font_size_pt=12, bold=True, color=pal["text"], word_wrap=True)
+            
+            # Box description
+            desc = str(box.get("description", ""))[:60]
+            if desc:
+                _add_textbox(s, x + 0.1, y + 0.5, box_w - 0.2, box_h - 0.6, desc,
+                            font_size_pt=9, color=pal.get("muted", pal["text"]), word_wrap=True, auto_fit=True)
+        
+        # Draw connections
+        for conn in connections:
+            from_label = str(conn.get("from_box", ""))[:30]
+            to_label = str(conn.get("to_box", ""))[:30]
+            
+            if from_label in box_positions and to_label in box_positions:
+                from_x, from_y, from_w, from_h = box_positions[from_label]
+                to_x, to_y, to_w, to_h = box_positions[to_label]
+                
+                # Connection from center of from-box to center of to-box
+                start_x_conn = from_x + from_w / 2
+                start_y_conn = from_y + from_h / 2
+                end_x_conn = to_x + to_w / 2
+                end_y_conn = to_y + to_h / 2
+                
+                try:
+                    arrow = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, 
+                                                  Inches(start_x_conn), Inches(start_y_conn),
+                                                  Inches(end_x_conn), Inches(end_y_conn))
+                    arrow.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+                    arrow.line.width = Pt(2)
+                    
+                    # Connection label
+                    conn_label = str(conn.get("label", ""))[:30]
+                    if conn_label:
+                        label_x = (start_x_conn + end_x_conn) / 2
+                        label_y = (start_y_conn + end_y_conn) / 2
+                        _add_textbox(s, label_x - 0.5, label_y - 0.2, 1.0, 0.4, conn_label,
+                                    font_size_pt=8, color=pal["text"], word_wrap=True)
+                except Exception:
+                    # Skip connection if it fails
+                    continue
 
     def render_summary_slide(items: List[str]):
         s = prs.slides.add_slide(blank); apply_bg(s)

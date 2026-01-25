@@ -11,12 +11,19 @@ from __future__ import annotations
 from typing import List, Dict
 
 from app.schemas.slide_object import (
+    ArchitectureSlide,
+    BeforeAfterSlide,
     ChartSlide,
     ComparisonSlide,
     HeaderSlide,
     ImageSlide,
+    KPISlide,
+    PricingSlide,
     QuoteSlide,
+    RiskMatrixSlide,
+    RoadmapSlide,
     SlideObject,
+    SWOTSlide,
     TableSlide,
     TextSlide,
     TimelineSlide,
@@ -96,6 +103,114 @@ def slide_objects_to_simple(slides: List[SlideObject]) -> List[Dict[str, str]]:
         if isinstance(slide, ImageSlide):
             # We'll rely on PPTGenerator.include_images flag + prompt
             simple.append({"title": slide.content.title or "Image", "content": slide.content.prompt})
+            continue
+
+        if isinstance(slide, RoadmapSlide):
+            phases_data = slide.content.phases or []
+            phases = []
+            for phase in phases_data:
+                phase_text = f"{phase.title}"
+                if phase.date_range:
+                    phase_text += f" ({phase.date_range})"
+                if phase.description:
+                    phase_text += f": {phase.description}"
+                phases.append(phase_text)
+            body = "\n".join(phases)
+            simple.append({"title": slide.content.title, "content": body})
+            continue
+
+        if isinstance(slide, SWOTSlide):
+            swot_data = [
+                ("Strengths", slide.content.strengths.points or []),
+                ("Weaknesses", slide.content.weaknesses.points or []),
+                ("Opportunities", slide.content.opportunities.points or []),
+                ("Threats", slide.content.threats.points or [])
+            ]
+            swot_sections = []
+            for label, points in swot_data:
+                if points:
+                    swot_sections.append(f"{label}:\n" + "\n".join(f"• {p}" for p in points))
+            body = "\n\n".join(swot_sections)
+            simple.append({"title": slide.content.title, "content": body})
+            continue
+
+        if isinstance(slide, KPISlide):
+            metrics_data = slide.content.metrics or []
+            metrics = []
+            for metric in metrics_data:
+                metric_text = f"{metric.label}: {metric.value}"
+                if metric.caption:
+                    metric_text += f" - {metric.caption}"
+                metrics.append(metric_text)
+            body = "\n".join(metrics)
+            simple.append({"title": slide.content.title, "content": body})
+            continue
+
+        if isinstance(slide, PricingSlide):
+            plans_data = slide.content.plans or []
+            pricing_sections = []
+            for plan in plans_data:
+                plan_text = f"{plan.name}"
+                if plan.price:
+                    plan_text += f" - {plan.price}"
+                if plan.features:
+                    plan_text += "\n" + "\n".join(f"• {f}" for f in plan.features)
+                pricing_sections.append(plan_text)
+            body = "\n\n".join(pricing_sections)
+            simple.append({"title": slide.content.title, "content": body})
+            continue
+
+        if isinstance(slide, RiskMatrixSlide):
+            risk_data = [
+                ("Low Likelihood / Low Impact", slide.content.low_likelihood_low_impact.points or []),
+                ("Low Likelihood / High Impact", slide.content.low_likelihood_high_impact.points or []),
+                ("High Likelihood / Low Impact", slide.content.high_likelihood_low_impact.points or []),
+                ("High Likelihood / High Impact", slide.content.high_likelihood_high_impact.points or [])
+            ]
+            risk_sections = []
+            for label, points in risk_data:
+                if points:
+                    risk_sections.append(f"{label}:\n" + "\n".join(f"• {p}" for p in points))
+            body = "\n\n".join(risk_sections)
+            simple.append({"title": slide.content.title, "content": body})
+            continue
+
+        if isinstance(slide, BeforeAfterSlide):
+            before_data = slide.content.before
+            after_data = slide.content.after
+            
+            before_text = f"{before_data.heading}:\n" + "\n".join(f"• {p}" for p in (before_data.points or []))
+            after_text = f"{after_data.heading}:\n" + "\n".join(f"• {p}" for p in (after_data.points or []))
+            
+            body = f"{before_text}\n\n{after_text}"
+            simple.append({"title": slide.content.title, "content": body})
+            continue
+
+        if isinstance(slide, ArchitectureSlide):
+            boxes_data = slide.content.boxes or []
+            connections_data = slide.content.connections or []
+            
+            # Box information
+            boxes = []
+            for box in boxes_data:
+                box_text = box.label
+                if box.description:
+                    box_text += f": {box.description}"
+                boxes.append(box_text)
+            
+            # Connection information
+            connections = []
+            for conn in connections_data:
+                conn_text = f"{conn.from_box} → {conn.to_box}"
+                if conn.label:
+                    conn_text += f" ({conn.label})"
+                connections.append(conn_text)
+            
+            body = "Components:\n" + "\n".join(f"• {b}" for b in boxes)
+            if connections:
+                body += "\n\nConnections:\n" + "\n".join(f"• {c}" for c in connections)
+            
+            simple.append({"title": slide.content.title, "content": body})
             continue
 
         # Fallback: generic stringification
