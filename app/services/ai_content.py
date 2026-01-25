@@ -9,7 +9,7 @@ from app.models import LLMCall, Pricing
 import os
 
 
-MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "3000"))
+MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "4000"))
 MAX_TOKENS_HARMONIZE = int(os.getenv("MAX_TOKENS_HARMONIZE", "600"))
 MAX_TOKENS_TOPIC_BULLETS = int(os.getenv("MAX_TOKENS_TOPIC_BULLETS", "180"))
 MAX_TOKENS_TABLE_HEADERS = int(os.getenv("MAX_TOKENS_TABLE_HEADERS", "96"))
@@ -340,6 +340,12 @@ def create_deck_slides(
     # DEBUG: Log the prompt to see what AI is receiving
     try:
         print(f"DEBUG: AI prompt modules_priority: {messages[1]['content'].split('modules_priority')[1].split(']')[0] + ']'}")
+        print(f"DEBUG: Full prompt length: {len(messages[1]['content'])} characters")
+        # Show a snippet of the schema section to see if it's too verbose
+        schema_start = messages[1]['content'].find('"schema"')
+        if schema_start != -1:
+            schema_snippet = messages[1]['content'][schema_start:schema_start+500]
+            print(f"DEBUG: Schema snippet: {schema_snippet}...")
     except Exception:
         pass
 
