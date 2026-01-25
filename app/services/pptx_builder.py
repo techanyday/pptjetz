@@ -3698,18 +3698,25 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             stages = [str(x).strip() for x in (c.get("cards") or c.get("bullets") or []) if str(x).strip()]
             render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
         elif t == "roadmap":
+            print(f"DEBUG: Rendering roadmap slide")
             _render_roadmap(sl)
         elif t == "swot":
+            print(f"DEBUG: Rendering swot slide")
             _render_swot(sl)
         elif t == "kpi":
+            print(f"DEBUG: Rendering kpi slide")
             _render_kpi(sl)
         elif t == "pricing":
+            print(f"DEBUG: Rendering pricing slide")
             _render_pricing(sl)
         elif t == "risk_matrix":
+            print(f"DEBUG: Rendering risk_matrix slide")
             _render_risk_matrix(sl)
         elif t == "before_after":
+            print(f"DEBUG: Rendering before_after slide")
             _render_before_after(sl)
         elif t == "architecture":
+            print(f"DEBUG: Rendering architecture slide")
             _render_architecture(sl)
         elif t in {"thank_you", "cta"}:
             # skip for now; rendered at end to guarantee last
