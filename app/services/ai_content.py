@@ -215,7 +215,7 @@ def build_prompt(
             "CONTENT ALIGNMENT: Each mapped slide's CONTENT (bullets/points/table cells) must elaborate the mapped agenda bullet and share key terms.",
             "Do not produce slides that are not linked to an agenda item.",
             "Ensure the Thank You slide is always the final slide, even if you add extra slides beyond N.",
-            "If N is small, prefer overview or infographic over multiple bullet variations.",
+            "If N is small, prefer roadmap, swot, kpi, pricing, risk_matrix, before_after, architecture, overview or infographic over multiple bullet variations.",
             "Double column slides should use left_points and right_points; 6+ items per column when possible.",
             "Tabular Comparison must be CONTEXTUAL to the topic in input_text. Headings should reflect the actual comparison dimension (e.g., 'Pre-COVID' vs 'During/After COVID', 'Developed Markets' vs 'Emerging Markets'). NEVER use 'Traditional vs AI-Driven' unless the topic is explicitly about AI approaches.",
             "For any 'Key Concepts' or concept-focused slide, provide 6–8 distinct topic-derived terms with concise, non-repetitive definitions. Derive terms from the topic and agenda; avoid umbrella words (e.g., 'Overview', 'Concepts'). Do NOT echo the slide title in the bullet text. Do NOT repeat the same template phrase across bullets.",
