@@ -336,6 +336,12 @@ def create_deck_slides(
         input_text=input_text,
         num_slides=num_slides,
     )
+    
+    # DEBUG: Log the prompt to see what AI is receiving
+    try:
+        print(f"DEBUG: AI prompt modules_priority: {messages[1]['content'].split('modules_priority')[1].split(']')[0] + ']'}")
+    except Exception:
+        pass
 
     try:
         resp = client.chat.completions.create(
@@ -359,6 +365,13 @@ def create_deck_slides(
         return [], [err]
     if not isinstance(slides, list):
         return [], ["AI did not return a JSON array"]
+    
+    # DEBUG: Log the slide types AI generated
+    try:
+        generated_types = [s.get("type", "unknown") for s in slides]
+        print(f"DEBUG: AI generated slide types: {generated_types}")
+    except Exception:
+        pass
     # Ensure a strong, non-generic Title slide at index 0 using AI refinement if needed
     try:
         slides = _ensure_title_slide(
