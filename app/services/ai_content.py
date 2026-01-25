@@ -9,7 +9,7 @@ from app.models import LLMCall, Pricing
 import os
 
 
-MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "1800"))
+MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "3000"))
 MAX_TOKENS_HARMONIZE = int(os.getenv("MAX_TOKENS_HARMONIZE", "600"))
 MAX_TOKENS_TOPIC_BULLETS = int(os.getenv("MAX_TOKENS_TOPIC_BULLETS", "180"))
 MAX_TOKENS_TABLE_HEADERS = int(os.getenv("MAX_TOKENS_TABLE_HEADERS", "96"))
@@ -344,6 +344,7 @@ def create_deck_slides(
         pass
 
     try:
+        print(f"DEBUG: Using max_tokens={MAX_TOKENS_DECK}")
         resp = client.chat.completions.create(
             model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
             messages=messages,  # type: ignore[arg-type]
@@ -354,6 +355,10 @@ def create_deck_slides(
         content = (resp.choices[0].message.content or "").strip()
         # Log short snippet for diagnostics
         try:
+            usage = getattr(resp, 'usage', None)
+            if usage:
+                print(f"DEBUG: Token usage - prompt: {getattr(usage, 'prompt_tokens', 'unknown')}, completion: {getattr(usage, 'completion_tokens', 'unknown')}, total: {getattr(usage, 'total_tokens', 'unknown')}")
+                print(f"DEBUG: Reason: {getattr(resp.choices[0], 'finish_reason', 'unknown')}")
             print("AI raw length=", len(content), "snippet=", content[:400].replace("\n", " "))
         except Exception:
             pass
