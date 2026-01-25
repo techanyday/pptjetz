@@ -3737,25 +3737,25 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             _render_timeline(sl)
         elif t == "roadmap":
             print(f"DEBUG: Rendering roadmap slide with content: {_content(sl)}")
-            _render_roadmap(sl)
+            _render_roadmap_wrapper(sl)
         elif t == "swot":
             print(f"DEBUG: Rendering swot slide with content: {_content(sl)}")
-            _render_swot(sl)
+            _render_swot_wrapper(sl)
         elif t == "kpi":
             print(f"DEBUG: Rendering kpi slide with content: {_content(sl)}")
-            _render_kpi(sl)
+            _render_kpi_wrapper(sl)
         elif t == "pricing":
             print(f"DEBUG: Rendering pricing slide with content: {_content(sl)}")
-            _render_pricing(sl)
+            _render_pricing_wrapper(sl)
         elif t == "risk_matrix":
             print(f"DEBUG: Rendering risk_matrix slide with content: {_content(sl)}")
-            _render_risk_matrix(sl)
+            _render_risk_matrix_wrapper(sl)
         elif t == "before_after":
             print(f"DEBUG: Rendering before_after slide with content: {_content(sl)}")
-            _render_before_after(sl)
+            _render_before_after_wrapper(sl)
         elif t == "architecture":
             print(f"DEBUG: Rendering architecture slide with content: {_content(sl)}")
-            _render_architecture(sl)
+            _render_architecture_wrapper(sl)
         elif t in {"thank_you", "cta"}:
             # skip for now; rendered at end to guarantee last
             print(f"DEBUG: Skipping {t} slide")
@@ -4575,6 +4575,56 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     # Always ensure a Thank You at the end
     thanks_sl = next((s for s in slides_norm if _ctype(s) in {"thank_you", "cta"}), None)
     render_thanks(thanks_sl or {"type": "thank_you", "cta": ""})
+
+    # Wrapper functions to transform AI content structures
+    def _render_roadmap_wrapper(sl):
+        # Transform AI timeline structure to expected phases structure
+        content = _content(sl)
+        if "timeline" in content:
+            sl["content"]["phases"] = content["timeline"]
+        _render_roadmap(sl)
+    
+    def _render_swot_wrapper(sl):
+        # Transform AI bullets to quadrant structure
+        content = _content(sl)
+        bullets = content.get("bullets", [])
+        quadrant_data = {"strengths": {"points": []}, "weaknesses": {"points": []}, 
+                        "opportunities": {"points": []}, "threats": {"points": []}}
+        
+        for bullet in bullets:
+            bullet_lower = bullet.lower()
+            if "strengths:" in bullet_lower:
+                quadrant_data["strengths"]["points"].append(bullet.split(":", 1)[1].strip())
+            elif "weaknesses:" in bullet_lower:
+                quadrant_data["weaknesses"]["points"].append(bullet.split(":", 1)[1].strip())
+            elif "opportunities:" in bullet_lower:
+                quadrant_data["opportunities"]["points"].append(bullet.split(":", 1)[1].strip())
+            elif "threats:" in bullet_lower:
+                quadrant_data["threats"]["points"].append(bullet.split(":", 1)[1].strip())
+        
+        # Update slide content with transformed structure
+        for key, data in quadrant_data.items():
+            sl["content"][key] = data
+        
+        _render_swot(sl)
+    
+    def _render_kpi_wrapper(sl):
+        # KPI bullets should work as-is, just call the function
+        _render_kpi(sl)
+    
+    def _render_pricing_wrapper(sl):
+        # Pricing table structure should work as-is
+        _render_pricing(sl)
+    
+    def _render_risk_matrix_wrapper(sl):
+        # Risk matrix table structure should work as-is  
+        _render_risk_matrix(sl)
+    
+    def _render_before_after_wrapper(sl):
+        _render_before_after(sl)
+    
+    def _render_architecture_wrapper(sl):
+        _render_architecture(sl)
 
     prs.save(out_path)
     return out_path
