@@ -840,6 +840,48 @@ def export_presentation() -> Any:
         ]
         return any(k in blob for k in keys)
 
+    def _eligible_gantt(blob: str, bullets: list[str]) -> bool:
+        if len(bullets or []) < 4:
+            return False
+        timeline_terms = [
+            "timeline", "roadmap", "milestone", "milestones", "project", "delivery", "deliverable",
+            "execution", "implementation", "rollout", "launch plan", "plan", "schedule", "gantt",
+        ]
+        axis_terms = ["q1", "q2", "q3", "q4", "week", "weeks", "month", "months", "phase 1", "phase 2", "phase 3", "sprint"]
+        if not any(t in blob for t in timeline_terms):
+            return False
+        if any(a in blob for a in axis_terms):
+            return True
+        return False
+
+    def _eligible_bmc(blob: str) -> bool:
+        if not blob:
+            return False
+        keys = [
+            "business model", "revenue", "pricing", "monetization", "saas", "subscription",
+            "startup", "go-to-market", "go to market", "gtm", "value proposition", "channels",
+            "customer segments", "partners", "key partners",
+        ]
+        score = sum(1 for k in keys if k in blob)
+        return score >= 2
+
+    def _eligible_process_flow(blob: str, bullets: list[str]) -> bool:
+        if len(bullets or []) < 4:
+            return False
+        flow_terms = ["workflow", "process", "pipeline", "handoff", "handover", "steps", "sequence", "system", "intake", "approval", "review"]
+        numbered = any(re.match(r"^\s*(\d+\.|step\s*\d+|phase\s*\d+)", str(b or "").strip(), flags=re.I) for b in (bullets or []))
+        if any(t in blob for t in flow_terms) and (numbered or _eligible_process(blob, bullets)):
+            return True
+        return False
+
+    def _eligible_comparison_matrix(blob: str, bullets: list[str]) -> bool:
+        if len(bullets or []) < 4:
+            return False
+        if "swot" in blob:
+            return False
+        compare_terms = ["compare", "comparison", "versus", "vs", "options", "alternatives", "evaluate", "selection", "tool", "tools", "framework", "approach", "approaches"]
+        return any(t in blob for t in compare_terms)
+
     def _eligible_risk(blob: str) -> bool:
         if not blob:
             return False
@@ -886,16 +928,30 @@ def export_presentation() -> Any:
 
     # Priority: prefer higher-value infographic intents when multiple are eligible
     _INTENT_PRIORITY: dict[str, int] = {
-        "IMPACT": 0,
-        "PROCESS": 1,
-        "OPTIMIZATION": 2,
-        "RISK": 3,
-        "BENEFITS": 4,
+        "GANTT": 0,
+        "BMC": 1,
+        "PROCESS_FLOW": 2,
+        "COMPARE": 3,
+        "IMPACT": 4,
+        "PROCESS": 5,
+        "OPTIMIZATION": 6,
+        "RISK": 7,
+        "BENEFITS": 8,
     }
 
     def _primary_infographic_intent(topic: str, bullets: list[str]) -> str | None:
         blob = _topic_blob(topic, bullets)
         intents: list[str] = []
+        if "swot" in blob:
+            return None
+        if _eligible_gantt(blob, bullets):
+            intents.append("GANTT")
+        if _eligible_bmc(blob):
+            intents.append("BMC")
+        if _eligible_process_flow(blob, bullets):
+            intents.append("PROCESS_FLOW")
+        if _eligible_comparison_matrix(blob, bullets):
+            intents.append("COMPARE")
         if _eligible_impact(blob):
             intents.append("IMPACT")
         if _eligible_process(blob, bullets):
@@ -1079,9 +1135,9 @@ def export_presentation() -> Any:
         ]):
             return "technical_product"
 
-        # Business / Strategy: positioning, SWOT, business model, vision, strategy
+        # Business / Strategy: positioning, business model, vision, strategy
         if any(k in blob for k in [
-            "strategy", "strategic", "business model", "swot", "positioning",
+            "strategy", "strategic", "business model", "positioning",
             "governance", "operating model", "vision", "mission", "competitive",
             "market analysis", "value proposition", "okrs", "objectives and key results",
         ]):
@@ -1112,6 +1168,7 @@ def export_presentation() -> Any:
         s2 = _find_first("agenda") or {}
         c2 = _content(s2)
         agenda_topics = clean_list([str(x) for x in (c2.get("bullets") or [])])
+        agenda_topics = [t for t in agenda_topics if "swot" not in t.lower()]
         if not agenda_topics:
             # Derive from provided slide titles excluding non-topic types
             agenda_topics = []
@@ -1122,7 +1179,8 @@ def export_presentation() -> Any:
                 ttl = str(sl.get("title") or "").strip()
                 if ttl:
                     agenda_topics.append(ttl)
-            agenda_topics = clean_list(agenda_topics)[:32]
+            agenda_topics = clean_list(agenda_topics)
+            agenda_topics = [t for t in agenda_topics if "swot" not in t.lower()][:32]
         agenda_slide = {"type": "agenda", "content": {"bullets": agenda_topics[:32]}, "_render_exact": True}
 
         # Classify deck intent once for deterministic, intent-driven layout selection.
@@ -1251,15 +1309,23 @@ def export_presentation() -> Any:
             spec["use_infographic"] = False
 
         if showcase_mode:
-            # In showcase mode, upgrade all semantically-eligible topics to
-            # infographics, regardless of the base category pattern.
-            for spec in topic_specs:
-                if spec.get("intent"):
-                    spec["use_infographic"] = True
-                    spec["final_layout"] = "infographic"
+            # Showcase mode is intentionally visual, but still deterministic.
+            # Keep a reasonable cap unless the deck is explicitly operational.
+            is_operational = deck_category in {"project_planning", "technical_product"}
+            max_infographics = 4 if is_operational else 2
+            candidates = [s for s in topic_specs if s.get("intent")]
+            candidates.sort(key=lambda s: (_INTENT_PRIORITY.get(str(s.get("intent")), 99), s["idx"]))
+            for spec in candidates[:max_infographics]:
+                spec["use_infographic"] = True
+                spec["final_layout"] = "infographic"
         else:
-            # Normal mode: start from the category pattern, but only honour
-            # 'infographic' slots when the topic is semantically eligible.
+            # Normal mode: keep infographics intentional and capped.
+            # Limit to 1–2 per deck unless the topic is explicitly operational.
+            is_operational = deck_category in {"project_planning", "technical_product"}
+            max_infographics = 3 if is_operational else 2
+
+            # Start from the category pattern, but only honour infographic slots
+            # when semantically eligible.
             for spec in topic_specs:
                 if spec["base_layout"] == "infographic" and spec.get("intent"):
                     spec["use_infographic"] = True
@@ -1273,19 +1339,34 @@ def export_presentation() -> Any:
                     # otherwise use cards. This keeps behaviour deterministic.
                     spec["final_layout"] = "double_column" if len(pts) >= 4 else "cards"
 
-            total_eligible = len(eligible_specs)
-            current_infographics = sum(1 for s in topic_specs if s["use_infographic"])
+            # Allow high-signal operational infographics (like Gantt/process flow)
+            # even if the base pattern didn't include an infographic slot.
+            if is_operational:
+                for spec in topic_specs:
+                    if spec.get("intent") in {"GANTT", "PROCESS_FLOW"}:
+                        spec["final_layout"] = "infographic"
 
-            # Minimum visual richness guardrail: when there are at least two
-            # semantically-eligible topics, ensure that at least two render as
-            # infographics (never by adding new topics or bullets).
-            if total_eligible >= 2 and current_infographics < 2:
-                need = 2 - current_infographics
-                candidates = [s for s in topic_specs if s.get("intent") and not s["use_infographic"]]
+            # Enforce cap by demoting lowest-priority infographics.
+            current = [s for s in topic_specs if s.get("final_layout") == "infographic" and s.get("intent")]
+            current.sort(key=lambda s: (_INTENT_PRIORITY.get(str(s.get("intent")), 99), s["idx"]))
+            keep = set((s["idx"]) for s in current[:max_infographics])
+            for spec in topic_specs:
+                if spec.get("final_layout") == "infographic" and spec.get("intent") and spec["idx"] not in keep:
+                    pts = spec.get("pts") or []
+                    # Deterministic demotion choice
+                    spec["final_layout"] = "double_column" if len(pts) >= 4 else "cards"
+                    spec["use_infographic"] = False
+
+            # Ensure at least one infographic when eligible, but never exceed cap.
+            total_eligible = len(eligible_specs)
+            current_infographics = sum(1 for s in topic_specs if s.get("final_layout") == "infographic" and s.get("intent"))
+            if total_eligible >= 1 and current_infographics < 1:
+                candidates = [s for s in topic_specs if s.get("intent")]
                 candidates.sort(key=lambda s: (_INTENT_PRIORITY.get(str(s.get("intent")), 99), s["idx"]))
-                for spec in candidates[:need]:
-                    spec["use_infographic"] = True
-                    spec["final_layout"] = "infographic"
+                pick = candidates[0] if candidates else None
+                if pick:
+                    pick["use_infographic"] = True
+                    pick["final_layout"] = "infographic"
 
         # Second pass: build topic slides from the resolved layouts.
         topic_slides: List[Dict[str, Any]] = []
@@ -1392,11 +1473,24 @@ def export_presentation() -> Any:
                     "_render_exact": True,
                 })
             else:  # Infographic / semantic visual summary
-                bullets = list(pts or [])[:5]
+                # Some structured infographics (e.g., Gantt/process/matrix/canvas)
+                # can use more than 5 items when available.
+                if intent in {"GANTT", "BMC", "PROCESS_FLOW", "COMPARE"}:
+                    bullets = list(pts or [])[:18]
+                else:
+                    bullets = list(pts or [])[:5]
                 content: Dict[str, Any] = {"bullets": bullets}
                 if intent:
                     # Map coarse intent to a specific infographic layout identifier
-                    if intent == "IMPACT":
+                    if intent == "GANTT":
+                        tag = "GANTT_CHART"
+                    elif intent == "BMC":
+                        tag = "BUSINESS_MODEL_CANVAS"
+                    elif intent == "PROCESS_FLOW":
+                        tag = "PROCESS_FLOW"
+                    elif intent == "COMPARE":
+                        tag = "COMPARISON_MATRIX"
+                    elif intent == "IMPACT":
                         tag = "IMPACT_MAP_COMPLEX" if len(bullets) > 4 else "IMPACT_MAP_SIMPLE"
                     elif intent == "PROCESS":
                         tag = "PROCESS_FLOW_CHEVRON"
@@ -1421,15 +1515,8 @@ def export_presentation() -> Any:
         s7 = _find_first("thank_you", "cta") or {}
         thanks_slide = {"type": "thank_you", "title": "Thank You", "cta": (s7.get("cta") or data.get("cta") or ""), "_render_exact": True}
 
-        # Build final slides list: Use AI slides directly instead of overriding them
-        # Only create structure if AI slides are empty or invalid
-        if slides and len(slides) > 2:  # Use AI slides when available
-            # Add _render_exact: True to prevent pattern generation from overwriting AI slides
-            for slide in slides:
-                slide["_render_exact"] = True
-            slides_out = slides
-        else:  # Fallback to original structure generation
-            slides_out: List[Dict[str, Any]] = [title_slide, agenda_slide, one_idea_slide] + topic_slides + [thanks_slide]
+        # Build final slides list: Title → Agenda → One-Idea Intro → Topic slides → Thank You
+        slides_out: List[Dict[str, Any]] = [title_slide, agenda_slide, one_idea_slide] + topic_slides + [thanks_slide]
 
         # Build PPTX locally
         import uuid

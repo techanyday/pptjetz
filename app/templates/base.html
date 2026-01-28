@@ -20,7 +20,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}PPTJet - AI PowerPoint Generator{% endblock %}</title>
     <meta name="description" content="{% block description %}AI-powered presentation tips, resources, and tools from PPTJet.{% endblock %}">
-    <link rel="canonical" href="{{ request.url }}">
+    <link rel="canonical" href="{{ request.url if request.path != '/' else 'https://pptjet.com/' }}">
     <meta name="google-site-verification" content="R7WPMpUo573f_ojavNQM9vIsGUpCzE4kuy9G7LlJFos">
     {% if META_PIXEL_ENABLED and META_PIXEL_ID %}
     <!-- Meta Pixel Code -->

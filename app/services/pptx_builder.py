@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
+from datetime import date
+import os
 import random
 import re
 import math
+import colorsys
 from pptx import Presentation  # type: ignore
 from pptx.util import Inches, Pt
 from .content_synthesis import synthesize_key_concepts, is_placeholder, BANNED
@@ -14,6 +17,29 @@ from .slide6_takeaways_chevrons import render_takeaways_chevrons
 
 SLIDE_W_IN = 13.333
 SLIDE_H_IN = 7.5
+
+def _start_of_month(d: date) -> date:
+    return date(d.year, d.month, 1)
+
+
+def _add_months(d: date, months: int) -> date:
+    y = d.year + (d.month - 1 + months) // 12
+    m = (d.month - 1 + months) % 12 + 1
+    return date(y, m, 1)
+
+
+def timeline_date_range_labels(*, today: date | None = None, total_months: int = 6, phases: int = 3) -> List[str]:
+    t = today or date.today()
+    phases = max(1, int(phases or 1))
+    total_months = max(phases, int(total_months or 6))
+    months_per_phase = max(1, total_months // phases)
+    start = _start_of_month(t)
+    out: List[str] = []
+    for i in range(phases):
+        p0 = _add_months(start, i * months_per_phase)
+        p1 = _add_months(start, (i + 1) * months_per_phase - 1)
+        out.append(f"{p0.strftime('%b %Y')} – {p1.strftime('%b %Y')}")
+    return out
 
 # --- Color utilities ---
 def _is_dark_rgb(rgb: Tuple[int, int, int]) -> bool:
@@ -27,6 +53,28 @@ def _clamp(x: int) -> int:
 def _shade(rgb: Tuple[int, int, int], delta: int) -> Tuple[int, int, int]:
     r, g, b = rgb
     return (_clamp(r + delta), _clamp(g + delta), _clamp(b + delta))
+
+
+def _blend_rgb(a: Tuple[int, int, int], b: Tuple[int, int, int], alpha: float) -> Tuple[int, int, int]:
+    aa = max(0.0, min(1.0, float(alpha)))
+    r = int(round(a[0] * (1.0 - aa) + b[0] * aa))
+    g = int(round(a[1] * (1.0 - aa) + b[1] * aa))
+    bb = int(round(a[2] * (1.0 - aa) + b[2] * aa))
+    return (_clamp(r), _clamp(g), _clamp(bb))
+
+
+def _rgb_to_hls(rgb: Tuple[int, int, int]) -> tuple[float, float, float]:
+    r, g, b = rgb
+    return colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)
+
+
+def _hls_to_rgb(h: float, l: float, s: float) -> Tuple[int, int, int]:
+    rr, gg, bb = colorsys.hls_to_rgb(h % 1.0, max(0.0, min(1.0, l)), max(0.0, min(1.0, s)))
+    return (_clamp(int(round(rr * 255))), _clamp(int(round(gg * 255))), _clamp(int(round(bb * 255))))
+
+
+def _rgb_dist(a: Tuple[int, int, int], b: Tuple[int, int, int]) -> float:
+    return float(abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2]))
 
 # Simple theme palettes
 # Each theme maps to: bg, text, primary, secondary
@@ -2313,40 +2361,48 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         that process steps feel on-brand for the selected template.
         """
         base_primary = pal.get("primary", (59, 130, 246))
-        base_secondary = pal.get("secondary", pal.get("bg", (241, 245, 249)))
-        base_muted = pal.get("muted", pal.get("text", base_primary))
         bg_rgb = pal.get("bg", (255, 255, 255))
 
-        # For the SLEEK theme, keep all large step fills firmly in the blue
-        # family (no grey/muted blocks). We now derive the entire progression
-        # from the primary only, so arrows/blocks/cards are always clearly
-        # blue rather than washed-out neutrals.
-        if is_sleek_theme:
-            p = base_primary
-            return [
-                _shade(p, 0),     # primary
-                _shade(p, -18),   # darker
-                _shade(p, 18),    # lighter
-                _shade(p, -32),   # deepest
-                _shade(p, 8),     # mid light
-                _shade(p, -8),    # mid dark
-            ]
+        is_dark_bg = _is_dark_rgb(bg_rgb)
+        h, l, s = _rgb_to_hls(base_primary)
 
-        # Other themes continue to use the original progression, including
-        # their muted tone, until per-theme rules are provided.
-        if not _is_dark_rgb(bg_rgb) and not _is_dark_rgb(base_secondary):
-            base_secondary = _shade(base_secondary, -45)
+        # Keep accents professional: moderate saturation, controlled lightness.
+        s = max(0.32, min(0.72, s if s > 0.20 else 0.45))
+        l = max(0.35, min(0.62, l))
+        if is_dark_bg:
+            l = max(l, 0.55)
+        else:
+            l = min(l, 0.55)
 
-        accent_light = _shade(base_primary, 20)
+        anchor = _hls_to_rgb(h, l, s)
+        # Two nearby hues (analogous), blended back toward anchor to avoid clashes.
+        h_shift = 0.06
+        accent1 = _blend_rgb(anchor, _hls_to_rgb(h + h_shift, min(0.62, l + 0.03), max(0.28, s - 0.10)), 0.58)
+        accent2 = _blend_rgb(anchor, _hls_to_rgb(h - h_shift, min(0.62, l + 0.03), max(0.28, s - 0.10)), 0.58)
 
-        return [
-            base_primary,
-            base_secondary,
-            accent_light,
-            _shade(base_primary, -15),
-            _shade(accent_light, -10),
-            _shade(base_muted, 10),
-        ]
+        def _ensure_visible(rgb: Tuple[int, int, int]) -> Tuple[int, int, int]:
+            r, g, b = rgb
+            lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+            br, bgc, bb = bg_rgb
+            lum_bg = 0.2126 * br + 0.7152 * bgc + 0.0722 * bb
+            if abs(lum - lum_bg) < 28:
+                delta = -28 if not is_dark_bg else 28
+                return _shade(rgb, delta)
+            return rgb
+
+        anchor = _ensure_visible(anchor)
+        accent1 = _ensure_visible(accent1)
+        accent2 = _ensure_visible(accent2)
+
+        # If hue shift produces near-identical colors (e.g., very low saturation),
+        # fall back to anchor-only shading.
+        if _rgb_dist(accent1, anchor) < 45:
+            accent1 = _shade(anchor, 26 if is_dark_bg else -26)
+        if _rgb_dist(accent2, anchor) < 45 or _rgb_dist(accent2, accent1) < 35:
+            accent2 = _shade(anchor, 14 if is_dark_bg else -14)
+
+        # Controlled reuse: anchor remains dominant; accents repeat as needed.
+        return [anchor, accent1, accent2, anchor, accent1, accent2]
 
     def _bullet_colors() -> List[Tuple[int, int, int]]:
         """Return the per-deck bullet icon color.
@@ -3256,6 +3312,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         # Explicit hint wins if present; normalise known tags into coarse intents
         raw = str(content.get("infographic_intent") or content.get("intent") or "").strip().upper()
         if raw:
+            if raw in {"GANTT_CHART", "GANTT"}:
+                return "GANTT"
             if raw in {"IMPACT_MAP_COMPLEX", "IMPACT_MAP_SIMPLE", "IMPACT_MAP", "IMPACT"}:
                 return "IMPACT"
             if raw in {"PROCESS_FLOW_CHEVRON", "PROCESS_CHEVRON", "PROCESS_FLOW", "PROCESS"}:
@@ -3282,6 +3340,134 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             return "BENEFITS"
         return "GENERAL"
 
+    def _fit_gantt_task_label(txt: str, *, box_w_in: float, base_font_pt: int = 14, min_font_pt: int = 10, max_lines: int = 3) -> tuple[str, int]:
+        t = (txt or "").strip()
+        if not t:
+            return "", base_font_pt
+
+        def _wrap(s: str, font_pt: int) -> List[str]:
+            chars_per_in = 9.5 * (14.0 / max(8.0, float(font_pt)))
+            width = max(10, int(box_w_in * chars_per_in))
+            import textwrap
+
+            return textwrap.wrap(s, width=width, break_long_words=False, break_on_hyphens=False) or [s]
+
+        size = base_font_pt
+        lines = _wrap(t, size)
+        if len(lines) <= 2:
+            return "\n".join(lines[:2]), size
+
+        while len(lines) > max_lines and size > min_font_pt:
+            size -= 1
+            lines = _wrap(t, size)
+
+        if len(lines) <= max_lines:
+            return "\n".join(lines[:max_lines]), size
+
+        lines = lines[:max_lines]
+        last = lines[-1]
+        hard_cap = max(8, int(len(last) * 0.85))
+        cut = last[:hard_cap].rstrip()
+        if " " in cut:
+            cut = cut.rsplit(" ", 1)[0]
+        lines[-1] = (cut.rstrip(".") + "...") if cut else "..."
+        return "\n".join(lines), min_font_pt
+
+    def _render_gantt_chart(sl) -> None:
+        title, bullets, content = _infographic_items(sl)
+        tasks = [str(x).strip() for x in (bullets or []) if str(x).strip()]
+        if len(tasks) < 4:
+            tasks = (_synthesize_topic_bullets(title) or [])[:6]
+        tasks = tasks[:6]
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title or "Project Timeline", font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        axis = content.get("axis") or content.get("x_labels") or []
+        axis = [str(x).strip() for x in (axis or []) if str(x).strip()]
+        if len(axis) < 3:
+            axis = timeline_date_range_labels(today=date.today(), total_months=6, phases=3)
+        axis = axis[:6]
+
+        chart_x, chart_y = 1.0, 2.1
+        chart_w, chart_h = 11.3, 4.6
+        label_w = 2.6
+        grid_x = chart_x + label_w
+        grid_w = chart_w - label_w
+        cols = max(3, len(axis))
+        axis = (axis + [""] * cols)[:cols]
+        rows = max(4, min(6, len(tasks)))
+        header_h = 0.6
+        row_h = (chart_h - header_h) / rows
+        col_w = grid_w / cols
+
+        cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(chart_x), Inches(chart_y), Inches(chart_w), Inches(chart_h))
+        cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240, 245, 255))))
+        cont.line.color.rgb = RGBColor(229, 231, 235)
+        try:
+            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 12; cont.shadow.distance = 3
+        except Exception:
+            pass
+
+        head = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(chart_x), Inches(chart_y), Inches(chart_w), Inches(header_h))
+        head.fill.solid(); head.fill.fore_color.rgb = RGBColor(*pal.get("primary", (59, 130, 246)))
+        head.line.fill.background()
+
+        for c_idx, lab in enumerate(axis):
+            _add_textbox(
+                s,
+                grid_x + c_idx * col_w,
+                chart_y + 0.10,
+                col_w,
+                header_h - 0.15,
+                str(lab),
+                font_size_pt=12 if len(str(lab)) > 18 else 14,
+                bold=True,
+                align="center",
+                color=(255, 255, 255),
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+        _draw_table_grid_rect(s, grid_x, chart_y + header_h, grid_w, chart_h - header_h, rows, cols, rgb=(209, 213, 219), weight_pt=0.75)
+        div = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(grid_x), Inches(chart_y), Inches(grid_x), Inches(chart_y + chart_h))
+        div.line.color.rgb = RGBColor(255, 255, 255)
+        div.line.width = Pt(1)
+
+        step_cols = _step_colors()
+        task_box_w = label_w - 0.35
+        for r_idx, task in enumerate(tasks[:rows]):
+            y0 = chart_y + header_h + r_idx * row_h
+            label_txt, fs = _fit_gantt_task_label(str(task), box_w_in=task_box_w, base_font_pt=14, min_font_pt=10, max_lines=3)
+            _add_textbox(
+                s,
+                chart_x + 0.20,
+                y0 + 0.08,
+                task_box_w,
+                row_h - 0.12,
+                label_txt,
+                font_size_pt=fs,
+                bold=True,
+                align="left",
+                color=pal.get("text", (24, 24, 27)),
+                word_wrap=True,
+                auto_fit=False,
+            )
+
+            start = r_idx % max(1, cols - 1)
+            span = 2 if (r_idx % 3 != 0) else 1
+            end = min(cols - 1, start + span)
+            bar_x = grid_x + start * col_w + 0.08
+            bar_w = max(0.25, (end - start + 1) * col_w - 0.16)
+            bar = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(bar_x), Inches(y0 + 0.18), Inches(bar_w), Inches(row_h - 0.36))
+            col = step_cols[r_idx % len(step_cols)]
+            bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(*col)
+            bar.line.fill.background()
+            try:
+                bar.shadow.inherit = False; bar.shadow.visible = True; bar.shadow.blur = 6; bar.shadow.distance = 2
+            except Exception:
+                pass
+
     def _render_impact_map(simple: bool, sl) -> None:
         title, bullets, content = _infographic_items(sl)
         if not bullets:
@@ -3293,7 +3479,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
 
         # Soft background band behind the impact map area for visual structure
-        band_x, band_y, band_w, band_h = 0.9, 2.0, SLIDE_W_IN - 1.8, 3.8
+        node_w, node_h = 3.1, 1.30
+        bot_y = 5.15
+        band_x, band_y, band_w = 0.9, 2.0, SLIDE_W_IN - 1.8
+        band_h = 3.8
+        if n >= 5:
+            band_h = max(band_h, (bot_y + node_h + 0.35) - band_y)
         band = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(band_x), Inches(band_y), Inches(band_w), Inches(band_h))
         band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
         band.line.fill.background()
@@ -3321,12 +3512,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         rc.font.size = Pt(20); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
 
         # Positions for surrounding nodes: tuned for up to 5, fully inside the band
-        node_w, node_h = 3.1, 1.30
         left_x = 1.1
         right_x = SLIDE_W_IN - 1.1 - node_w
         top_y = 2.4
         mid_y = 3.8
-        bot_y = 4.9
         positions = [
             (left_x, mid_y),
             (right_x, mid_y),
@@ -3400,7 +3589,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         # Optional connectors from center to nodes in complex mode.
         # Draw straight straight-line connectors from the hexagon edges to the
         # card edges so that lines attach cleanly without cutting through shapes.
-        if not simple and nodes:
+        if nodes:
             for idx, node in enumerate(nodes):
                 try:
                     # Default: connect midpoints of opposing edges.
@@ -3428,20 +3617,948 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                         end_y = node.top
 
                     conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, start_x, start_y, end_x, end_y)
-                    conn.line.color.rgb = RGBColor(*pal.get("primary", (59, 130, 246)))
-                    conn.line.width = Pt(1.75)
+                    base_rgb = pal.get("primary", (59, 130, 246))
+                    line_rgb = _shade(base_rgb, -25)
+                    conn.line.color.rgb = RGBColor(*line_rgb)
+                    conn.line.width = Pt(1.25 if simple else 1.75)
                 except Exception:
                     # If connectors cannot be drawn, skip gracefully without
                     # impacting the rest of the layout.
                     continue
 
+    def _impact_map_norm_items(sl) -> tuple[str, List[str], Dict[str, Any]]:
+        title, bullets, content = _infographic_items(sl)
+        if not bullets:
+            bullets = _synthesize_topic_bullets(title)[:6]
+        items = [str(x).strip() for x in (bullets or []) if str(x).strip()]
+        items = items[:6]
+        if len(items) < 3:
+            items = (items + _synthesize_topic_bullets(title))[:3]
+        return (title or "Impact Map"), items, (content or {})
+
+    def _render_impact_map_radial(sl) -> None:
+        title, items, content = _impact_map_norm_items(sl)
+        n = max(3, min(6, len(items)))
+        items = items[:n]
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+
+        band_x, band_y, band_w, band_h = 0.9, 1.25, SLIDE_W_IN - 1.8, 6.05
+        band = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(band_x), Inches(band_y), Inches(band_w), Inches(band_h))
+        band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
+        band.line.fill.background()
+        try:
+            band.shadow.inherit = False; band.shadow.visible = True; band.shadow.blur = 18; band.shadow.distance = 3
+        except Exception:
+            pass
+
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        center_label = (content.get("center_label") or sl.get("center_label") or sl.get("title") or "Goal").strip() or "Goal"
+        cx, cy = SLIDE_W_IN / 2.0, 4.45
+        core_d = 2.05
+        core = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - core_d / 2), Inches(cy - core_d / 2), Inches(core_d), Inches(core_d))
+        core_rgb = pal.get("primary", (59, 130, 246))
+        core.fill.solid(); core.fill.fore_color.rgb = RGBColor(*core_rgb)
+        core.line.color.rgb = RGBColor(*_shade(core_rgb, -20))
+        try:
+            core.shadow.inherit = False; core.shadow.visible = True; core.shadow.blur = 14; core.shadow.distance = 3
+        except Exception:
+            pass
+        tfc = core.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+        rc = pc.add_run(); rc.text = center_label
+        rc.font.size = Pt(18); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
+
+        step_cols = _step_colors()
+        node_w, node_h = 2.70, 1.10
+        pts: List[tuple[float, float]] = []
+        if n == 5:
+            gap = 0.95
+            top_y = cy - (core_d / 2.0 + node_h / 2.0 + gap)
+            side_x_off = (core_d / 2.0 + node_w / 2.0 + 1.05)
+            side_y = cy - 0.85
+            bot_y = cy + (core_d / 2.0 + node_h / 2.0 + 0.85)
+            pts = [
+                (cx, top_y),
+                (cx - side_x_off, side_y),
+                (cx + side_x_off, side_y),
+                (cx - (node_w / 2.0 + 0.55), bot_y),
+                (cx + (node_w / 2.0 + 0.55), bot_y),
+            ]
+        else:
+            desired_r = max(2.25, (core_d / 2.0) + (max(node_w, node_h) / 2.0) + 0.70)
+            avail_top = (cy - (band_y + 0.25)) - (node_h / 2.0)
+            avail_bot = ((band_y + band_h - 0.25) - cy) - (node_h / 2.0)
+            r = max(1.6, min(desired_r, avail_top, avail_bot))
+            for i in range(n):
+                ang = (-math.pi / 2.0) + (2.0 * math.pi * i / float(n))
+                x = cx + r * math.cos(ang)
+                y = cy + r * math.sin(ang)
+                pts.append((x, y))
+
+        targets: List[tuple[float, float]] = []
+        for i, raw in enumerate(items):
+            x, y = pts[i]
+            nx = max(band_x + 0.25, min(band_x + band_w - node_w - 0.25, x - node_w / 2.0))
+            ny = max(band_y + 0.25, min(band_y + band_h - node_h - 0.25, y - node_h / 2.0))
+            head, _ = _split_head_tail(raw)
+            head_txt = (head or raw or "").strip() or "(to be refined)"
+            hw = head_txt.split()
+            if len(hw) > 5:
+                head_txt = " ".join(hw[:5])
+            if len(head_txt) > 32:
+                cut = head_txt[:32]
+                head_txt = cut.rsplit(" ", 1)[0] if " " in cut else cut
+            node = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(nx), Inches(ny), Inches(node_w), Inches(node_h))
+            bg_rgb = pal.get("bg", (255, 255, 255))
+            node.fill.solid(); node.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            node.line.color.rgb = RGBColor(*step_cols[i % len(step_cols)])
+            try:
+                node.shadow.inherit = False; node.shadow.visible = True; node.shadow.blur = 6; node.shadow.distance = 2
+            except Exception:
+                pass
+            ico = s.shapes.add_shape(MsoShape.OVAL, Inches(nx + 0.16), Inches(ny + 0.22), Inches(0.28), Inches(0.28))
+            ico.fill.solid(); ico.fill.fore_color.rgb = RGBColor(*step_cols[i % len(step_cols)])
+            ico.line.fill.background()
+            tb = s.shapes.add_textbox(Inches(nx + 0.52), Inches(ny + 0.14), Inches(node_w - 0.68), Inches(node_h - 0.24)).text_frame
+            tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            tb.margin_top = Pt(0); tb.margin_bottom = Pt(0)
+            p = tb.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
+            p.line_spacing = 1.0
+            r1 = p.add_run(); r1.text = head_txt; r1.font.size = Pt(14); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+
+            targets.append((nx + node_w / 2.0, ny + node_h / 2.0))
+
+        base_rgb = pal.get("primary", (59, 130, 246))
+        line_rgb = _shade(base_rgb, -25)
+        for tx, ty in targets:
+            vx = tx - cx
+            vy = ty - cy
+            d = (vx * vx + vy * vy) ** 0.5 or 1.0
+            ux, uy = vx / d, vy / d
+            sx = cx + ux * (core_d / 2.0)
+            sy = cy + uy * (core_d / 2.0)
+            denom_x = abs(ux) if abs(ux) > 1e-6 else 1e-6
+            denom_y = abs(uy) if abs(uy) > 1e-6 else 1e-6
+            t_edge = min((node_w / 2.0) / denom_x, (node_h / 2.0) / denom_y)
+            ex = tx - ux * t_edge
+            ey = ty - uy * t_edge
+            conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(sx), Inches(sy), Inches(ex), Inches(ey))
+            conn.line.color.rgb = RGBColor(*line_rgb)
+            conn.line.width = Pt(1.75)
+
+    def _render_impact_map_pyramid(sl) -> None:
+        title, items, content = _impact_map_norm_items(sl)
+        n = max(3, min(6, len(items)))
+        items = items[:n]
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        band_x, band_y, band_w, band_h = 0.9, 2.0, SLIDE_W_IN - 1.8, 4.95
+        band = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(band_x), Inches(band_y), Inches(band_w), Inches(band_h))
+        band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
+        band.line.fill.background()
+        try:
+            band.shadow.inherit = False; band.shadow.visible = True; band.shadow.blur = 18; band.shadow.distance = 3
+        except Exception:
+            pass
+
+        center_label = (content.get("center_label") or sl.get("center_label") or sl.get("title") or "Goal").strip() or "Goal"
+        core_w, core_h = 3.6, 1.45
+        core_x = (SLIDE_W_IN - core_w) / 2.0
+        core_y = 2.35
+        mid_w, mid_h = 4.75, 1.05
+        bot_w, bot_h = 3.65, 0.95
+        mid_y = core_y + core_h + 0.45
+        bot_y = mid_y + mid_h + 0.45
+        gap_x = 0.55
+
+        mid_positions: List[tuple[float, float]] = [
+            ((SLIDE_W_IN - (2 * mid_w + gap_x)) / 2.0, mid_y),
+            ((SLIDE_W_IN - (2 * mid_w + gap_x)) / 2.0 + mid_w + gap_x, mid_y),
+        ]
+        bot_positions: List[tuple[float, float]] = [
+            ((SLIDE_W_IN - (2 * bot_w + gap_x)) / 2.0, bot_y),
+            ((SLIDE_W_IN - (2 * bot_w + gap_x)) / 2.0 + bot_w + gap_x, bot_y),
+        ]
+
+        mid_items = items[:2]
+        bot_items = items[2:4]
+        if len(mid_items) < 2:
+            mid_items = (mid_items + [""] * 2)[:2]
+        if len(bot_items) < 2:
+            bot_items = (bot_items + [""] * 2)[:2]
+
+        base_rgb = pal.get("primary", (59, 130, 246))
+        line_rgb = _shade(base_rgb, -25)
+        conn1 = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(core_x + core_w / 2.0), Inches(core_y + core_h), Inches(mid_positions[0][0] + mid_w / 2.0), Inches(mid_y))
+        conn2 = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(core_x + core_w / 2.0), Inches(core_y + core_h), Inches(mid_positions[1][0] + mid_w / 2.0), Inches(mid_y))
+        conn3 = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(mid_positions[0][0] + mid_w / 2.0), Inches(mid_y + mid_h), Inches(bot_positions[0][0] + bot_w / 2.0), Inches(bot_y))
+        conn4 = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(mid_positions[1][0] + mid_w / 2.0), Inches(mid_y + mid_h), Inches(bot_positions[1][0] + bot_w / 2.0), Inches(bot_y))
+        for c in (conn1, conn2, conn3, conn4):
+            c.line.color.rgb = RGBColor(*line_rgb)
+            c.line.width = Pt(1.75)
+
+        core = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(core_x), Inches(core_y), Inches(core_w), Inches(core_h))
+        core.fill.solid(); core.fill.fore_color.rgb = RGBColor(*base_rgb)
+        core.line.color.rgb = RGBColor(*_shade(base_rgb, -20))
+        try:
+            core.shadow.inherit = False; core.shadow.visible = True; core.shadow.blur = 14; core.shadow.distance = 3
+        except Exception:
+            pass
+        tfc = core.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+        rc = pc.add_run(); rc.text = center_label
+        rc.font.size = Pt(18); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
+
+        step_cols = _step_colors()
+        for i, (x, y) in enumerate(mid_positions):
+            raw = mid_items[i]
+            head, _ = _split_head_tail(raw)
+            txt = (head or raw or "").strip() or "(to be refined)"
+            words = txt.split()
+            if len(words) > 7:
+                txt = " ".join(words[:7])
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(mid_w), Inches(mid_h))
+            bg_rgb = pal.get("bg", (255, 255, 255))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            card.line.color.rgb = RGBColor(*step_cols[i % len(step_cols)])
+            try:
+                card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 6; card.shadow.distance = 2
+            except Exception:
+                pass
+            tb = card.text_frame; tb.clear(); tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tb.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+            r1 = p.add_run(); r1.text = txt; r1.font.size = Pt(15); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+
+        for i, (x, y) in enumerate(bot_positions):
+            raw = bot_items[i]
+            head, _ = _split_head_tail(raw)
+            txt = (head or raw or "").strip() or "(to be refined)"
+            words = txt.split()
+            if len(words) > 7:
+                txt = " ".join(words[:7])
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(bot_w), Inches(bot_h))
+            bg_rgb = pal.get("bg", (255, 255, 255))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            card.line.color.rgb = RGBColor(*step_cols[(i + 2) % len(step_cols)])
+            try:
+                card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 6; card.shadow.distance = 2
+            except Exception:
+                pass
+            tb = card.text_frame; tb.clear(); tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tb.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+            r1 = p.add_run(); r1.text = txt; r1.font.size = Pt(14); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+
+    def _render_impact_map_two_sided(sl) -> None:
+        title, items, content = _impact_map_norm_items(sl)
+        n = max(3, min(6, len(items)))
+        items = items[:n]
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        band_x, band_y, band_w, band_h = 0.9, 2.0, SLIDE_W_IN - 1.8, 4.95
+        band = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(band_x), Inches(band_y), Inches(band_w), Inches(band_h))
+        band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
+        band.line.fill.background()
+        try:
+            band.shadow.inherit = False; band.shadow.visible = True; band.shadow.blur = 18; band.shadow.distance = 3
+        except Exception:
+            pass
+
+        left_title = str(content.get("baseline_label") or "Current").strip() or "Current"
+        right_title = str(content.get("future_label") or "Future").strip() or "Future"
+        _add_textbox(s, 1.15, 2.15, 3.6, 0.45, left_title, font_size_pt=14, bold=True, color=pal.get("muted", pal.get("text", (71, 85, 105))), word_wrap=True, auto_fit=True)
+        _add_textbox(s, SLIDE_W_IN - 1.15 - 3.6, 2.15, 3.6, 0.45, right_title, font_size_pt=14, bold=True, align="right", color=pal.get("muted", pal.get("text", (71, 85, 105))), word_wrap=True, auto_fit=True)
+
+        center_label = (content.get("center_label") or sl.get("center_label") or sl.get("title") or "Goal").strip() or "Goal"
+        hex_w, hex_h = 3.3, 1.85
+        hex_x = (SLIDE_W_IN - hex_w) / 2.0
+        hex_y = 3.15
+
+        left = items[: max(1, n // 2)]
+        right = items[max(1, n // 2):]
+        if len(right) < len(left):
+            right = right + [""]
+
+        node_w, node_h = 3.05, 1.15
+        gap_y = 0.35
+        left_x = 1.1
+        right_x = SLIDE_W_IN - 1.1 - node_w
+        start_y = 2.75
+
+        left_positions: List[tuple[float, float]] = []
+        right_positions: List[tuple[float, float]] = []
+        for i in range(min(3, len(left))):
+            left_positions.append((left_x, start_y + i * (node_h + gap_y)))
+        for i in range(min(3, len(right))):
+            right_positions.append((right_x, start_y + i * (node_h + gap_y)))
+
+        base_rgb = pal.get("primary", (59, 130, 246))
+        line_rgb = _shade(base_rgb, -25)
+        for x, y in left_positions:
+            conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(x + node_w), Inches(y + node_h / 2.0), Inches(hex_x), Inches(hex_y + hex_h / 2.0))
+            conn.line.color.rgb = RGBColor(*line_rgb)
+            conn.line.width = Pt(1.75)
+        for x, y in right_positions:
+            conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(hex_x + hex_w), Inches(hex_y + hex_h / 2.0), Inches(x), Inches(y + node_h / 2.0))
+            conn.line.color.rgb = RGBColor(*line_rgb)
+            conn.line.width = Pt(1.75)
+
+        core = s.shapes.add_shape(MsoShape.HEXAGON, Inches(hex_x), Inches(hex_y), Inches(hex_w), Inches(hex_h))
+        core.fill.solid(); core.fill.fore_color.rgb = RGBColor(*base_rgb)
+        core.line.color.rgb = RGBColor(*_shade(base_rgb, -20))
+        try:
+            core.shadow.inherit = False; core.shadow.visible = True; core.shadow.blur = 14; core.shadow.distance = 3
+        except Exception:
+            pass
+        tfc = core.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+        rc = pc.add_run(); rc.text = center_label
+        rc.font.size = Pt(18); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
+
+        step_cols = _step_colors()
+        def _node(i: int, x: float, y: float, raw: str) -> None:
+            head, _ = _split_head_tail(raw)
+            head_txt = (head or raw or "").strip() or "(to be refined)"
+            hw = head_txt.split()
+            if len(hw) > 6:
+                head_txt = " ".join(hw[:6])
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(node_w), Inches(node_h))
+            bg_rgb = pal.get("bg", (255, 255, 255))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            card.line.color.rgb = RGBColor(*step_cols[i % len(step_cols)])
+            try:
+                card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 6; card.shadow.distance = 2
+            except Exception:
+                pass
+            ico = s.shapes.add_shape(MsoShape.OVAL, Inches(x + 0.18), Inches(y + 0.23), Inches(0.28), Inches(0.28))
+            ico.fill.solid(); ico.fill.fore_color.rgb = RGBColor(*step_cols[i % len(step_cols)])
+            ico.line.fill.background()
+            tb = s.shapes.add_textbox(Inches(x + 0.56), Inches(y + 0.12), Inches(node_w - 0.70), Inches(node_h - 0.24)).text_frame
+            tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tb.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
+            p.line_spacing = 1.0
+            r1 = p.add_run(); r1.text = head_txt; r1.font.size = Pt(14); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+
+        for i, (x, y) in enumerate(left_positions):
+            _node(i, x, y, left[i] if i < len(left) else "")
+        for i, (x, y) in enumerate(right_positions):
+            _node(i + 3, x, y, right[i] if i < len(right) else "")
+
+    def _render_impact_map_swimlane(sl) -> None:
+        title, items, content = _impact_map_norm_items(sl)
+        roles = _extract_swimlane_roles(items)
+        lanes = roles[:3]
+        if len(lanes) < 2:
+            lanes = ["Stakeholders", "Operations"]
+
+        role_to_items: Dict[str, List[str]] = {r: [] for r in lanes}
+        unassigned: List[str] = []
+        for raw in items:
+            t = str(raw or "").strip()
+            if ":" in t:
+                left = t.split(":", 1)[0].strip()
+                rest = t.split(":", 1)[1].strip()
+                if left in role_to_items and rest:
+                    role_to_items[left].append(rest)
+                    continue
+            unassigned.append(t)
+
+        if unassigned:
+            for i, t in enumerate(unassigned):
+                role_to_items[lanes[i % len(lanes)]].append(t)
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        band_x, band_y, band_w, band_h = 0.9, 2.0, SLIDE_W_IN - 1.8, 4.95
+        band = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(band_x), Inches(band_y), Inches(band_w), Inches(band_h))
+        band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
+        band.line.fill.background()
+        try:
+            band.shadow.inherit = False; band.shadow.visible = True; band.shadow.blur = 18; band.shadow.distance = 3
+        except Exception:
+            pass
+
+        center_label = (content.get("center_label") or sl.get("center_label") or sl.get("title") or "Goal").strip() or "Goal"
+        goal_x, goal_y, goal_w, goal_h = 1.15, 2.60, 2.30, 3.90
+        core_rgb = pal.get("primary", (59, 130, 246))
+        goal = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(goal_x), Inches(goal_y), Inches(goal_w), Inches(goal_h))
+        goal.fill.solid(); goal.fill.fore_color.rgb = RGBColor(*core_rgb)
+        goal.line.color.rgb = RGBColor(*_shade(core_rgb, -20))
+        try:
+            goal.shadow.inherit = False; goal.shadow.visible = True; goal.shadow.blur = 14; goal.shadow.distance = 3
+        except Exception:
+            pass
+        tfc = goal.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+        rc = pc.add_run(); rc.text = center_label
+        rc.font.size = Pt(18); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
+
+        lane_n = max(2, min(3, len(lanes)))
+        inner_y = band_y + 0.45
+        inner_h = band_h - 0.75
+        lane_h = inner_h / lane_n
+        content_x = 3.70
+        content_w = SLIDE_W_IN - 1.10 - content_x
+        gap_x = 0.35
+        card_w = (content_w - gap_x) / 2.0
+        step_cols = _step_colors()
+        line_rgb = _shade(core_rgb, -25)
+
+        for i in range(lane_n):
+            lane = lanes[i]
+            y0 = inner_y + i * lane_h
+            if i > 0:
+                div = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(band_x + 0.25), Inches(y0), Inches(band_x + band_w - 0.25), Inches(y0))
+                div.line.color.rgb = RGBColor(255, 255, 255)
+                div.line.width = Pt(1.0)
+
+            col = step_cols[i % len(step_cols)]
+            _add_textbox(s, content_x, y0 - 0.02, content_w, 0.28, lane, font_size_pt=12, bold=True, color=col, word_wrap=True, auto_fit=True)
+
+            lane_items = role_to_items.get(lane, [])[:2]
+            card_h = max(0.90, min(1.05, lane_h - 0.40))
+            card_y = y0 + 0.30
+
+            card_left_x = content_x
+            if lane_items:
+                conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(goal_x + goal_w), Inches(card_y + card_h / 2.0), Inches(card_left_x), Inches(card_y + card_h / 2.0))
+                conn.line.color.rgb = RGBColor(*line_rgb)
+                conn.line.width = Pt(1.75)
+
+            for j, raw in enumerate(lane_items):
+                txt = (str(raw or "").strip() or "(to be refined)")
+                words = txt.split()
+                if len(words) > 10:
+                    txt = " ".join(words[:10])
+                x = content_x + j * (card_w + gap_x)
+                card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(card_y), Inches(card_w), Inches(card_h))
+                bg_rgb = pal.get("bg", (255, 255, 255))
+                card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*bg_rgb)
+                card.line.color.rgb = RGBColor(*col)
+                try:
+                    card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 6; card.shadow.distance = 2
+                except Exception:
+                    pass
+                tb = s.shapes.add_textbox(Inches(x + 0.22), Inches(card_y + 0.12), Inches(card_w - 0.40), Inches(card_h - 0.24)).text_frame
+                tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                p = tb.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
+                p.line_spacing = 1.0
+                r1 = p.add_run(); r1.text = txt; r1.font.size = Pt(13); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+
+    def _process_blob(title_txt: str, items: List[str]) -> str:
+        return (title_txt or "").lower() + " " + " ".join(str(x).lower() for x in (items or []))
+
+    def _extract_swimlane_roles(items: List[str]) -> List[str]:
+        roles: List[str] = []
+        for raw in (items or []):
+            t = (raw or "").strip()
+            if ":" in t:
+                left = t.split(":", 1)[0].strip()
+                if 2 <= len(left) <= 24 and all(ch.isalnum() or ch in " &/" for ch in left):
+                    if left not in roles:
+                        roles.append(left)
+            if len(roles) >= 3:
+                break
+        return roles
+
+    def _choose_process_variant(title_txt: str, items: List[str]) -> str:
+        blob = _process_blob(title_txt, items)
+        n = len(items)
+        parts = [_split_head_tail(x) for x in (items or [])]
+        lens = [len(((tail or head) or "").strip()) for head, tail in parts]
+        max_len = max(lens) if lens else 0
+        avg_len = (sum(lens) / len(lens)) if lens else 0.0
+
+        governance = any(k in blob for k in [
+            "approve", "approval", "sign-off", "sign off", "compliance", "audit", "control",
+            "gate", "gating", "checkpoint", "validation", "readiness", "go/no-go", "go no-go", "review",
+        ])
+        cyclical = any(k in blob for k in [
+            "cycle", "cyclical", "continuous", "ongoing", "recurring", "repeat", "iteration", "iterate", "loop", "feedback",
+        ])
+        instructional = any(k in blob for k in [
+            "how to", "how it works", "step-by-step", "step by step", "instructions", "guide", "tutorial",
+            "setup", "configure", "install", "onboarding",
+        ])
+        exec_tone = any(k in blob for k in [
+            "overview", "executive", "high-level", "high level", "operating model", "summary",
+        ])
+        saas_tone = any(k in blob for k in [
+            "saas", "product", "platform", "app", "workflow", "automation",
+        ])
+        roles = _extract_swimlane_roles(items)
+        long_desc = (max_len >= 80) or (avg_len >= 55) or any(len(str(x)) >= 110 for x in (items or []))
+
+        if governance and 4 <= n <= 6:
+            return "GATE"
+        if cyclical and 4 <= n <= 6:
+            return "CYCLE"
+        if len(roles) >= 2 and n <= 6:
+            return "SWIMLANE"
+        if long_desc or n >= 7:
+            return "VERTICAL"
+        if instructional:
+            return "CARDS"
+        if saas_tone and max_len <= 36:
+            return "ICONS"
+        if exec_tone and max_len <= 60:
+            return "BANDS"
+        return "CHEVRON"
+
+    def _render_process_numbered_cards(title_txt: str, items: List[str]) -> None:
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title_txt or "Process", font_size_pt=32, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
+
+        n = min(6, max(4, len(items)))
+        arr = items[:n]
+        cols = 3 if n >= 5 else n
+        rows = 2 if n >= 5 else 1
+        card_h = 1.55
+        gap_x = 0.35
+        gap_y = 0.40
+        cont_x = 0.7
+        cont_w = SLIDE_W_IN - 1.4
+        total_h = rows * card_h + (rows - 1) * gap_y
+        cont_y = 2.15
+        cont_h = total_h + 0.5
+        cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cont_x), Inches(cont_y), Inches(cont_w), Inches(cont_h))
+        cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240, 245, 255))))
+        cont.line.color.rgb = RGBColor(229, 231, 235)
+        try:
+            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 14; cont.shadow.distance = 3
+        except Exception:
+            pass
+
+        inner_x = cont_x + 0.35
+        inner_y = cont_y + 0.25
+        card_w = (cont_w - (cols - 1) * gap_x - 0.70) / cols
+        STEP_COLS = _step_colors()
+
+        for idx, raw in enumerate(arr):
+            rr = idx // cols
+            cc = idx % cols
+            x = inner_x + cc * (card_w + gap_x)
+            y = inner_y + rr * (card_h + gap_y)
+            base_col = STEP_COLS[idx % len(STEP_COLS)]
+
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(card_w), Inches(card_h))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
+            card.line.color.rgb = RGBColor(*base_col)
+            try:
+                card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 6; card.shadow.distance = 2
+            except Exception:
+                pass
+
+            circ = s.shapes.add_shape(MsoShape.OVAL, Inches(x + 0.18), Inches(y + 0.18), Inches(0.42), Inches(0.42))
+            circ.fill.solid(); circ.fill.fore_color.rgb = RGBColor(*base_col)
+            circ.line.fill.background()
+            tfc = circ.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+            rc = pc.add_run(); rc.text = str(idx + 1); rc.font.size = Pt(16); rc.font.bold = True; rc.font.color.rgb = RGBColor(*_contrast_text(base_col))
+
+            head, tail = _split_head_tail(raw)
+            head_txt = (head or raw).strip()
+            tail_txt = (tail or "").strip()
+            tf = s.shapes.add_textbox(Inches(x + 0.70), Inches(y + 0.18), Inches(card_w - 0.90), Inches(card_h - 0.32)).text_frame
+            tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
+            r1 = p.add_run(); r1.text = head_txt; r1.font.size = Pt(14); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+            if tail_txt:
+                p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.LEFT
+                r2 = p2.add_run(); r2.text = tail_txt; r2.font.size = Pt(11); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+
+    def _render_process_vertical_timeline(title_txt: str, items: List[str]) -> None:
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title_txt or "Process", font_size_pt=32, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
+
+        n = min(7, max(4, len(items)))
+        arr = items[:n]
+        cont_x = 0.7
+        cont_w = SLIDE_W_IN - 1.4
+        cont_y = 2.05
+        cont_h = 5.05
+        cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cont_x), Inches(cont_y), Inches(cont_w), Inches(cont_h))
+        cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240, 245, 255))))
+        cont.line.color.rgb = RGBColor(229, 231, 235)
+        try:
+            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 14; cont.shadow.distance = 3
+        except Exception:
+            pass
+
+        spine_x = cont_x + 1.05
+        top_y = cont_y + 0.55
+        bot_y = cont_y + cont_h - 0.55
+        spine = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(spine_x), Inches(top_y), Inches(spine_x), Inches(bot_y))
+        spine.line.color.rgb = RGBColor(209, 213, 219)
+        spine.line.width = Pt(2)
+
+        step = (bot_y - top_y) / (n - 1)
+        STEP_COLS = _step_colors()
+        for idx, raw in enumerate(arr):
+            y = top_y + idx * step
+            col = STEP_COLS[idx % len(STEP_COLS)]
+            node = s.shapes.add_shape(MsoShape.OVAL, Inches(spine_x - 0.18), Inches(y - 0.18), Inches(0.36), Inches(0.36))
+            node.fill.solid(); node.fill.fore_color.rgb = RGBColor(*col)
+            node.line.fill.background()
+
+            head, tail = _split_head_tail(raw)
+            head_txt = (head or raw).strip()
+            tail_txt = (tail or "").strip()
+            card_x = spine_x + 0.55
+            card_w = cont_x + cont_w - 0.55 - card_x
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(card_x), Inches(y - 0.42), Inches(card_w), Inches(0.84))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
+            card.line.color.rgb = RGBColor(*col)
+            card.line.width = Pt(1)
+
+            tf = s.shapes.add_textbox(Inches(card_x + 0.22), Inches(y - 0.38), Inches(card_w - 0.40), Inches(0.76)).text_frame
+            tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
+            r1 = p.add_run(); r1.text = f"{idx + 1}. {head_txt}"; r1.font.size = Pt(13); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+            if tail_txt:
+                p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.LEFT
+                r2 = p2.add_run(); r2.text = tail_txt; r2.font.size = Pt(11); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+
+    def _render_process_phase_bands(title_txt: str, items: List[str]) -> None:
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title_txt or "Phases", font_size_pt=32, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
+
+        n = min(6, max(4, len(items)))
+        arr = items[:n]
+        cont_x = 0.7
+        cont_w = SLIDE_W_IN - 1.4
+        cont_y = 2.1
+        cont_h = 5.0
+        cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cont_x), Inches(cont_y), Inches(cont_w), Inches(cont_h))
+        cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240, 245, 255))))
+        cont.line.color.rgb = RGBColor(229, 231, 235)
+        try:
+            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 14; cont.shadow.distance = 3
+        except Exception:
+            pass
+
+        band_h = (cont_h - 0.70) / n
+        STEP_COLS = _step_colors()
+        for idx, raw in enumerate(arr):
+            y = cont_y + 0.35 + idx * band_h
+            col = STEP_COLS[idx % len(STEP_COLS)]
+            band = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cont_x + 0.55), Inches(y), Inches(cont_w - 1.10), Inches(band_h - 0.12))
+            band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*_shade(col, 26))
+            band.line.color.rgb = RGBColor(*col)
+            band.line.width = Pt(1)
+            circ = s.shapes.add_shape(MsoShape.OVAL, Inches(cont_x + 0.25), Inches(y + (band_h - 0.12)/2 - 0.20), Inches(0.40), Inches(0.40))
+            circ.fill.solid(); circ.fill.fore_color.rgb = RGBColor(*col)
+            circ.line.fill.background()
+            tfc = circ.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+            rc = pc.add_run(); rc.text = str(idx + 1); rc.font.size = Pt(14); rc.font.bold = True; rc.font.color.rgb = RGBColor(*_contrast_text(col))
+
+            head, tail = _split_head_tail(raw)
+            head_txt = (head or raw).strip()
+            tail_txt = (tail or "").strip()
+            tf = s.shapes.add_textbox(Inches(cont_x + 1.10), Inches(y + 0.10), Inches(cont_w - 1.70), Inches(band_h - 0.30)).text_frame
+            tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
+            r1 = p.add_run(); r1.text = head_txt; r1.font.size = Pt(14); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+            if tail_txt:
+                p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.LEFT
+                r2 = p2.add_run(); r2.text = tail_txt; r2.font.size = Pt(11); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+
+    def _render_process_cycle(title_txt: str, items: List[str]) -> None:
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title_txt or "Cycle", font_size_pt=32, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
+
+        n = min(6, max(4, len(items)))
+        arr = items[:n]
+        cont_x = 0.7
+        cont_w = SLIDE_W_IN - 1.4
+        cont_y = 2.05
+        cont_h = 5.05
+        cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cont_x), Inches(cont_y), Inches(cont_w), Inches(cont_h))
+        cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240, 245, 255))))
+        cont.line.color.rgb = RGBColor(229, 231, 235)
+        try:
+            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 14; cont.shadow.distance = 3
+        except Exception:
+            pass
+
+        cx = cont_x + cont_w / 2
+        cy = cont_y + cont_h / 2 + 0.05
+        rx = min(3.8, (cont_w - 1.9) / 2)
+        ry = min(2.0, (cont_h - 2.0) / 2)
+        node_w = 2.0
+        node_h = 0.80
+        STEP_COLS = _step_colors()
+
+        pts: List[tuple[float, float]] = []
+        for i in range(n):
+            ang = (-math.pi / 2) + (2 * math.pi * i / n)
+            x = cx + rx * math.cos(ang)
+            y = cy + ry * math.sin(ang)
+            pts.append((x, y))
+
+        for i in range(n):
+            x0, y0 = pts[i]
+            x1, y1 = pts[(i + 1) % n]
+            conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(x0), Inches(y0), Inches(x1), Inches(y1))
+            conn.line.color.rgb = RGBColor(209, 213, 219)
+            conn.line.width = Pt(1.25)
+
+        for idx, raw in enumerate(arr):
+            x, y = pts[idx]
+            col = STEP_COLS[idx % len(STEP_COLS)]
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x - node_w / 2), Inches(y - node_h / 2), Inches(node_w), Inches(node_h))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
+            card.line.color.rgb = RGBColor(*col)
+            card.line.width = Pt(1)
+
+            head, tail = _split_head_tail(raw)
+            head_txt = (head or raw).strip()
+            tail_txt = (tail or "").strip()
+            tf = s.shapes.add_textbox(Inches(x - node_w / 2 + 0.18), Inches(y - node_h / 2 + 0.12), Inches(node_w - 0.36), Inches(node_h - 0.20)).text_frame
+            tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.CENTER
+            r1 = p.add_run(); r1.text = f"{idx + 1}. {head_txt}" if len(head_txt) <= 26 else head_txt
+            r1.font.size = Pt(12); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+            if tail_txt and len(tail_txt) <= 48:
+                p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
+                r2 = p2.add_run(); r2.text = tail_txt; r2.font.size = Pt(10); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+
+    def _parse_swimlane_items(items: List[str]) -> List[tuple[str, str]]:
+        out: List[tuple[str, str]] = []
+        for raw in (items or []):
+            t = (raw or "").strip()
+            if ":" in t:
+                left, right = t.split(":", 1)
+                role = left.strip()
+                desc = right.strip()
+                if role and desc:
+                    out.append((role, desc))
+                    continue
+            out.append(("", t))
+        return out
+
+    def _render_process_swimlane(title_txt: str, items: List[str]) -> None:
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title_txt or "Swimlane Process", font_size_pt=32, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
+
+        n = min(6, max(4, len(items)))
+        pairs = _parse_swimlane_items(items[:n])
+        roles = _extract_swimlane_roles([f"{r}: {d}" if r else d for r, d in pairs])
+        if not roles:
+            roles = ["Team A", "Team B"]
+        lanes = min(3, max(2, len(roles)))
+        roles = roles[:lanes]
+
+        cont_x = 0.7
+        cont_w = SLIDE_W_IN - 1.4
+        cont_y = 2.05
+        cont_h = 5.05
+        cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cont_x), Inches(cont_y), Inches(cont_w), Inches(cont_h))
+        cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240, 245, 255))))
+        cont.line.color.rgb = RGBColor(229, 231, 235)
+        try:
+            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 14; cont.shadow.distance = 3
+        except Exception:
+            pass
+
+        header_w = 1.55
+        grid_x = cont_x + header_w
+        grid_w = cont_w - header_w - 0.35
+        grid_y = cont_y + 0.35
+        grid_h = cont_h - 0.70
+        lane_h = grid_h / lanes
+        col_w = grid_w / n
+        STEP_COLS = _step_colors()
+
+        for li, role in enumerate(roles):
+            y0 = grid_y + li * lane_h
+            lane_bg = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(cont_x + 0.35), Inches(y0), Inches(cont_w - 0.70), Inches(lane_h))
+            lane_bg.fill.solid(); lane_bg.fill.fore_color.rgb = RGBColor(*_shade(pal.get("bg", (255, 255, 255)), 6 if li % 2 == 0 else 10))
+            lane_bg.line.fill.background()
+            _add_textbox(s, cont_x + 0.45, y0 + 0.12, header_w - 0.15, lane_h - 0.24, role, font_size_pt=12, bold=True, align="left", color=pal.get("text", (24, 24, 27)), word_wrap=True, auto_fit=True)
+            if li > 0:
+                div = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(cont_x + 0.35), Inches(y0), Inches(cont_x + cont_w - 0.35), Inches(y0))
+                div.line.color.rgb = RGBColor(209, 213, 219)
+                div.line.width = Pt(1)
+
+        for si, (role, desc) in enumerate(pairs):
+            lane_idx = 0
+            if role:
+                try:
+                    lane_idx = roles.index(role)
+                except ValueError:
+                    lane_idx = 0
+            x = grid_x + si * col_w + 0.10
+            y = grid_y + lane_idx * lane_h + 0.18
+            w = max(0.8, col_w - 0.20)
+            h = lane_h - 0.36
+            col = STEP_COLS[si % len(STEP_COLS)]
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
+            card.line.color.rgb = RGBColor(*col)
+            card.line.width = Pt(1)
+            tf = s.shapes.add_textbox(Inches(x + 0.14), Inches(y + 0.10), Inches(w - 0.28), Inches(h - 0.20)).text_frame
+            tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
+            r = p.add_run(); r.text = f"{si + 1}. {desc}"; r.font.size = Pt(11); r.font.bold = True; r.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+
+    def _render_process_icon_led_horizontal(title_txt: str, items: List[str]) -> None:
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title_txt or "Workflow", font_size_pt=32, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
+
+        n = min(6, max(4, len(items)))
+        arr = items[:n]
+        cont_x = 0.7
+        cont_w = SLIDE_W_IN - 1.4
+        cont_y = 2.15
+        cont_h = 4.85
+        cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cont_x), Inches(cont_y), Inches(cont_w), Inches(cont_h))
+        cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240, 245, 255))))
+        cont.line.color.rgb = RGBColor(229, 231, 235)
+        try:
+            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 14; cont.shadow.distance = 3
+        except Exception:
+            pass
+
+        pad_x = 0.55
+        center_y = cont_y + cont_h / 2 - 0.15
+        gap = (cont_w - 2 * pad_x) / (n - 1)
+        STEP_COLS = _step_colors()
+        base_line = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(cont_x + pad_x), Inches(center_y), Inches(cont_x + cont_w - pad_x), Inches(center_y))
+        base_line.line.color.rgb = RGBColor(209, 213, 219)
+        base_line.line.width = Pt(2)
+
+        for idx, raw in enumerate(arr):
+            x = cont_x + pad_x + idx * gap
+            col = STEP_COLS[idx % len(STEP_COLS)]
+            ico = s.shapes.add_shape(MsoShape.OVAL, Inches(x - 0.30), Inches(center_y - 0.30), Inches(0.60), Inches(0.60))
+            ico.fill.solid(); ico.fill.fore_color.rgb = RGBColor(*col)
+            ico.line.fill.background()
+            tfc = ico.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+            rc = pc.add_run(); rc.text = str(idx + 1); rc.font.size = Pt(16); rc.font.bold = True; rc.font.color.rgb = RGBColor(*_contrast_text(col))
+
+            head, tail = _split_head_tail(raw)
+            head_txt = (head or raw).strip()
+            tail_txt = (tail or "").strip()
+            _add_textbox(s, x - 0.95, center_y + 0.40, 1.90, 0.65, head_txt, font_size_pt=13 if len(head_txt) <= 18 else 11, bold=True, align="center", color=pal.get("text", (24, 24, 27)), word_wrap=True, auto_fit=True)
+            if tail_txt and len(tail_txt) <= 52:
+                _add_textbox(s, x - 0.95, center_y + 0.92, 1.90, 0.65, tail_txt, font_size_pt=10, bold=False, align="center", color=pal.get("muted", pal.get("text", (71, 85, 105))), word_wrap=True, auto_fit=True)
+
+    def _render_process_milestone_gate(title_txt: str, items: List[str]) -> None:
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title_txt or "Milestone Gates", font_size_pt=32, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
+
+        n = min(6, max(4, len(items)))
+        arr = items[:n]
+        cont_x = 0.7
+        cont_w = SLIDE_W_IN - 1.4
+        cont_y = 2.15
+        cont_h = 4.85
+        cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cont_x), Inches(cont_y), Inches(cont_w), Inches(cont_h))
+        cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240, 245, 255))))
+        cont.line.color.rgb = RGBColor(229, 231, 235)
+        try:
+            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 14; cont.shadow.distance = 3
+        except Exception:
+            pass
+
+        pad_x = 0.55
+        mid_y = cont_y + cont_h / 2
+        step_w = 1.55
+        gate_w = 0.55
+        avail = cont_w - 2 * pad_x
+        total = n * step_w + (n - 1) * gate_w
+        scale = min(1.0, avail / total) if total > 0 else 1.0
+        step_w *= scale
+        gate_w *= scale
+
+        STEP_COLS = _step_colors()
+        x = cont_x + pad_x
+        for idx, raw in enumerate(arr):
+            col = STEP_COLS[idx % len(STEP_COLS)]
+            box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(mid_y - 0.55), Inches(step_w), Inches(1.10))
+            box.fill.solid(); box.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
+            box.line.color.rgb = RGBColor(*col)
+            box.line.width = Pt(1.25)
+
+            head, tail = _split_head_tail(raw)
+            head_txt = (head or raw).strip()
+            tail_txt = (tail or "").strip()
+            tf = s.shapes.add_textbox(Inches(x + 0.12), Inches(mid_y - 0.48), Inches(step_w - 0.24), Inches(0.96)).text_frame
+            tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.CENTER
+            r1 = p.add_run(); r1.text = f"{idx + 1}. {head_txt}" if len(head_txt) <= 22 else head_txt
+            r1.font.size = Pt(11); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+            if tail_txt and len(tail_txt) <= 44:
+                p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
+                r2 = p2.add_run(); r2.text = tail_txt; r2.font.size = Pt(9); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+
+            x_next = x + step_w
+            if idx < n - 1:
+                conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(x_next - 0.05), Inches(mid_y), Inches(x_next + gate_w + 0.05), Inches(mid_y))
+                conn.line.color.rgb = RGBColor(209, 213, 219)
+                conn.line.width = Pt(2)
+
+                gate = s.shapes.add_shape(MsoShape.DIAMOND, Inches(x_next), Inches(mid_y - 0.28), Inches(gate_w), Inches(0.56))
+                gate.fill.solid(); gate.fill.fore_color.rgb = RGBColor(*_shade(col, 18))
+                gate.line.color.rgb = RGBColor(*col)
+                gate.line.width = Pt(1)
+                tfc = gate.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+                rc = pc.add_run(); rc.text = "✓"; rc.font.size = Pt(14); rc.font.bold = True; rc.font.color.rgb = RGBColor(*_contrast_text(_shade(col, 18)))
+
+                x = x_next + gate_w
+            else:
+                x = x_next
+
+    def _render_process_workflow(title_txt: str, items: List[str]) -> None:
+        v = _choose_process_variant(title_txt, items)
+        if v == "GATE":
+            _render_process_milestone_gate(title_txt, items)
+            return
+        if v == "CYCLE":
+            _render_process_cycle(title_txt, items)
+            return
+        if v == "SWIMLANE":
+            _render_process_swimlane(title_txt, items)
+            return
+        if v == "ICONS":
+            _render_process_icon_led_horizontal(title_txt, items)
+            return
+        if v == "CARDS":
+            _render_process_numbered_cards(title_txt, items)
+            return
+        if v == "VERTICAL":
+            _render_process_vertical_timeline(title_txt, items)
+            return
+        if v == "BANDS":
+            _render_process_phase_bands(title_txt, items)
+            return
+        render_timeline_horizontal(title_txt or "Process", items[:6], topic_src=title_txt)
+
     def _render_process_flow_chevron_infographic(sl) -> None:
         title, bullets, _ = _infographic_items(sl)
         if not bullets:
             bullets = _synthesize_topic_bullets(title)[:6]
-        steps = bullets[:6]
-        # Reuse the existing horizontal chevron process renderer for visual consistency
-        render_timeline_horizontal(title or "Process", steps, topic_src=title)
+        steps = [str(x).strip() for x in (bullets or []) if str(x).strip()]
+        if len(steps) < 4:
+            steps = (steps + ["(to be refined)"] * 4)[:4]
+        _render_process_workflow(title or "Process", steps)
 
     def _render_risk_matrix_advanced(sl) -> None:
         title, bullets, content = _infographic_items(sl)
@@ -3523,9 +4640,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title or "Continuous Optimization", font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
 
         center_lbl = (content.get("center_label") or "Continuous Improvement").strip() or "Continuous Improvement"
-        # Center the loop slightly below mid-height so the title has breathing room
-        cx, cy = SLIDE_W_IN / 2.0, 4.0
-        center_d = 1.9
+        # Center the loop below the title and keep comfortable top/bottom margins
+        cx, cy = SLIDE_W_IN / 2.0, 4.65
+        center_d = 1.8
         center = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - center_d / 2), Inches(cy - center_d / 2), Inches(center_d), Inches(center_d))
         center.fill.solid(); center.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal.get("bg", (240, 245, 255))))
         center.line.color.rgb = RGBColor(*pal.get("primary", (59, 130, 246)))
@@ -3533,23 +4650,46 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
         rc = pc.add_run(); rc.text = center_lbl; rc.font.size = Pt(14); rc.font.bold = True; rc.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
 
-        # Subtle orbit ring to anchor the loop visually and use more horizontal space
-        ring_outer_d = 5.2
-        ring_inner_d = 4.2
+        # Subtle orbit ring to anchor the loop visually
+        ring_outer_d = 5.0
+        ring_inner_d = 4.1
         outer = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - ring_outer_d / 2), Inches(cy - ring_outer_d / 2), Inches(ring_outer_d), Inches(ring_outer_d))
         outer.fill.solid(); outer.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
         outer.line.fill.background()
         inner = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - ring_inner_d / 2), Inches(cy - ring_inner_d / 2), Inches(ring_inner_d), Inches(ring_inner_d))
         inner.fill.solid(); inner.fill.fore_color.rgb = RGBColor(*(pal.get("bg", (255, 255, 255))))
         inner.line.fill.background()
-        # Place stage nodes near the orbit edge so the diagram fills the band
-        radius = 2.1
+        # Place stage nodes near the orbit edge
+        radius = 2.05
+        node_d = 1.35
         step_cols = _step_colors()
+
+        pts: List[Tuple[float, float]] = []
+        for i in range(n):
+            ang = 2.0 * math.pi * i / n
+            pts.append((cx + radius * float(math.cos(ang)), cy + radius * float(math.sin(ang))))
+
+        # Draw connectors first (behind nodes) and attach to circle edges (not center)
+        for i in range(n):
+            x0, y0 = pts[i]
+            x1, y1 = pts[(i + 1) % n]
+            vx = x1 - x0
+            vy = y1 - y0
+            mag = max(0.001, float((vx * vx + vy * vy) ** 0.5))
+            ux = vx / mag
+            uy = vy / mag
+            pad = node_d / 2 + 0.06
+            sx = x0 + ux * pad
+            sy = y0 + uy * pad
+            ex = x1 - ux * pad
+            ey = y1 - uy * pad
+            conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(sx), Inches(sy), Inches(ex), Inches(ey))
+            conn.line.color.rgb = RGBColor(*pal.get("primary", (59, 130, 246)))
+            conn.line.width = Pt(2)
+
+        # Nodes on top
         for i, raw in enumerate(stages, start=0):
-            angle = 2.0 * math.pi * i / n
-            nx = cx + radius * float(math.cos(angle))
-            ny = cy + radius * float(math.sin(angle))
-            node_d = 1.3
+            nx, ny = pts[i]
             node = s.shapes.add_shape(MsoShape.OVAL, Inches(nx - node_d / 2), Inches(ny - node_d / 2), Inches(node_d), Inches(node_d))
             col_rgb = step_cols[i % len(step_cols)]
             node.fill.solid(); node.fill.fore_color.rgb = RGBColor(*col_rgb)
@@ -3560,21 +4700,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 pass
             head, tail = _split_head_tail(raw)
             label = (head or raw or "").strip()
-            # Keep bubble labels concise: cap to ~5 words to avoid vertical overflow
+            # Keep bubble labels concise to avoid overflow
             words = label.split()
-            if len(words) > 5:
-                label = " ".join(words[:5])
+            if len(words) > 8:
+                label = " ".join(words[:8])
             tfn = node.text_frame; tfn.clear(); tfn.word_wrap = True; tfn.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
             pn = tfn.paragraphs[0]; pn.alignment = PP_ALIGN.CENTER
             rn = pn.add_run(); rn.text = label; rn.font.size = Pt(11); rn.font.bold = True; rn.font.color.rgb = RGBColor(*_contrast_text(col_rgb))
-
-            # Arrow to next node (clockwise)
-            nxt_angle = 2.0 * math.pi * ((i + 1) % n) / n
-            tx = cx + radius * float(math.cos(nxt_angle))
-            ty = cy + radius * float(math.sin(nxt_angle))
-            conn = s.shapes.add_connector(1, Inches(nx), Inches(ny), Inches(tx), Inches(ty))
-            conn.line.color.rgb = RGBColor(*pal.get("primary", (59, 130, 246)))
-            conn.line.width = Pt(2)
 
     def _render_layered_benefits_stack(sl) -> None:
         title, bullets, _ = _infographic_items(sl)
@@ -3587,14 +4719,31 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
         base_col = pal.get("primary", (59, 130, 246))
         depth_delta = -10
-        layer_w, layer_h = 9.0, 0.90
-        start_x = 2.0
-        start_y = 2.4
+
+        # Fit stack within slide bounds: between title and bottom margin
+        top_y = 2.20
+        bottom_margin = 0.55
+        gap_y = 0.16
+        avail_h = max(2.6, (SLIDE_H_IN - bottom_margin) - top_y)
+        layer_h = (avail_h - (n - 1) * gap_y) / n
+        if layer_h < 0.72:
+            gap_y = 0.12
+            layer_h = (avail_h - (n - 1) * gap_y) / n
+        layer_h = max(0.70, min(0.92, layer_h))
+
+        shift_x = 0.22
+        layer_w = min(9.4, SLIDE_W_IN - 2.0 - (n - 1) * shift_x)
+        stack_w = layer_w + (n - 1) * shift_x
+        start_x = max(0.7, (SLIDE_W_IN - stack_w) / 2.0)
+        start_y = top_y
+
+        title_fs = 18 if layer_h >= 0.86 else 16
+        tail_fs = 12 if layer_h >= 0.86 else 11
 
         for idx, raw in enumerate(reversed(benefits), start=0):
             # Bottom layer rendered first; each higher layer shifted up and right
-            x = start_x + idx * 0.25
-            y = start_y + (n - 1 - idx) * (layer_h + 0.18)
+            x = start_x + idx * shift_x
+            y = start_y + (n - 1 - idx) * (layer_h + gap_y)
             col_rgb = _shade(base_col, depth_delta * idx)
             layer = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(layer_w), Inches(layer_h))
             layer.fill.solid(); layer.fill.fore_color.rgb = RGBColor(*col_rgb)
@@ -3608,9 +4757,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
             p = tb.paragraphs[0]; p.clear()
             fg = _contrast_text(col_rgb)
-            r1 = p.add_run(); r1.text = head or raw; r1.font.size = Pt(18); r1.font.bold = True; r1.font.color.rgb = RGBColor(*fg)
+            r1 = p.add_run(); r1.text = head or raw; r1.font.size = Pt(title_fs); r1.font.bold = True; r1.font.color.rgb = RGBColor(*fg)
             if tail:
-                p2 = tb.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(12); r2.font.color.rgb = RGBColor(235, 244, 255) if fg == (255, 255, 255) else RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+                p2 = tb.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(tail_fs); r2.font.color.rgb = RGBColor(235, 244, 255) if fg == (255, 255, 255) else RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
 
     def render_infographic(sl):
         t = _ctype(sl)
@@ -3619,6 +4768,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         count = len(bullets)
 
         # Deterministic selection rules based on intent and density
+        if intent == "GANTT" and count >= 4:
+            _render_gantt_chart(sl)
+            return
         if intent == "RISK":
             _render_risk_matrix_advanced(sl)
             return
@@ -3631,11 +4783,76 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         if intent == "BENEFITS" and count >= 4:
             _render_layered_benefits_stack(sl)
             return
-        if intent == "IMPACT" and count > 4:
-            _render_impact_map(False, sl)  # complex
-            return
-        if intent == "IMPACT" and count <= 4:
-            _render_impact_map(True, sl)   # simple
+        if intent == "IMPACT":
+            global IMPACT_MAP_VARIANT_INDEX
+            if 'IMPACT_MAP_VARIANT_INDEX' not in globals():
+                IMPACT_MAP_VARIANT_INDEX = 0
+            global LAST_IMPACT_MAP_VARIANT
+            if 'LAST_IMPACT_MAP_VARIANT' not in globals():
+                LAST_IMPACT_MAP_VARIANT = None
+
+            raw_variant = str((content or {}).get("impact_map_variant") or (content or {}).get("variant") or "").strip().lower()
+            variant_map = {
+                "classic": "classic",
+                "radial": "radial",
+                "pyramid": "pyramid",
+                "two_sided": "two_sided",
+                "two-sided": "two_sided",
+                "before_after": "two_sided",
+                "before-after": "two_sided",
+                "swimlane": "swimlane",
+            }
+            forced = variant_map.get(raw_variant)
+
+            blob = ((title or "") + " " + " ".join(str(x) for x in (bullets or []))).lower()
+            roles = _extract_swimlane_roles([str(x) for x in (bullets or [])])
+            has_roles = len(roles) >= 2
+            transformational = any(k in blob for k in [
+                "before", "after", "current", "future", "baseline", "to-be", "tobe", "as-is", "asis",
+                "transform", "transformation", "moderniz", "migration", "turnaround", "recovery",
+            ])
+            causal = any(k in blob for k in [
+                "enabler", "enablers", "initiative", "initiatives", "capability", "capabilities",
+                "foundation", "build", "enable", "driver", "leads to", "results in",
+            ])
+
+            preferred = "classic"
+            if has_roles:
+                preferred = "swimlane"
+            elif transformational:
+                preferred = "two_sided"
+            elif causal:
+                preferred = "pyramid"
+            elif count >= 5:
+                preferred = "radial"
+
+            pool = ["classic", "radial", "pyramid", "two_sided", "swimlane"]
+            if forced:
+                chosen = forced
+            else:
+                start = IMPACT_MAP_VARIANT_INDEX % len(pool)
+                ordered = pool[start:] + pool[:start]
+                ordered = [preferred] + [v for v in ordered if v != preferred]
+                chosen = None
+                for v in ordered:
+                    if v != LAST_IMPACT_MAP_VARIANT:
+                        chosen = v
+                        break
+                chosen = chosen or preferred
+
+            if chosen == "radial":
+                _render_impact_map_radial(sl)
+            elif chosen == "pyramid":
+                _render_impact_map_pyramid(sl)
+            elif chosen == "two_sided":
+                _render_impact_map_two_sided(sl)
+            elif chosen == "swimlane":
+                _render_impact_map_swimlane(sl)
+            else:
+                _render_impact_map(True if count <= 4 else False, sl)
+
+            LAST_IMPACT_MAP_VARIANT = chosen
+            IMPACT_MAP_VARIANT_INDEX += 1
             return
 
         # Fallbacks: use simple impact map for general infographics or treat
@@ -3679,6 +4896,57 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     global CURRENT_DOUBLE_BULLET_STYLE
     CURRENT_DOUBLE_BULLET_STYLE = DOUBLE_BULLET_STYLE_INDEX % 4
 
+    # Wrapper functions to transform AI content structures
+    def _render_roadmap_wrapper(sl):
+        # Transform AI timeline structure to expected phases structure
+        content = _content(sl)
+        if "timeline" in content:
+            sl["content"]["phases"] = content["timeline"]
+        _render_roadmap(sl)
+    
+    def _render_swot_wrapper(sl):
+        # Transform AI bullets to quadrant structure
+        content = _content(sl)
+        bullets = content.get("bullets", [])
+        quadrant_data = {"strengths": {"points": []}, "weaknesses": {"points": []}, 
+                        "opportunities": {"points": []}, "threats": {"points": []}
+        }
+        
+        for bullet in bullets:
+            bullet_lower = bullet.lower()
+            if "strengths:" in bullet_lower:
+                quadrant_data["strengths"]["points"].append(bullet.split(":", 1)[1].strip())
+            elif "weaknesses:" in bullet_lower:
+                quadrant_data["weaknesses"]["points"].append(bullet.split(":", 1)[1].strip())
+            elif "opportunities:" in bullet_lower:
+                quadrant_data["opportunities"]["points"].append(bullet.split(":", 1)[1].strip())
+            elif "threats:" in bullet_lower:
+                quadrant_data["threats"]["points"].append(bullet.split(":", 1)[1].strip())
+        
+        # Update slide content with transformed structure
+        for key, data in quadrant_data.items():
+            sl["content"][key] = data
+        
+        _render_swot(sl)
+    
+    def _render_kpi_wrapper(sl):
+        # KPI bullets should work as-is, just call the function
+        _render_kpi(sl)
+    
+    def _render_pricing_wrapper(sl):
+        # Pricing table structure should work as-is
+        _render_pricing(sl)
+    
+    def _render_risk_matrix_wrapper(sl):
+        # Risk matrix table structure should work as-is  
+        _render_risk_matrix(sl)
+    
+    def _render_before_after_wrapper(sl):
+        _render_before_after(sl)
+    
+    def _render_architecture_wrapper(sl):
+        _render_architecture(sl)
+
     for sl in slides_norm:
         t = _ctype(sl)
         print(f"DEBUG: Processing slide type: {t}")
@@ -3686,9 +4954,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         # Force replacement: any slide carrying a 'cards' array should render as a horizontal process timeline
         try:
             cards_arr = _content(sl).get("cards")
-            if isinstance(cards_arr, list) and any(str(x).strip() for x in cards_arr):
+            if t in {"cards", "card", "card_style", "process_timeline_alt"} and isinstance(cards_arr, list) and any(str(x).strip() for x in cards_arr):
                 stages = [str(x).strip() for x in cards_arr if str(x).strip()]
-                render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
+                blob = ((sl.get("title") or "") + " " + " ".join(stages)).lower()
+                if any(k in blob for k in ["benefit", "benefits", "value", "advantages", "advantage", "gains", "gain"]):
+                    _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+                else:
+                    render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
                 continue
         except Exception:
             pass
@@ -3731,7 +5003,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             # Use the rotation for all process-like slide requests so all styles, including bubbles, appear
             c = _content(sl)
             stages = [str(x).strip() for x in (c.get("cards") or c.get("bullets") or []) if str(x).strip()]
-            render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
+            blob = ((sl.get("title") or "") + " " + " ".join(stages)).lower()
+            if any(k in blob for k in ["benefit", "benefits", "value", "advantages", "advantage", "gains", "gain"]):
+                _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+            else:
+                render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
         elif t == "timeline":
             print(f"DEBUG: Rendering timeline slide with content: {_content(sl)}")
             _render_timeline(sl)
@@ -4575,56 +5851,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     # Always ensure a Thank You at the end
     thanks_sl = next((s for s in slides_norm if _ctype(s) in {"thank_you", "cta"}), None)
     render_thanks(thanks_sl or {"type": "thank_you", "cta": ""})
-
-    # Wrapper functions to transform AI content structures
-    def _render_roadmap_wrapper(sl):
-        # Transform AI timeline structure to expected phases structure
-        content = _content(sl)
-        if "timeline" in content:
-            sl["content"]["phases"] = content["timeline"]
-        _render_roadmap(sl)
-    
-    def _render_swot_wrapper(sl):
-        # Transform AI bullets to quadrant structure
-        content = _content(sl)
-        bullets = content.get("bullets", [])
-        quadrant_data = {"strengths": {"points": []}, "weaknesses": {"points": []}, 
-                        "opportunities": {"points": []}, "threats": {"points": []}}
-        
-        for bullet in bullets:
-            bullet_lower = bullet.lower()
-            if "strengths:" in bullet_lower:
-                quadrant_data["strengths"]["points"].append(bullet.split(":", 1)[1].strip())
-            elif "weaknesses:" in bullet_lower:
-                quadrant_data["weaknesses"]["points"].append(bullet.split(":", 1)[1].strip())
-            elif "opportunities:" in bullet_lower:
-                quadrant_data["opportunities"]["points"].append(bullet.split(":", 1)[1].strip())
-            elif "threats:" in bullet_lower:
-                quadrant_data["threats"]["points"].append(bullet.split(":", 1)[1].strip())
-        
-        # Update slide content with transformed structure
-        for key, data in quadrant_data.items():
-            sl["content"][key] = data
-        
-        _render_swot(sl)
-    
-    def _render_kpi_wrapper(sl):
-        # KPI bullets should work as-is, just call the function
-        _render_kpi(sl)
-    
-    def _render_pricing_wrapper(sl):
-        # Pricing table structure should work as-is
-        _render_pricing(sl)
-    
-    def _render_risk_matrix_wrapper(sl):
-        # Risk matrix table structure should work as-is  
-        _render_risk_matrix(sl)
-    
-    def _render_before_after_wrapper(sl):
-        _render_before_after(sl)
-    
-    def _render_architecture_wrapper(sl):
-        _render_architecture(sl)
 
     prs.save(out_path)
     return out_path

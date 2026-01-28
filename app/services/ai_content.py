@@ -9,7 +9,7 @@ from app.models import LLMCall, Pricing
 import os
 
 
-MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "4000"))
+MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "800"))
 MAX_TOKENS_HARMONIZE = int(os.getenv("MAX_TOKENS_HARMONIZE", "600"))
 MAX_TOKENS_TOPIC_BULLETS = int(os.getenv("MAX_TOKENS_TOPIC_BULLETS", "180"))
 MAX_TOKENS_TABLE_HEADERS = int(os.getenv("MAX_TOKENS_TABLE_HEADERS", "96"))
@@ -113,13 +113,6 @@ def build_prompt(
             ],
             "modules_priority": [
                 "Timeline / Background",
-                "Roadmap (phased timeline)",
-                "SWOT Analysis (2x2 grid)",
-                "KPI Metrics (cards with values)",
-                "Pricing Comparison (feature table)",
-                "Risk Matrix (impact vs likelihood)",
-                "Before/After Comparison",
-                "Architecture Diagram (boxes & connections)",
                 "Topic Overview",
                 "Double Column Bullet (2–3 variations max)",
                 "Tabular Comparison",
@@ -144,13 +137,6 @@ def build_prompt(
                             "overview",
                             "infographic",
                             "key_takeaways",
-                            "roadmap",
-                            "swot",
-                            "kpi",
-                            "pricing",
-                            "risk_matrix",
-                            "before_after",
-                            "architecture",
                             "thank_you",
                         ],
                     },
@@ -215,7 +201,7 @@ def build_prompt(
             "CONTENT ALIGNMENT: Each mapped slide's CONTENT (bullets/points/table cells) must elaborate the mapped agenda bullet and share key terms.",
             "Do not produce slides that are not linked to an agenda item.",
             "Ensure the Thank You slide is always the final slide, even if you add extra slides beyond N.",
-            "If N is small, prefer roadmap, swot, kpi, pricing, risk_matrix, before_after, architecture, overview or infographic over multiple bullet variations.",
+            "If N is small, prefer overview or infographic over multiple bullet variations.",
             "Double column slides should use left_points and right_points; 6+ items per column when possible.",
             "Tabular Comparison must be CONTEXTUAL to the topic in input_text. Headings should reflect the actual comparison dimension (e.g., 'Pre-COVID' vs 'During/After COVID', 'Developed Markets' vs 'Emerging Markets'). NEVER use 'Traditional vs AI-Driven' unless the topic is explicitly about AI approaches.",
             "For any 'Key Concepts' or concept-focused slide, provide 6–8 distinct topic-derived terms with concise, non-repetitive definitions. Derive terms from the topic and agenda; avoid umbrella words (e.g., 'Overview', 'Concepts'). Do NOT echo the slide title in the bullet text. Do NOT repeat the same template phrase across bullets.",
@@ -336,21 +322,8 @@ def create_deck_slides(
         input_text=input_text,
         num_slides=num_slides,
     )
-    
-    # DEBUG: Log the prompt to see what AI is receiving
-    try:
-        print(f"DEBUG: AI prompt modules_priority: {messages[1]['content'].split('modules_priority')[1].split(']')[0] + ']'}")
-        print(f"DEBUG: Full prompt length: {len(messages[1]['content'])} characters")
-        # Show a snippet of the schema section to see if it's too verbose
-        schema_start = messages[1]['content'].find('"schema"')
-        if schema_start != -1:
-            schema_snippet = messages[1]['content'][schema_start:schema_start+500]
-            print(f"DEBUG: Schema snippet: {schema_snippet}...")
-    except Exception:
-        pass
 
     try:
-        print(f"DEBUG: Using max_tokens={MAX_TOKENS_DECK}")
         resp = client.chat.completions.create(
             model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
             messages=messages,  # type: ignore[arg-type]
@@ -361,10 +334,6 @@ def create_deck_slides(
         content = (resp.choices[0].message.content or "").strip()
         # Log short snippet for diagnostics
         try:
-            usage = getattr(resp, 'usage', None)
-            if usage:
-                print(f"DEBUG: Token usage - prompt: {getattr(usage, 'prompt_tokens', 'unknown')}, completion: {getattr(usage, 'completion_tokens', 'unknown')}, total: {getattr(usage, 'total_tokens', 'unknown')}")
-                print(f"DEBUG: Reason: {getattr(resp.choices[0], 'finish_reason', 'unknown')}")
             print("AI raw length=", len(content), "snippet=", content[:400].replace("\n", " "))
         except Exception:
             pass
@@ -376,17 +345,8 @@ def create_deck_slides(
         return [], [err]
     if not isinstance(slides, list):
         return [], ["AI did not return a JSON array"]
-    
-    # DEBUG: Log the slide types AI generated
-    try:
-        generated_types = [s.get("type", "unknown") for s in slides]
-        print(f"DEBUG: AI generated slide types: {generated_types}")
-    except Exception:
-        pass
-    
     # Ensure a strong, non-generic Title slide at index 0 using AI refinement if needed
     try:
-        print("DEBUG: Starting title slide refinement...")
         slides = _ensure_title_slide(
             slides,
             client=client,
@@ -396,26 +356,18 @@ def create_deck_slides(
             date=date or "",
             input_text=input_text or "",
         )
-        print("DEBUG: Title slide refinement completed")
-    except Exception as e:
+    except Exception:
         # Non-fatal; continue with raw slides
-        print(f"DEBUG: Title slide refinement failed: {e}")
         pass
     # Post-pass: rewrite generic table headers contextually with AI and sync titles
     try:
-        print("DEBUG: Starting table header rewrite...")
         tmp = _ai_rewrite_table_headers(client, slides)
         slides = tmp
-        current_types = [s.get("type", "unknown") for s in slides]
-        print(f"DEBUG: After table header rewrite: {current_types}")
     except Exception:
         pass
     # Post-pass: harmonize titles/content to agenda; remove template phrases
     try:
-        print("DEBUG: Starting title harmonization...")
         slides = _harmonize_titles_to_agenda(slides)
-        current_types = [s.get("type", "unknown") for s in slides]
-        print(f"DEBUG: After title harmonization: {current_types}")
     except Exception:
         pass
     # Post-check quality and coherency; perform one corrective retry if enabled
@@ -423,7 +375,6 @@ def create_deck_slides(
     # Post-pass: AI harmonization of titles/bullets to agenda and topic
     if issues and ENABLE_LLM_HARMONIZE:
         try:
-            print("DEBUG: Starting AI harmonization...")
             slides = _ai_harmonize_to_agenda(
                 client=client,
                 system_msg=messages[0]["content"],
@@ -431,17 +382,12 @@ def create_deck_slides(
                 input_text=input_text,
                 slides=slides,
             )
-            current_types = [s.get("type", "unknown") for s in slides]
-            print(f"DEBUG: After AI harmonization: {current_types}")
             try:
                 slides = _harmonize_titles_to_agenda(slides)
-                current_types = [s.get("type", "unknown") for s in slides]
-                print(f"DEBUG: After second title harmonization: {current_types}")
             except Exception:
                 pass
             issues, agenda = _quality_issues(slides)
-        except Exception as e:
-            print(f"DEBUG: AI harmonization failed: {e}")
+        except Exception:
             pass
     if issues and ENABLE_LLM_RETRY:
         try:

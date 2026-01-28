@@ -39,9 +39,13 @@
                  data-full-width-responsive="true"></ins>
             <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
 
-            <a id="downloadLink" href="{{ download_url }}" class="inline-flex items-center gap-2 mb-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md shadow">
+            <a id="downloadLink" href="{{ download_url }}" class="inline-flex items-center gap-2 mb-3 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md shadow">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v9a1 1 0 11-2 0V4H5v8a1 1 0 11-2 0V3zm3 10a1 1 0 011-1h2V6a1 1 0 112 0v6h2a1 1 0 01.707 1.707l-3 3a1 1 0 01-1.414 0l-3-3A1 1 0 016 13z" clip-rule="evenodd"/></svg>
               Download Presentation
+            </a>
+
+            <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center mb-6 px-6 py-3 bg-white hover:bg-gray-50 text-blue-700 font-semibold rounded-md shadow border border-blue-200">
+              👉 Generate another presentation
             </a>
 
             <!-- Sponsored Tools Section -->
