@@ -97,6 +97,21 @@ def faq() -> Any:
     return render_template("faq.html")
 
 
+@bp.get("/investor-pitch-deck-generator")
+def investor_pitch_deck_generator_page() -> Any:
+    return render_template("investor_pitch_deck_generator.html")
+
+
+@bp.get("/board-presentation-generator")
+def board_presentation_generator_page() -> Any:
+    return render_template("board_presentation_generator.html")
+
+
+@bp.get("/presentation-outline-generator")
+def presentation_outline_generator_page() -> Any:
+    return render_template("presentation_outline_generator.html")
+
+
 @bp.get("/privacy")
 def privacy() -> Any:
     return render_template("privacy.html")

@@ -20,7 +20,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}PPTJet - AI PowerPoint Generator{% endblock %}</title>
     <meta name="description" content="{% block description %}AI-powered presentation tips, resources, and tools from PPTJet.{% endblock %}">
-    <link rel="canonical" href="{{ request.url if request.path != '/' else 'https://pptjet.com/' }}">
+    <link rel="canonical" href="{{ (request.url | replace('http://', 'https://')) if request.path != '/' else 'https://pptjet.com/' }}">
     <meta name="google-site-verification" content="R7WPMpUo573f_ojavNQM9vIsGUpCzE4kuy9G7LlJFos">
     {% if META_PIXEL_ENABLED and META_PIXEL_ID %}
     <!-- Meta Pixel Code -->
@@ -162,6 +162,12 @@
             <p class="text-center text-gray-600">© 2025 PPTJet - AI PowerPoint Generator |
                 <a href="{{ url_for('main.privacy') }}" class="text-blue-600 hover:underline">Privacy Policy</a> |
                 <a href="{{ url_for('main.terms') }}" class="text-blue-600 hover:underline">Terms of Service</a> | <a href="mailto:support@pptjet.com" class="text-blue-600 hover:underline">support@pptjet.com</a>
+            </p>
+            <p class="text-center text-gray-600 mt-2">
+                <span class="font-medium">Use cases:</span>
+                <a href="{{ url_for('main.investor_pitch_deck_generator_page') }}" class="text-blue-600 hover:underline">Investor pitch deck generator</a> |
+                <a href="{{ url_for('main.board_presentation_generator_page') }}" class="text-blue-600 hover:underline">Board presentation generator</a> |
+                <a href="{{ url_for('main.presentation_outline_generator_page') }}" class="text-blue-600 hover:underline">Presentation outline generator</a>
             </p>
             {% if PUSH_ENABLED and current_user.is_authenticated %}
             <div class="text-center mt-3">

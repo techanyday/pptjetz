@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Presentation Outline Generator (Free & Unlimited) | PPTJet{% endblock %}
+{% block description %}Generate a clear presentation outline in minutes. Turn a topic into a structured slide-by-slide flow you can edit and export with PPTJet. Free and unlimited.{% endblock %}
+{% block og_title %}Presentation Outline Generator (Free & Unlimited){% endblock %}
+{% block og_description %}Generate a clear presentation outline in minutes. Turn a topic into a structured slide-by-slide flow you can edit and export with PPTJet. Free and unlimited.{% endblock %}
+{% block tw_title %}Presentation Outline Generator (Free & Unlimited){% endblock %}
+{% block tw_description %}Generate a clear presentation outline in minutes. Turn a topic into a structured slide-by-slide flow you can edit and export with PPTJet. Free and unlimited.{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Generate a Presentation Outline You Can Build From</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        A good presentation is usually won or lost in the outline: the sequence of ideas, the slide-by-slide structure, and the key points each slide needs to communicate.
+        PPTJet helps you generate a clear outline so you can iterate on the story before you spend time polishing visuals.
+      </p>
+    </header>
+
+    <section class="mt-8">
+      <h2 class="text-2xl font-bold text-gray-900">When to use an outline generator</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li>Turning a rough topic into a logical slide flow</li>
+        <li>Aligning stakeholders on what the deck should cover before design work</li>
+        <li>Creating consistent structure across repeated decks (updates, proposals, reviews)</li>
+      </ul>
+    </section>
+
+    <section class="mt-8">
+      <h2 class="text-2xl font-bold text-gray-900">What you get</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li>A slide-by-slide outline with headings and talking points</li>
+        <li>A deck structure you can export to PowerPoint and edit</li>
+        <li>Visual slide layouts designed for clarity (tables, timelines, comparisons, and more)</li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+        Generate your presentation outline
+      </a>
+      <p class="mt-3 text-sm text-gray-600">
+        PPTJet is <strong>free</strong> and allows <strong>unlimited</strong> presentation generation. No credit card. No usage limits.
+      </p>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8">
+      <h2 class="text-xl font-bold text-gray-900">You may also find these useful</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.investor_pitch_deck_generator_page') }}">Investor pitch deck generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.board_presentation_generator_page') }}">Board presentation generator</a></li>
+      </ul>
+    </section>
+  </article>
+</div>
+{% endblock %}

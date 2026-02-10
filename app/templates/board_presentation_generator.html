@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Board Presentation Generator (Free & Unlimited) | PPTJet{% endblock %}
+{% block description %}Create a clear board presentation in minutes. Generate structured, visual slides for executive updates, metrics, and decisions using PPTJet. Free and unlimited.{% endblock %}
+{% block og_title %}Board Presentation Generator (Free & Unlimited){% endblock %}
+{% block og_description %}Create a clear board presentation in minutes. Generate structured, visual slides for executive updates, metrics, and decisions using PPTJet. Free and unlimited.{% endblock %}
+{% block tw_title %}Board Presentation Generator (Free & Unlimited){% endblock %}
+{% block tw_description %}Create a clear board presentation in minutes. Generate structured, visual slides for executive updates, metrics, and decisions using PPTJet. Free and unlimited.{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Create a Board Presentation That’s Clear and Decision-Ready</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Board decks usually fail for predictable reasons: too much detail, unclear priorities, and slides that don’t tell the board what decision is needed.
+        PPTJet helps you generate a clean, structured board presentation layout so you can spend your time validating the numbers and sharpening the message.
+      </p>
+    </header>
+
+    <section class="mt-8">
+      <h2 class="text-2xl font-bold text-gray-900">Typical use cases</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li>Monthly or quarterly board updates with metrics, narrative, and next steps</li>
+        <li>Leadership status reports that need to be consistent across teams</li>
+        <li>Decision memos translated into concise, presentation-ready slides</li>
+      </ul>
+    </section>
+
+    <section class="mt-8">
+      <h2 class="text-2xl font-bold text-gray-900">Slide formats PPTJet can generate</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li>Executive summary slides with key outcomes and decisions required</li>
+        <li>KPI highlights and trends for performance reporting</li>
+        <li>Roadmap timelines and milestones</li>
+        <li>Risks, mitigations, and dependencies in a structured view</li>
+        <li>Comparison tables for options and trade-offs</li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+        Generate your board presentation
+      </a>
+      <p class="mt-3 text-sm text-gray-600">
+        PPTJet is <strong>free</strong> and allows <strong>unlimited</strong> presentation generation. No credit card. No usage limits.
+      </p>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8">
+      <h2 class="text-xl font-bold text-gray-900">You may also find these useful</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.investor_pitch_deck_generator_page') }}">Investor pitch deck generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.presentation_outline_generator_page') }}">Presentation outline generator</a></li>
+      </ul>
+    </section>
+  </article>
+</div>
+{% endblock %}
