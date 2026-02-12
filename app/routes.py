@@ -112,6 +112,26 @@ def presentation_outline_generator_page() -> Any:
     return render_template("presentation_outline_generator.html")
 
 
+@bp.get("/convert-text-to-powerpoint")
+def convert_text_to_powerpoint_page() -> Any:
+    return render_template("convert_text_to_powerpoint.html")
+
+
+@bp.get("/pitch-deck-generator")
+def pitch_deck_generator_page() -> Any:
+    return render_template("pitch_deck_generator.html")
+
+
+@bp.get("/generate-presentation-from-outline")
+def generate_presentation_from_outline_page() -> Any:
+    return render_template("generate_presentation_from_outline.html")
+
+
+@bp.get("/generate-powerpoint-from-text")
+def generate_powerpoint_from_text_page() -> Any:
+    return render_template("generate_powerpoint_from_text.html")
+
+
 @bp.get("/privacy")
 def privacy() -> Any:
     return render_template("privacy.html")

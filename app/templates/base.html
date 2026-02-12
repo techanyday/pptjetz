@@ -166,8 +166,10 @@
             <p class="text-center text-gray-600 mt-2">
                 <span class="font-medium">Use cases:</span>
                 <a href="{{ url_for('main.investor_pitch_deck_generator_page') }}" class="text-blue-600 hover:underline">Investor pitch deck generator</a> |
-                <a href="{{ url_for('main.board_presentation_generator_page') }}" class="text-blue-600 hover:underline">Board presentation generator</a> |
-                <a href="{{ url_for('main.presentation_outline_generator_page') }}" class="text-blue-600 hover:underline">Presentation outline generator</a>
+                <a href="{{ url_for('main.generate_presentation_from_outline_page') }}" class="text-blue-600 hover:underline">Generate presentation from outline</a> |
+                <a href="{{ url_for('main.presentation_outline_generator_page') }}" class="text-blue-600 hover:underline">Presentation outline generator</a> |
+                <a href="{{ url_for('main.pitch_deck_generator_page') }}" class="text-blue-600 hover:underline">Pitch deck generator</a> |
+                <a href="{{ url_for('main.convert_text_to_powerpoint_page') }}" class="text-blue-600 hover:underline">convert text to PowerPoint using AI</a>
             </p>
             {% if PUSH_ENABLED and current_user.is_authenticated %}
             <div class="text-center mt-3">

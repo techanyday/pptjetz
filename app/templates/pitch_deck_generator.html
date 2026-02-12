@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}AI Pitch Deck Generator (Free) | PPTJet{% endblock %}
+{% block description %}Generate a pitch deck in minutes using AI. Create a structured, editable PowerPoint you can customize for investors, customers, or internal stakeholders with PPTJet.{% endblock %}
+{% block og_title %}AI Pitch Deck Generator (Free){% endblock %}
+{% block og_description %}Generate a pitch deck in minutes using AI. Create a structured, editable PowerPoint you can customize for investors, customers, or internal stakeholders with PPTJet.{% endblock %}
+{% block tw_title %}AI Pitch Deck Generator (Free){% endblock %}
+{% block tw_description %}Generate a pitch deck in minutes using AI. Create a structured, editable PowerPoint you can customize for investors, customers, or internal stakeholders with PPTJet.{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Pitch Deck Generator</h1>
+      <p class="mt-4 text-lg text-gray-700">Create a clear, presentation-ready pitch deck structure using AI.</p>
+      <p class="mt-4 text-lg text-gray-700">
+        PPTJet helps you go from a rough idea to a structured, editable PowerPoint deck.
+        Use it for investor conversations, customer pitches, internal proposals, or stakeholder updates—then export and refine in PowerPoint.
+      </p>
+
+      <section class="mt-10">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Generate a pitch deck
+        </a>
+        <p class="mt-3 text-sm text-gray-600">
+          If you’re fundraising, start with the <a class="text-blue-600 hover:underline" href="{{ url_for('main.investor_pitch_deck_generator_page') }}">Investor Pitch Deck Generator</a>.
+        </p>
+      </section>
+    </header>
+
+    <section class="mt-10 border-t border-gray-200 pt-8">
+      <h2 class="text-2xl font-bold text-gray-900">Related tools</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint using AI</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.board_presentation_generator_page') }}">Board Presentation Generator</a></li>
+      </ul>
+    </section>
+  </article>
+</div>
+{% endblock %}

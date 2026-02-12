@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Generate PowerPoint from Text Using AI (Free) | PPTJet{% endblock %}
+{% block description %}Generate PowerPoint from text in minutes. Paste your content, let AI structure the slides, and export an editable PPTX with PPTJet.{% endblock %}
+{% block og_title %}Generate PowerPoint from Text Using AI (Free){% endblock %}
+{% block og_description %}Generate PowerPoint from text in minutes. Paste your content, let AI structure the slides, and export an editable PPTX with PPTJet.{% endblock %}
+{% block tw_title %}Generate PowerPoint from Text Using AI (Free){% endblock %}
+{% block tw_description %}Generate PowerPoint from text in minutes. Paste your content, let AI structure the slides, and export an editable PPTX with PPTJet.{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Generate PowerPoint from Text Using AI</h1>
+      <p class="mt-4 text-lg text-gray-700">Paste text. Get a structured deck. Export an editable PPTX.</p>
+      <p class="mt-4 text-lg text-gray-700">
+        PPTJet helps you generate PowerPoint from text by turning paragraphs, notes, or drafts into a clean slide-by-slide structure.
+        You can then export to PowerPoint and refine visuals, wording, and branding.
+      </p>
+
+      <section class="mt-10">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Generate PowerPoint from Text Free
+        </a>
+        <p class="mt-3 text-sm text-gray-600">
+          Prefer starting from headings and bullets? Try <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_presentation_from_outline_page') }}">Generate a Presentation from an Outline Using AI</a>.
+        </p>
+      </section>
+    </header>
+
+    <section class="mt-10 border-t border-gray-200 pt-8">
+      <h2 class="text-2xl font-bold text-gray-900">Related tools</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint using AI</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.pitch_deck_generator_page') }}">AI Pitch Deck Generator</a></li>
+      </ul>
+    </section>
+  </article>
+</div>
+{% endblock %}
