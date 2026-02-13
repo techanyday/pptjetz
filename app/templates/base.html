@@ -208,6 +208,12 @@
                 <a href="{{ url_for('main.pitch_deck_generator_page') }}" class="text-blue-600 hover:underline">Pitch deck generator</a> |
                 <a href="{{ url_for('main.convert_text_to_powerpoint_page') }}" class="text-blue-600 hover:underline">convert text to PowerPoint using AI</a>
             </p>
+            <div class="mt-3 flex flex-wrap items-center justify-center gap-1.5 text-sm text-gray-600">
+                <span class="font-medium">Listed on:</span>
+                <a href="https://www.saashub.com/pptjet?utm_source=badge&utm_campaign=badge&utm_content=pptjet&badge_variant=color&badge_kind=approved" target="_blank" rel="noopener noreferrer" aria-label="PPTJet listed on SaaSHub" class="inline-flex items-center">
+                    <img src="{{ url_for('static', filename='badges/saashub-approved.png') }}" alt="Approved on SaaSHub" class="h-7 w-auto max-w-[150px] shrink-0" width="150" height="28" loading="lazy">
+                </a>
+            </div>
             {% if PUSH_ENABLED and current_user.is_authenticated %}
             <div class="text-center mt-3">
               <button id="enablePush" class="px-3 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700">Enable notifications</button>

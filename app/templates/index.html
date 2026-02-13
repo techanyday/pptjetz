@@ -50,6 +50,18 @@
             Get Started
         </a>
         {% endif %}
+        <div class="mt-4 text-sm text-gray-500 flex flex-wrap items-center justify-center gap-x-2 gap-y-2">
+            <span>Trusted: 100% free</span>
+            <span aria-hidden="true">•</span>
+            <span>Unlimited exports</span>
+            <span aria-hidden="true">•</span>
+            <span>No watermark</span>
+            <span aria-hidden="true">•</span>
+            <a href="https://www.saashub.com/pptjet?utm_source=badge&utm_campaign=badge&utm_content=pptjet&badge_variant=color&badge_kind=approved" target="_blank" rel="noopener noreferrer nofollow" aria-label="PPTJet listed on SaaSHub" class="inline-flex items-center gap-1.5 text-gray-600 hover:text-blue-600">
+                <span class="leading-none">Listed on SaaSHub</span>
+                <img src="{{ url_for('static', filename='badges/saashub-approved.png') }}" alt="Approved on SaaSHub" class="h-7 w-auto max-w-[150px] shrink-0" width="150" height="28" loading="lazy">
+            </a>
+        </div>
     </div>
     <section class="my-8">
       <div class="max-w-3xl mx-auto text-center rounded-2xl bg-slate-50 ring-1 ring-black/5 px-6 py-10 sm:px-10">
@@ -73,11 +85,13 @@
         <div class="mt-4 max-w-lg mx-auto">
           <div class="relative overflow-hidden rounded-md shadow-none">
             <div id="vpSlides" class="relative h-0 pb-[35%] bg-transparent">
-              <img src="{{ url_for('static', filename='images/visual_proof/slide1.png') }}" alt="Slide preview 1" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
-              <img src="{{ url_for('static', filename='images/visual_proof/slide2.png') }}" alt="Slide preview 2" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
-              <img src="{{ url_for('static', filename='images/visual_proof/slide3.png') }}" alt="Slide preview 3" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
-              <img src="{{ url_for('static', filename='images/visual_proof/slide4.png') }}" alt="Slide preview 4" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
-              <img src="{{ url_for('static', filename='images/visual_proof/slide5.png') }}" alt="Slide preview 5" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
+              <img src="{{ url_for('static', filename='images/visual_proof/slide1.png') }}?v=4" alt="Slide preview 1" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
+              <img src="{{ url_for('static', filename='images/visual_proof/slide2.png') }}?v=4" alt="Slide preview 2" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
+              <img src="{{ url_for('static', filename='images/visual_proof/slide3.png') }}?v=4" alt="Slide preview 3" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
+              <img src="{{ url_for('static', filename='images/visual_proof/slide4.png') }}?v=4" alt="Slide preview 4" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
+              <img src="{{ url_for('static', filename='images/visual_proof/slide5.png') }}?v=4" alt="Slide preview 5" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
+              <img src="{{ url_for('static', filename='images/visual_proof/slide6.png') }}?v=4" alt="Slide preview 6" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
+              <img src="{{ url_for('static', filename='images/visual_proof/slide7.png') }}?v=4" alt="Slide preview 7" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
             </div>
             <!-- Dots (auto-generated) -->
             <div id="vpDots" class="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1 bg-white/60 backdrop-blur-sm rounded-full px-1 py-0.5"></div>

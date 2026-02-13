@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment variables at startup
@@ -186,6 +187,35 @@ def create_app():
                     db.create_all()
     except Exception as _e:
         print(f"Warning: failed to auto-create tables: {_e}")
+
+    try:
+        with app.app_context():
+            from sqlalchemy import inspect as _sa_inspect
+            insp = _sa_inspect(db.engine)
+            if insp.has_table("blog_posts"):
+                slug = "pptjet-is-now-listed-on-saashub"
+                existing = BlogPost.query.filter_by(slug=slug).first()
+                if not existing:
+                    post = BlogPost(
+                        title="PPTJet is now listed on SaaSHub",
+                        slug=slug,
+                        summary="PPTJet is approved and listed on SaaSHub under AI / Design Tools.",
+                        content=(
+                            "<p>PPTJet is now listed on SaaSHub under AI / Design Tools — "
+                            "<a href=\"https://www.saashub.com/pptjet?utm_source=badge&utm_campaign=badge&utm_content=pptjet&badge_variant=color&badge_kind=approved\">view the listing here</a>."
+                            "</p>"
+                            "<p>If you’re new to PPTJet, you can start from the <a href=\"/\">homepage</a> or try the "
+                            "<a href=\"/investor-pitch-deck-generator\">Investor Pitch Deck Generator</a>."
+                            "</p>"
+                        ),
+                        published=True,
+                        published_at=datetime.utcnow(),
+                        author_id=None,
+                    )
+                    db.session.add(post)
+                    db.session.commit()
+    except Exception as _e:
+        print(f"Warning: failed to seed SaaSHub blog post: {_e}")
     
     # Prefer http in development (local) to match OAuth redirect URIs, https in prod
     is_dev = os.environ.get('FLASK_ENV') == 'development'
