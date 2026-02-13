@@ -156,6 +156,44 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% if ADS_ENABLED and ADSENSE_ENABLED %}
+    {% set _utility_paths = [
+      '/investor-pitch-deck-generator',
+      '/convert-text-to-powerpoint',
+      '/pitch-deck-generator',
+      '/generate-presentation-from-outline',
+      '/generate-powerpoint-from-text'
+    ] %}
+    {% if request.path in _utility_paths %}
+    <style>
+    @media (min-width: 1280px){
+      .util-sidebar-ad{position:fixed; top:120px; width:300px; z-index:10;}
+      .util-sidebar-left{left:10px;}
+      .util-sidebar-right{right:10px;}
+    }
+    @media (max-width: 1279px){ .util-sidebar-ad{ display:none !important; } }
+    </style>
+    <div class="util-sidebar-ad util-sidebar-left">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-6405372608012962"
+           data-ad-slot="3425743992"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    <div class="util-sidebar-ad util-sidebar-right">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-6405372608012962"
+           data-ad-slot="5114725022"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    {% endif %}
+    {% endif %}
+
     <footer class="bg-white shadow-lg mt-8">
         <div class="container mx-auto px-4 py-4">
             <p class="text-center text-gray-600">© 2025 PPTJet - AI PowerPoint Generator |
