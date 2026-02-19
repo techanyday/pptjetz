@@ -11,6 +11,7 @@ google-auth-oauthlib==1.2.0
 matplotlib==3.8.3
 pillow<10.0
 python-pptx==0.6.23
+PyMuPDF==1.24.9
 pytest==8.1.1
 python-dotenv==1.0.1
 

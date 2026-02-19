@@ -5,7 +5,93 @@ import shutil
 import subprocess
 import tempfile
 import re
+import json
 from typing import List
+
+
+def _ps_quote(s: str) -> str:
+    # Single-quote for PowerShell and escape embedded quotes by doubling.
+    return "'" + s.replace("'", "''") + "'"
+
+
+def _files_all_identical(paths: List[str]) -> bool:
+    if len(paths) < 2:
+        return False
+    try:
+        import hashlib
+
+        def _md5(p: str) -> str:
+            h = hashlib.md5()
+            with open(p, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    h.update(chunk)
+            return h.hexdigest()
+
+        hashes = [_md5(p) for p in paths if os.path.exists(p)]
+        return len(hashes) >= 2 and len(set(hashes)) == 1
+    except Exception:
+        return False
+
+
+def _export_pngs_via_powerpoint(pptx_path: str, outdir: str, dpi: int, expected_count: int | None) -> List[str]:
+    if os.name != "nt":
+        return []
+
+    os.makedirs(outdir, exist_ok=True)
+    try:
+        for fn in glob.glob(os.path.join(outdir, "slide_*.png")):
+            try:
+                os.remove(fn)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    pptx_q = _ps_quote(os.path.abspath(pptx_path))
+    out_q = _ps_quote(os.path.abspath(outdir))
+
+    # PowerPoint COM export: render each slide to PNG. Requires Microsoft PowerPoint.
+    # Use WithWindow = $false to keep it headless.
+    script = (
+        "$ErrorActionPreference='Stop';"
+        f"$pptPath={pptx_q};"
+        f"$outDir={out_q};"
+        f"$dpi={[int(dpi)]};"
+        "$pp=$null; $pres=$null;"
+        "try {"
+        "  $pp = New-Object -ComObject PowerPoint.Application;"
+        "  $pres = $pp.Presentations.Open($pptPath, $true, $true, $false);"
+        "  $w = [int][math]::Round(($pres.PageSetup.SlideWidth/72.0) * $dpi);"
+        "  $h = [int][math]::Round(($pres.PageSetup.SlideHeight/72.0) * $dpi);"
+        "  $i = 1;"
+        "  foreach ($s in $pres.Slides) {"
+        "    $dst = Join-Path $outDir (\"slide_{0}.png\" -f $i);"
+        "    $s.Export($dst, 'PNG', $w, $h) | Out-Null;"
+        "    $i++;"
+        "  }"
+        "} finally {"
+        "  if ($pres -ne $null) { try { $pres.Close() } catch {} };"
+        "  if ($pp -ne $null) { try { $pp.Quit() } catch {} };"
+        "  if ($pres -ne $null) { try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($pres) | Out-Null } catch {} };"
+        "  if ($pp -ne $null) { try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($pp) | Out-Null } catch {} };"
+        "  [GC]::Collect(); [GC]::WaitForPendingFinalizers();"
+        "}"
+    )
+
+    proc = subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return []
+
+    produced = sorted(glob.glob(os.path.join(outdir, "slide_*.png")))
+    if expected_count and len(produced) != expected_count:
+        return []
+    if _files_all_identical(produced):
+        return []
+    return sorted(produced, key=lambda p: int(re.search(r"slide_(\d+)\.png$", os.path.basename(p)).group(1)))
 
 
 def _find_soffice() -> str | None:
@@ -42,14 +128,25 @@ def _find_soffice() -> str | None:
     return None
 
 
-def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150) -> List[str]:
+def _soffice_missing_message() -> str:
+    msg = "LibreOffice (soffice) is not installed on the server or not in PATH."
+    if os.name == "nt":
+        msg += " On Windows, install LibreOffice and ensure 'soffice.com' is available."
+        msg += " Typical path: C:\\Program Files\\LibreOffice\\program\\soffice.com"
+        msg += " (or set LIBREOFFICE_PATH to the full soffice path)."
+    else:
+        msg += " Install LibreOffice and ensure 'soffice' is in PATH (or set LIBREOFFICE_PATH)."
+    return msg
+
+
+def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_count: int | None = None) -> List[str]:
     """
     Export each slide of a PPTX to PNG using LibreOffice (soffice) headless.
     Returns a list of PNG file paths sorted by slide order.
     """
     soffice = _find_soffice()
     if not soffice:
-        raise RuntimeError("LibreOffice (soffice) is not installed on the server or not in PATH.")
+        raise RuntimeError(_soffice_missing_message())
 
     os.makedirs(outdir, exist_ok=True)
 
@@ -503,7 +600,7 @@ def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150) -> List[str]:
                 else:
                     # PyMuPDF fallback
                     try:
-                        import fitz  # PyMuPDF
+                        import fitz
                         doc = fitz.open(pdf_path)
                         zoom = dpi / 72.0
                         mat = fitz.Matrix(zoom, zoom)
@@ -579,346 +676,164 @@ def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150) -> List[str]:
 
 def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_count: int | None = None) -> List[str]:
     """
-    Export every slide to PNG using LibreOffice with explicit PageRange and Resolution.
-    Places files in `outdir` and renames them to slide_<n>.png in numeric order.
-    Returns list of final file paths in numeric order.
-    """
-    soffice = _find_soffice()
-    if not soffice:
-        raise RuntimeError("LibreOffice (soffice) is not installed on the server or not in PATH.")
+    Export every slide to PNG deterministically via:
+    PPTX -> PDF (LibreOffice) -> PNG (PyMuPDF)
 
+    Returns list of final file paths (slide_1.png, slide_2.png, ...) in numeric order.
+    """
+    render_id = uuid.uuid4().hex[:10]
+    converter = "soffice_pdf+pymupdf"
     os.makedirs(outdir, exist_ok=True)
 
-    # LibreOffice filter JSON differs only by shell quoting between platforms.
-    # We build a single list form safe for subprocess without shell.
-    filter_opt = 'png:impress_png_Export:{"PageRange":"1-999","Resolution":' + str(dpi) + '}'
+    # Clear old PNG previews (case-insensitive)
+    try:
+        for fn in glob.glob(os.path.join(outdir, "*")):
+            if os.path.isfile(fn) and fn.lower().endswith(".png"):
+                try:
+                    os.remove(fn)
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
-    cmd = [
+    soffice = _find_soffice()
+    if not soffice:
+        raise RuntimeError(_soffice_missing_message())
+
+    # 1) PPTX -> PDF
+    pdf_path = os.path.join(outdir, "deck.pdf")
+    try:
+        if os.path.exists(pdf_path):
+            os.remove(pdf_path)
+    except Exception:
+        pass
+
+    pdf_tmp_dir = None
+    try:
+        pdf_tmp_dir = tempfile.mkdtemp(prefix=f"pdf_{render_id}_", dir=outdir)
+    except Exception:
+        pdf_tmp_dir = outdir
+
+    cmd_pdf = [
         soffice,
         "--headless",
         "--norestore",
         "--nolockcheck",
         "--convert-to",
-        filter_opt,
+        "pdf",
         "--outdir",
-        outdir,
+        pdf_tmp_dir,
         pptx_path,
     ]
+    proc = subprocess.run(cmd_pdf, capture_output=True, text=True)
+    soffice_stdout = (proc.stdout or "").strip()
+    soffice_stderr = (proc.stderr or "").strip()
 
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    if proc.returncode != 0:
-        # As a fallback, try without explicit filter JSON
-        fallback = [
-            soffice,
-            "--headless",
-            "--norestore",
-            "--nolockcheck",
-            "--convert-to",
-            "png",
-            "--outdir",
-            outdir,
-            pptx_path,
-        ]
-        proc2 = subprocess.run(fallback, capture_output=True, text=True)
-        if proc2.returncode != 0:
-            raise RuntimeError(
-                f"LibreOffice export failed.\nPrimary: {proc.stdout}\n{proc.stderr}\nFallback: {proc2.stdout}\n{proc2.stderr}"
-            )
-
-    # Collect produced PNGs (names vary by LO; often <basename>_1.png ...)
-    produced = sorted(glob.glob(os.path.join(outdir, "*.png")))
-    if not produced:
-        raise RuntimeError("No PNGs were produced by LibreOffice export.")
-
-    # Normalize names to slide_<n>.png in numeric order
-    # Determine order by natural sort on filename numbers
-    def _num_key(p: str) -> int:
-        base = os.path.basename(p)
-        digits = ''.join(ch for ch in base if ch.isdigit())
-        try:
-            return int(digits) if digits else 0
-        except Exception:
-            return 0
-
-    produced.sort(key=_num_key)
-
-    # Normalize names using a temporary directory to avoid rename collisions
-    tmp_norm = tempfile.mkdtemp(prefix="norm_", dir=outdir)
-    norm_paths: List[str] = []
-    for i, src in enumerate(produced, start=1):
-        tmp_dst = os.path.join(tmp_norm, f"slide_{i}.png")
-        try:
-            shutil.move(src, tmp_dst)
-        except Exception:
-            # If move fails, attempt copy as fallback
-            try:
-                shutil.copy2(src, tmp_dst)
-            except Exception:
-                continue
-        norm_paths.append(tmp_dst)
-
-    final_paths: List[str] = []
-    for p in norm_paths:
-        dst = os.path.join(outdir, os.path.basename(p))
-        try:
-            if os.path.exists(dst):
-                os.remove(dst)
-        except Exception:
-            pass
-        try:
-            shutil.move(p, dst)
-            final_paths.append(dst)
-        except Exception:
-            pass
-    # Attempt to remove temp dir (ignore errors)
+    pdf_candidates = []
     try:
-        shutil.rmtree(tmp_norm, ignore_errors=True)
+        pdf_candidates = [p for p in glob.glob(os.path.join(pdf_tmp_dir, "*")) if os.path.isfile(p) and p.lower().endswith(".pdf")]
+    except Exception:
+        pdf_candidates = []
+
+    if proc.returncode != 0 or not pdf_candidates:
+        # Optional last-resort on Windows: PowerPoint COM to PNG (if available)
+        if os.name == "nt":
+            ppt_paths = _export_pngs_via_powerpoint(pptx_path, outdir, dpi=dpi, expected_count=expected_count)
+            if ppt_paths:
+                meta = {
+                    "ok": True,
+                    "render_id": render_id,
+                    "converter": "powerpoint_com",
+                    "pptx_path": pptx_path,
+                    "pdf_path": None,
+                    "outdir": outdir,
+                    "count": len(ppt_paths),
+                    "expected_count": expected_count,
+                    "soffice_returncode": proc.returncode,
+                    "soffice_stdout": soffice_stdout[-4000:],
+                    "soffice_stderr": soffice_stderr[-4000:],
+                }
+                try:
+                    with open(os.path.join(outdir, "_meta.json"), "w", encoding="utf-8") as f:
+                        json.dump(meta, f, ensure_ascii=False)
+                except Exception:
+                    pass
+                return ppt_paths
+
+        raise RuntimeError(
+            "Failed to convert PPTX to PDF via LibreOffice. "
+            f"returncode={proc.returncode}. stdout={soffice_stdout[-2000:]} stderr={soffice_stderr[-2000:]}"
+        )
+
+    src_pdf = max(pdf_candidates, key=lambda p: os.path.getmtime(p))
+    try:
+        if os.path.abspath(src_pdf) != os.path.abspath(pdf_path):
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+            shutil.move(src_pdf, pdf_path)
+    except Exception:
+        pdf_path = src_pdf
+
+    # Cleanup temp PDF dir if it was separate
+    try:
+        if pdf_tmp_dir and os.path.abspath(pdf_tmp_dir) != os.path.abspath(outdir):
+            shutil.rmtree(pdf_tmp_dir, ignore_errors=True)
     except Exception:
         pass
 
-    # If we have an expected count and LO produced fewer, try PDF->PNG fallback
-    if expected_count and len(final_paths) < expected_count:
-        try:
-            # Convert PPTX to PDF
-            pdf_path = os.path.join(outdir, "deck.pdf")
-            cmd_pdf = [
-                soffice,
-                "--headless",
-                "--norestore",
-                "--nolockcheck",
-                "--convert-to",
-                "pdf",
-                "--outdir",
-                outdir,
-                pptx_path,
-            ]
-            subprocess.run(cmd_pdf, capture_output=True, text=True)
-            if os.path.isfile(pdf_path):
-                # Use pdftoppm if available
-                ppm = shutil.which("pdftoppm")
-                if ppm:
-                    # Clean any existing slide_*.png to avoid mix
-                    for fn in glob.glob(os.path.join(outdir, "slide_*.png")):
-                        try:
-                            os.remove(fn)
-                        except Exception:
-                            pass
-                    # Generate PNGs
-                    # -png, -r dpi, -f 1 -l expected_count
-                    subprocess.run([
-                        ppm,
-                        "-png",
-                        "-r", str(dpi),
-                        "-f", "1",
-                        "-l", str(expected_count),
-                        pdf_path,
-                        os.path.join(outdir, "slide")
-                    ], capture_output=True, text=True)
-                    # pdftoppm names slide-1.png, slide-2.png ... rename to slide_1.png (collision-safe)
-                    pdf_pngs = sorted(glob.glob(os.path.join(outdir, "slide-*.png")))
-                    def _pdf_num(p: str) -> int:
-                        base = os.path.basename(p)
-                        digits = ''.join(ch for ch in base if ch.isdigit())
-                        try:
-                            return int(digits)
-                        except Exception:
-                            return 0
-                    pdf_pngs.sort(key=_pdf_num)
-                    # Normalize via temp dir to avoid rename collisions
-                    tmp_norm2 = tempfile.mkdtemp(prefix="norm_pdf_", dir=outdir)
-                    moved: List[str] = []
-                    for i, src in enumerate(pdf_pngs, start=1):
-                        tmp_dst = os.path.join(tmp_norm2, f"slide_{i}.png")
-                        try:
-                            shutil.move(src, tmp_dst)
-                            moved.append(tmp_dst)
-                        except Exception:
-                            pass
-                    final_paths = []
-                    for p in moved:
-                        dst = os.path.join(outdir, os.path.basename(p))
-                        try:
-                            if os.path.exists(dst):
-                                os.remove(dst)
-                        except Exception:
-                            pass
-                        try:
-                            shutil.move(p, dst)
-                            final_paths.append(dst)
-                        except Exception:
-                            pass
-                    try:
-                        shutil.rmtree(tmp_norm2, ignore_errors=True)
-                    except Exception:
-                        pass
-        except Exception:
-            # Ignore fallback failure; return what we have
-            pass
+    # 2) PDF -> PNG (PyMuPDF)
+    try:
+        import fitz  # PyMuPDF
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"PyMuPDF is required for preview rendering but is not available: {exc}")
 
-    # If multiple PNGs exist but appear identical (common Windows LO quirk), try PDF->PNG to regenerate
-    if expected_count and len(final_paths) > 1:
-        try:
-            import hashlib
-            def _md5(p: str) -> str:
-                h = hashlib.md5()
-                with open(p, 'rb') as f:
-                    for chunk in iter(lambda: f.read(8192), b''):
-                        h.update(chunk)
-                return h.hexdigest()
-            hashes = [_md5(p) for p in final_paths if os.path.exists(p)]
-            unique = set(hashes)
-            if len(unique) == 1:
-                # Detected duplicates; try PDF pipeline
-                print("[preview] Detected identical PNG thumbnails; retrying via PDF->PNG pipeline")
-                for fn in glob.glob(os.path.join(outdir, "slide_*.png")):
-                    try:
-                        os.remove(fn)
-                    except Exception:
-                        pass
-                pdf_tmp = os.path.join(outdir, "__pages.pdf")
+    doc = None
+    final_paths: List[str] = []
+    try:
+        doc = fitz.open(pdf_path)
+        zoom = float(dpi) / 72.0
+        mat = fitz.Matrix(zoom, zoom)
+        for i in range(len(doc)):
+            pix = doc.load_page(i).get_pixmap(matrix=mat)
+            dst = os.path.join(outdir, f"slide_{i+1}.png")
+            if os.path.exists(dst):
                 try:
-                    for fn in glob.glob(os.path.join(outdir, "*.pdf")):
-                        try:
-                            os.remove(fn)
-                        except Exception:
-                            pass
+                    os.remove(dst)
                 except Exception:
                     pass
-                cmd_pdf = [
-                    soffice,
-                    "--headless",
-                    "--norestore",
-                    "--nolockcheck",
-                    "--convert-to",
-                    "pdf:impress_pdf_Export",
-                    "--outdir",
-                    outdir,
-                    pptx_path,
-                ]
-                subprocess.run(cmd_pdf, capture_output=True, text=True)
-                pdf_candidates = glob.glob(os.path.join(outdir, "*.pdf"))
-                if pdf_candidates:
-                    src_pdf = max(pdf_candidates, key=lambda p: os.path.getmtime(p))
-                    try:
-                        if os.path.abspath(src_pdf) != os.path.abspath(pdf_tmp):
-                            os.replace(src_pdf, pdf_tmp)
-                        else:
-                            pdf_tmp = src_pdf
-                    except Exception:
-                        pdf_tmp = src_pdf
-                if os.path.exists(pdf_tmp):
-                    try:
-                        subprocess.run(["pdftoppm", "-png", "-r", str(dpi), pdf_tmp, os.path.join(outdir, "slide")], capture_output=True, text=True)
-                        produced = sorted(glob.glob(os.path.join(outdir, "slide-*.png")))
-                        for p in produced:
-                            m = re.search(r"slide-(\d+)\.png$", p)
-                            if not m:
-                                continue
-                            i = int(m.group(1))
-                            dst = os.path.join(outdir, f"slide_{i}.png")
-                            try:
-                                if os.path.exists(dst):
-                                    os.remove(dst)
-                            except Exception:
-                                pass
-                            try:
-                                os.replace(p, dst)
-                                final_paths.append(dst)
-                            except Exception:
-                                pass
-                    except FileNotFoundError:
-                        # pdftoppm not installed; try PyMuPDF (fitz)
-                        try:
-                            import fitz  # PyMuPDF
-                            doc = fitz.open(pdf_tmp)
-                            zoom = dpi / 72.0
-                            mat = fitz.Matrix(zoom, zoom)
-                            new_paths: List[str] = []
-                            for i in range(len(doc)):
-                                pix = doc.load_page(i).get_pixmap(matrix=mat)
-                                dst = os.path.join(outdir, f"slide_{i+1}.png")
-                                if os.path.exists(dst):
-                                    try:
-                                        os.remove(dst)
-                                    except Exception:
-                                        pass
-                                pix.save(dst)
-                                new_paths.append(dst)
-                            doc.close()
-                            if new_paths:
-                                final_paths = new_paths
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
+            pix.save(dst)
+            final_paths.append(dst)
+    finally:
+        try:
+            if doc is not None:
+                doc.close()
         except Exception:
             pass
 
-    # As a last resort (Windows LO sometimes outputs only first page), try per-slide loop
-    if expected_count and len(final_paths) < expected_count:
-        try:
-            # Remove any existing slide_*.png to avoid mixing
-            for fn in glob.glob(os.path.join(outdir, "slide_*.png")):
-                try:
-                    os.remove(fn)
-                except Exception:
-                    pass
+    if not final_paths:
+        raise RuntimeError("No preview images were produced from the rendered PDF.")
 
-            def _export_single(page_n: int) -> str | None:
-                # Export one page to a unique temp directory to avoid collisions/overwrites
-                tmp_dir = os.path.join(outdir, f"__tmp_page_{page_n}")
-                os.makedirs(tmp_dir, exist_ok=True)
-                filter_one = f'png:impress_png_Export:{{"PageRange":"{page_n}","Resolution":{dpi}}}'
-                cmd_one = [
-                    soffice,
-                    "--headless",
-                    "--norestore",
-                    "--nolockcheck",
-                    "--convert-to",
-                    filter_one,
-                    "--outdir",
-                    tmp_dir,
-                    pptx_path,
-                ]
-                subprocess.run(cmd_one, capture_output=True, text=True)
-                # Find PNG inside tmp_dir
-                candidates = glob.glob(os.path.join(tmp_dir, "*.png"))
-                if not candidates:
-                    # Cleanup temp dir
-                    try:
-                        shutil.rmtree(tmp_dir, ignore_errors=True)
-                    except Exception:
-                        pass
-                    return None
-                # Choose the first (or newest) PNG
-                newest = max(candidates, key=lambda p: os.path.getmtime(p))
-                dst = os.path.join(outdir, f"slide_{page_n}.png")
-                if os.path.exists(dst):
-                    try:
-                        os.remove(dst)
-                    except Exception:
-                        pass
-                try:
-                    os.replace(newest, dst)
-                except Exception:
-                    dst = None
-                # Cleanup temp dir
-                try:
-                    shutil.rmtree(tmp_dir, ignore_errors=True)
-                except Exception:
-                    pass
-                return dst if dst and os.path.exists(dst) else None
+    meta = {
+        "ok": True,
+        "render_id": render_id,
+        "converter": converter,
+        "pptx_path": pptx_path,
+        "pdf_path": pdf_path,
+        "outdir": outdir,
+        "count": len(final_paths),
+        "expected_count": expected_count,
+        "soffice_returncode": proc.returncode,
+        "soffice_stdout": soffice_stdout[-4000:],
+        "soffice_stderr": soffice_stderr[-4000:],
+    }
+    try:
+        with open(os.path.join(outdir, "_meta.json"), "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False)
+    except Exception:
+        pass
 
-            per_paths: List[str] = []
-            for i in range(1, expected_count + 1):
-                got = _export_single(i)
-                if got:
-                    per_paths.append(got)
-                else:
-                    break
-            if per_paths:
-                final_paths = per_paths
-        except Exception:
-            pass
+    # Validate but do not hard-fail on mismatch
+    if expected_count and expected_count != len(final_paths):
+        print(f"[preview] Warning: expected {expected_count} slides but rendered {len(final_paths)} pages")
 
     return final_paths

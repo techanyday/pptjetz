@@ -4,6 +4,10 @@ from typing import Any, Dict, List
 import json
 import re
 import os
+import glob
+import shutil
+import tempfile
+import traceback
 import requests
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -27,6 +31,7 @@ from flask_login import login_user, logout_user, current_user, login_required
 from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI, derive_topic_comparison_table, ENABLE_EXPORT_COMPARISON_AI, derive_one_idea_intro, ENABLE_EXPORT_ONE_IDEA_AI
 # Preview PNG generation is removed; only PPTX export remains
 from app.services.pptx_builder import build_pptx_from_positions, build_pptx_from_slides
+from app.services.preview import export_all_previews
 from app import db
 from app.models import User, BlogPost, Pricing, LLMCall, ProviderCost
 from app.presentation_log import PresentationLog
@@ -67,6 +72,43 @@ os.makedirs(PREVIEW_ROOT, exist_ok=True)
 def download_file(folder: str, fname: str):
     """Serve the generated PPTX for download from PREVIEW_ROOT."""
     return send_from_directory(os.path.join(PREVIEW_ROOT, folder), fname, as_attachment=True)
+
+
+@bp.get("/download_pptx/<deck_id>")
+def download_pptx(deck_id: str):
+    theme = (request.args.get("theme") or "").strip()
+    if not theme:
+        try:
+            with open(os.path.join(PREVIEW_ROOT, deck_id, "deck.json"), "r", encoding="utf-8") as f:
+                deck = json.load(f)
+            theme = (deck.get("theme_name") or "SLEEK").strip()
+        except Exception:
+            theme = "SLEEK"
+    theme_key = theme.upper()
+
+    pptx_name = f"deck_{deck_id}.pptx"
+    export_dir = os.path.join(PREVIEW_ROOT, deck_id, "exports", theme_key)
+    pptx_path = os.path.join(export_dir, pptx_name)
+    if not os.path.isfile(pptx_path):
+        # Backwards compatibility for older single-path exports
+        legacy_dir = os.path.join(PREVIEW_ROOT, deck_id)
+        legacy_path = os.path.join(legacy_dir, pptx_name)
+        if os.path.isfile(legacy_path):
+            export_dir = legacy_dir
+        else:
+            abort(404)
+
+    resp = send_from_directory(export_dir, pptx_name, as_attachment=True)
+    try:
+        resp.headers["Cache-Control"] = "no-store, max-age=0"
+    except Exception:
+        pass
+    return resp
+
+
+@bp.get("/preview_assets/<deck_id>/<path:fname>")
+def preview_asset(deck_id: str, fname: str):
+    return send_from_directory(os.path.join(PREVIEW_ROOT, deck_id), fname, as_attachment=False)
 
 # Note: Google Slides template IDs are no longer used; export is local PPTX via python-pptx.
 
@@ -719,8 +761,239 @@ def get_deck(deck_id: str) -> Any:
         "ok": True,
         "deck_id": deck_id,
         "slides": deck.get("slides") or [],
+        "slides_out": deck.get("slides_out") or [],
         "theme_name": deck.get("theme_name") or "SLEEK",
         "deck_title": deck.get("deck_title") or "Untitled",
+    })
+
+
+@bp.post("/api/decks/<deck_id>/theme")
+def set_deck_theme(deck_id: str) -> Any:
+    data = request.get_json(silent=True) or {}
+    theme_name = (data.get("theme_name") or "").strip()
+    if theme_name not in THEME_OPTIONS:
+        return jsonify({"ok": False, "error": "Invalid theme"}), 400
+
+    deck = DECK_STORE.get(deck_id)
+    if not deck:
+        try:
+            with open(os.path.join(PREVIEW_ROOT, deck_id, "deck.json"), "r", encoding="utf-8") as f:
+                deck = json.load(f)
+        except Exception:
+            return jsonify({"ok": False, "error": "Deck not found"}), 404
+
+    deck["theme_name"] = theme_name
+    DECK_STORE[deck_id] = deck
+
+    try:
+        out_dir = os.path.join(PREVIEW_ROOT, deck_id)
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(out_dir, "deck.json"), "w", encoding="utf-8") as f:
+            json.dump(deck, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+    return jsonify({"ok": True, "deck_id": deck_id, "theme_name": theme_name})
+
+
+@bp.get("/api/previews/<deck_id>")
+def api_previews(deck_id: str) -> Any:
+    refresh = (request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+
+    deck = DECK_STORE.get(deck_id)
+    if not deck:
+        try:
+            with open(os.path.join(PREVIEW_ROOT, deck_id, "deck.json"), "r", encoding="utf-8") as f:
+                deck = json.load(f)
+        except Exception:
+            return jsonify({"ok": False, "error": "Deck not found"}), 404
+
+    theme_name = ((request.args.get("theme") or "").strip() or (deck.get("theme_name") or "SLEEK")).strip()
+    theme_key = theme_name.upper()
+
+    expected_count = None
+    try:
+        slides_src = deck.get("slides_out") or deck.get("slides") or []
+        if isinstance(slides_src, list) and slides_src:
+            expected_count = len(slides_src)
+    except Exception:
+        expected_count = None
+
+    pptx_name = f"deck_{deck_id}.pptx"
+    pptx_path = os.path.join(PREVIEW_ROOT, deck_id, "exports", theme_key, pptx_name)
+    if not os.path.isfile(pptx_path):
+        # Backwards compatibility for older single-path exports
+        legacy = os.path.join(PREVIEW_ROOT, deck_id, pptx_name)
+        if os.path.isfile(legacy):
+            pptx_path = legacy
+        else:
+            return jsonify({"ok": False, "error": "PPTX not found. Export the deck first."}), 404
+
+    out_dir = os.path.join(PREVIEW_ROOT, deck_id, "previews", theme_key)
+    os.makedirs(out_dir, exist_ok=True)
+
+    def _read_meta() -> dict:
+        try:
+            meta_path = os.path.join(out_dir, "_meta.json")
+            if os.path.isfile(meta_path):
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+        except Exception:
+            pass
+        return {}
+
+    def _all_pngs(folder: str) -> list[str]:
+        try:
+            files = glob.glob(os.path.join(folder, "*"))
+            return sorted([p for p in files if os.path.isfile(p) and p.lower().endswith(".png")])
+        except Exception:
+            return []
+
+    def _slide_pngs(folder: str) -> list[str]:
+        try:
+            files = glob.glob(os.path.join(folder, "*"))
+            out = []
+            for p in files:
+                if not os.path.isfile(p):
+                    continue
+                base = os.path.basename(p)
+                if re.search(r"slide_(\d+)\.png$", base, flags=re.IGNORECASE):
+                    out.append(p)
+            return sorted(out)
+        except Exception:
+            return []
+
+    def _num(p: str) -> int:
+        base = os.path.basename(p)
+        m = re.search(r"(\d+)", base)
+        try:
+            return int(m.group(1)) if m else 0
+        except Exception:
+            return 0
+
+    def _normalize_to_slide_pngs(files: list[str]) -> list[str]:
+        if not files:
+            return []
+        tmp_norm = None
+        try:
+            tmp_norm = tempfile.mkdtemp(prefix="norm_api_", dir=out_dir)
+        except Exception:
+            tmp_norm = None
+
+        ordered = list(files)
+        ordered.sort(key=_num)
+        moved = []
+        for i, src in enumerate(ordered, start=1):
+            tmp_dst = os.path.join(tmp_norm, f"slide_{i}.png") if tmp_norm else os.path.join(out_dir, f"__tmp_slide_{i}.png")
+            try:
+                shutil.copy2(src, tmp_dst)
+                moved.append(tmp_dst)
+            except Exception:
+                pass
+
+        final_paths = []
+        for p in moved:
+            dst = os.path.join(out_dir, os.path.basename(p).replace("__tmp_", ""))
+            try:
+                if os.path.exists(dst):
+                    os.remove(dst)
+            except Exception:
+                pass
+            try:
+                os.replace(p, dst)
+                final_paths.append(dst)
+            except Exception:
+                pass
+
+        try:
+            if tmp_norm:
+                shutil.rmtree(tmp_norm, ignore_errors=True)
+        except Exception:
+            pass
+        return final_paths
+
+    if not refresh:
+        existing = _slide_pngs(out_dir)
+        if existing:
+            existing.sort(key=_num)
+            slides = []
+            for p in existing:
+                n = _num(p)
+                rel = os.path.join("previews", theme_key, os.path.basename(p)).replace("\\", "/")
+                idx = n or (len(slides) + 1)
+                slides.append({"index": idx, "n": idx, "url": url_for("main.preview_asset", deck_id=deck_id, fname=rel)})
+            meta = _read_meta()
+            return jsonify({
+                "ok": True,
+                "deck_id": deck_id,
+                "theme_name": theme_name,
+                "theme": theme_key,
+                "slides": slides,
+                "count": len(slides),
+                "render_id": meta.get("render_id"),
+                "converter": meta.get("converter"),
+                "pptx_path": meta.get("pptx_path") or pptx_path,
+                "pdf_path": meta.get("pdf_path"),
+                "out_dir": meta.get("outdir") or out_dir,
+            })
+
+    if refresh:
+        try:
+            for fn in _all_pngs(out_dir):
+                try:
+                    os.remove(fn)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    try:
+        export_all_previews(pptx_path, out_dir, dpi=170, expected_count=expected_count)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({
+            "ok": False,
+            "error": str(exc),
+            "debug": {
+                "theme": theme_key,
+                "deck_id": deck_id,
+                "pptx_path": pptx_path,
+                "out_dir": out_dir,
+                "trace": traceback.format_exc(limit=6),
+            },
+        }), 500
+
+    produced = _slide_pngs(out_dir)
+    if not produced:
+        any_pngs = _all_pngs(out_dir)
+        produced = _normalize_to_slide_pngs(any_pngs)
+        if not produced:
+            return jsonify({"ok": False, "error": "No preview images were produced."}), 500
+    if expected_count and expected_count > 1 and len(produced) < 2:
+        return jsonify({"ok": False, "error": "Preview generation produced too few images."}), 500
+
+    produced.sort(key=_num)
+    slides = []
+    for p in produced:
+        n = _num(p)
+        rel = os.path.join("previews", theme_key, os.path.basename(p)).replace("\\", "/")
+        idx = n or (len(slides) + 1)
+        slides.append({"index": idx, "n": idx, "url": url_for("main.preview_asset", deck_id=deck_id, fname=rel)})
+
+    meta = _read_meta()
+    return jsonify({
+        "ok": True,
+        "deck_id": deck_id,
+        "theme_name": theme_name,
+        "theme": theme_key,
+        "slides": slides,
+        "count": len(slides),
+        "render_id": meta.get("render_id"),
+        "converter": meta.get("converter") or "soffice_pdf+pymupdf",
+        "pptx_path": meta.get("pptx_path") or pptx_path,
+        "pdf_path": meta.get("pdf_path"),
+        "out_dir": meta.get("outdir") or out_dir,
     })
 
 
@@ -733,11 +1006,31 @@ def outline_page(deck_id: str) -> Any:
     return render_template("outline.html", deck_id=deck_id)
 
 
+@bp.get("/preview/<deck_id>")
+def preview_page(deck_id: str) -> Any:
+    return render_template("preview.html", deck_id=deck_id, themes=THEME_OPTIONS)
+
+
+
+@bp.get("/preview_loading/<deck_id>")
+def preview_loading_page(deck_id: str) -> Any:
+    return render_template("preview_loading.html", deck_id=deck_id)
+
+
 @bp.get("/download_page/<deck_id>")
 def download_page(deck_id: str) -> Any:
     """Simple page with a download link for the exported PPTX."""
-    pptx_name = f"deck_{deck_id}.pptx"
-    download_url = url_for("main.download_file", folder=deck_id, fname=pptx_name)
+    theme = (request.args.get("theme") or "").strip()
+    if not theme:
+        try:
+            with open(os.path.join(PREVIEW_ROOT, deck_id, "deck.json"), "r", encoding="utf-8") as f:
+                deck = json.load(f)
+            theme = (deck.get("theme_name") or "SLEEK").strip()
+        except Exception:
+            theme = "SLEEK"
+    theme_key = theme.upper()
+
+    download_url = url_for("main.download_pptx", deck_id=deck_id, theme=theme_key)
     return render_template("download.html", download_url=download_url, user=current_user, remaining_presentations=None)
 
 
@@ -755,14 +1048,18 @@ def export_presentation() -> Any:
     data = request.get_json(silent=True) or {}
     deck_title = (data.get("deck_title") or "Untitled").strip()
     slides = data.get("slides") or []
-    theme_name = (data.get("theme_name") or "SLEEK").strip()
+    requested_theme_name = (data.get("theme_name") or "").strip() or None
+    theme_name = (requested_theme_name or "SLEEK").strip()
     input_text = (data.get("input_text") or "").strip() or None
     deck_id = (data.get("deck_id") or "").strip() or None
+    dry_run = str(data.get("dry_run") or "").strip().lower() in {"1", "true", "yes"}
+    no_log = str(data.get("no_log") or "").strip().lower() in {"1", "true", "yes"}
     # Optional, internal-only mode used to showcase all infographic types deterministically.
     # Default is normal behaviour (no special showcase handling).
     mode = (data.get("mode") or "").strip().lower()
 
     # If client only sends deck_id, load persisted deck (memory or disk)
+    deck_obj: Dict[str, Any] | None = None
     if (not slides) and deck_id:
         deck = DECK_STORE.get(deck_id)
         if not deck:
@@ -772,9 +1069,65 @@ def export_presentation() -> Any:
             except Exception:
                 return jsonify({"ok": False, "error": "Deck not found"}), 404
         slides = deck.get("slides") or []
-        theme_name = deck.get("theme_name") or theme_name
+        theme_name = requested_theme_name or deck.get("theme_name") or theme_name
         deck_title = deck.get("deck_title") or deck_title
         input_text = deck.get("input_text") or input_text
+        deck_obj = deck
+
+    if deck_id and deck_obj is not None and (not (data.get("slides") or [])):
+        cached = deck_obj.get("slides_out")
+        if isinstance(cached, list) and cached:
+            slides_out = cached
+            if dry_run:
+                return jsonify({
+                    "ok": True,
+                    "deck_id": deck_id,
+                    "deck_title": deck_title,
+                    "theme_name": theme_name,
+                    "slides": slides_out,
+                    "count": len(slides_out),
+                })
+
+            try:
+                import uuid
+                folder = (deck_id or uuid.uuid4().hex[:8])
+                pptx_name = f"deck_{folder}.pptx"
+                theme_key = (theme_name or "SLEEK").strip().upper()
+                out_dir = os.path.join(PREVIEW_ROOT, folder)
+                export_dir = os.path.join(out_dir, "exports", theme_key)
+                os.makedirs(export_dir, exist_ok=True)
+                pptx_path = os.path.join(export_dir, pptx_name)
+                build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
+                download_url = url_for("main.download_pptx", deck_id=folder, theme=theme_key, _external=True)
+
+                if not no_log:
+                    try:
+                        if getattr(current_user, "is_authenticated", False) and getattr(current_user, "id", None):
+                            log = PresentationLog(
+                                user_id=current_user.id,
+                                title=deck_title,
+                                num_slides=len(slides_out),
+                                units_used=1,
+                            )
+                            db.session.add(log)
+                            try:
+                                current_user.presentations_count = (getattr(current_user, "presentations_count", 0) or 0) + 1
+                            except Exception:
+                                pass
+                            db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+
+                return jsonify({
+                    "ok": True,
+                    "download_url": download_url,
+                    "pptx_path": pptx_name,
+                    "theme": theme_key,
+                    "folder": folder,
+                    "deck_id": folder,
+                })
+            except Exception as exc:  # noqa: BLE001
+                return jsonify({"ok": False, "error": str(exc)}), 500
     # Sanitization helpers
     BANNED = {"tbd", "metric 1", "metric 2", "metric 3", "step 1", "step 2", "step 3", "step 4"}
 
@@ -1553,42 +1906,65 @@ def export_presentation() -> Any:
         # Build final slides list: Title → Agenda → One-Idea Intro → Topic slides → Thank You
         slides_out: List[Dict[str, Any]] = [title_slide, agenda_slide, one_idea_slide] + topic_slides + [thanks_slide]
 
+        if deck_id and deck_obj is not None:
+            try:
+                deck_obj["slides_out"] = slides_out
+                DECK_STORE[deck_id] = deck_obj
+                out_dir = os.path.join(PREVIEW_ROOT, deck_id)
+                os.makedirs(out_dir, exist_ok=True)
+                with open(os.path.join(out_dir, "deck.json"), "w", encoding="utf-8") as f:
+                    json.dump(deck_obj, f, ensure_ascii=False)
+            except Exception:
+                pass
+
+        if dry_run:
+            return jsonify({
+                "ok": True,
+                "deck_id": deck_id,
+                "deck_title": deck_title,
+                "theme_name": theme_name,
+                "slides": slides_out,
+                "count": len(slides_out),
+            })
+
         # Build PPTX locally
         import uuid
         folder = (deck_id or uuid.uuid4().hex[:8])
         out_dir = os.path.join(PREVIEW_ROOT, folder)
-        os.makedirs(out_dir, exist_ok=True)
         pptx_name = f"deck_{folder}.pptx"
-        pptx_path = os.path.join(out_dir, pptx_name)
+        theme_key = (theme_name or "SLEEK").strip().upper()
+        export_dir = os.path.join(out_dir, "exports", theme_key)
+        os.makedirs(export_dir, exist_ok=True)
+        pptx_path = os.path.join(export_dir, pptx_name)
         # Build PPTX from our exact-pattern slides
         build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
 
-        download_url = url_for("main.download_file", folder=folder, fname=pptx_name, _external=True)
+        download_url = url_for("main.download_pptx", deck_id=folder, theme=theme_key, _external=True)
 
         # Record usage: log presentation and increment user counter when logged in
-        try:
-            if getattr(current_user, "is_authenticated", False) and getattr(current_user, "id", None):
-                log = PresentationLog(
-                    user_id=current_user.id,
-                    title=deck_title,
-                    num_slides=len(slides_out),
-                    units_used=1,
-                )
-                db.session.add(log)
-                # increment user presentations_count if present on model
-                try:
-                    current_user.presentations_count = (getattr(current_user, "presentations_count", 0) or 0) + 1
-                except Exception:
-                    pass
-                db.session.commit()
-        except Exception:
-            # Non-fatal if logging fails; continue to return the download link
-            db.session.rollback()
+        if not no_log:
+            try:
+                if getattr(current_user, "is_authenticated", False) and getattr(current_user, "id", None):
+                    log = PresentationLog(
+                        user_id=current_user.id,
+                        title=deck_title,
+                        num_slides=len(slides_out),
+                        units_used=1,
+                    )
+                    db.session.add(log)
+                    try:
+                        current_user.presentations_count = (getattr(current_user, "presentations_count", 0) or 0) + 1
+                    except Exception:
+                        pass
+                    db.session.commit()
+            except Exception:
+                db.session.rollback()
 
         return jsonify({
             "ok": True,
             "download_url": download_url,
             "pptx_path": pptx_name,
+            "theme": theme_key,
             "folder": folder,
             "deck_id": folder,
         })

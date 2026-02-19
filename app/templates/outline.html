@@ -65,7 +65,7 @@
         </script>
         {% endif %}
         <div class="mt-6 flex items-center gap-3">
-          <button id="exportBtn" class="bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700">Export PPTX</button>
+          <a href="{{ url_for('main.preview_loading_page', deck_id=deck_id) }}" class="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700">Preview</a>
           <a href="{{ url_for('main.generate_page') }}" class="px-5 py-2 rounded border hover:bg-gray-50">Back</a>
         </div>
         <!-- Ad: outline_bottom (moved below buttons) -->
@@ -97,10 +97,9 @@
 
 <script>
 (async function(){
-  const deckId = {{ deck_id|tojson }};
+  const deckId = JSON.parse('{{ deck_id | tojson | safe }}');
   const metaEl = document.getElementById('meta');
   const topicsEl = document.getElementById('topics');
-  const exportBtn = document.getElementById('exportBtn');
 
   function renderOutline(deck){
     const title = deck.deck_title || 'Untitled';
@@ -146,50 +145,6 @@
     const data = await resp.json();
     renderOutline(data);
   }
-
-  exportBtn.addEventListener('click', async () => {
-    exportBtn.disabled = true; exportBtn.textContent = 'Exporting...';
-    // Analytics: export clicked
-    if (typeof gtag === 'function') {
-      gtag('event', 'export_click', {
-        event_category: 'engagement',
-        event_label: 'outline_export',
-        value: 0.009,
-        currency: 'USD',
-        export_value: 0.009,
-        debug_mode: true
-      });
-    }
-    {% if META_PIXEL_ENABLED %}
-    try {
-      if (window.fbq) {
-        fbq('trackCustom', 'export_click', { value: 0.009, currency: 'USD' });
-      }
-    } catch(_e) { /* no-op */ }
-    {% endif %}
-    try {
-      const resp = await fetch('/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ deck_id: deckId })
-      });
-      const data = await resp.json();
-      if (data && data.ok && data.deck_id) {
-        // Redirect to dedicated download page
-        window.location.assign(`/download_page/${data.deck_id}`);
-      } else if (data && data.download_url) {
-        // Fallback: direct download link
-        window.location.assign(data.download_url);
-      } else {
-        alert((data && data.error) || 'Export failed');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Export failed');
-    } finally {
-      exportBtn.disabled = false; exportBtn.textContent = 'Export PPTX';
-    }
-  });
 
   loadDeck();
 })();

@@ -1,87 +1,272 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto p-4">
-  <div class="flex items-center justify-between mb-4">
-    <h1 class="text-2xl font-bold">Presentation Preview</h1>
-    <div class="flex items-center gap-2">
-      <a id="downloadLink" href="#" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Download PPTX</a>
-      <a href="{{ url_for('main.generate_page') }}" class="px-4 py-2 rounded border hover:bg-gray-50">Back</a>
-    </div>
-  </div>
+<div class="min-h-[70vh] py-6">
+  <div class="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_300px] gap-6 px-4">
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview left ad slot">
+          {% if ADS_ENABLED and ADSENSE_ENABLED %}
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="6319439915"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          {% else %}
+          <div class="text-gray-300 text-sm">Ads disabled</div>
+          {% endif %}
+        </div>
+      </div>
+    </aside>
 
-  <div id="viewer" class="bg-white shadow rounded p-4">
-    <div class="flex items-center gap-4 justify-center">
-      <button id="prevBtn" class="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200" aria-label="Previous">◀</button>
-      <img id="slideImage" src="" alt="Slide" class="max-h-[78vh] w-full object-contain border rounded" />
-      <button id="nextBtn" class="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200" aria-label="Next">▶</button>
-    </div>
-    <div class="mt-3 flex items-center justify-center gap-3 text-sm text-gray-600">
-      <span id="pos">1 / 1</span>
-      <span>•</span>
-      <span id="caption">Slide 1</span>
-    </div>
+    <main>
+      <div class="max-w-6xl mx-auto">
+        <div class="flex items-center justify-between mb-4">
+          <h1 class="text-2xl font-bold">Presentation Preview</h1>
+          <div class="flex items-center gap-2">
+            <select id="themeSelect" class="px-3 py-2 rounded border bg-white" aria-label="Theme">
+              {% for t in themes %}
+              <option value="{{ t }}">{{ t }}</option>
+              {% endfor %}
+            </select>
+            <a id="downloadLink" href="#" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Export PPTX</a>
+            <a href="{{ url_for('main.generate_page') }}" class="px-4 py-2 rounded border hover:bg-gray-50">Back</a>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          {% if ADS_ENABLED and ADSENSE_ENABLED %}
+          <ins class="adsbygoogle"
+               style="display:block"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="7907957016"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          {% else %}
+          <div class="hidden"></div>
+          {% endif %}
+        </div>
+
+  <style>
+    .slide-shell{aspect-ratio:16/9; width:100%; max-width: 1100px; margin: 0 auto;}
+    .slide-canvas{width:100%; height:100%; border-radius: 10px; border: 1px solid #e5e7eb; overflow:hidden; background: var(--slide-bg); color: var(--slide-text);}
+    .slide-title{color: var(--slide-title);}
+    .slide-badge{background: rgba(255,255,255,0.65); border: 1px solid rgba(148,163,184,0.5);}
+    .slide-pill{background: rgba(0,0,0,0.04);}
+    .slide-grid2{display:grid; grid-template-columns:1fr 1fr; gap: 18px;}
+    .slide-gridCards{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap: 14px;}
+    @media (max-width: 768px){
+      .slide-grid2{grid-template-columns:1fr;}
+      .slide-gridCards{grid-template-columns:repeat(2, minmax(0,1fr));}
+    }
+  </style>
+
+        <div id="viewer" class="bg-white shadow rounded p-4">
+          <div id="meta" class="mb-3 text-sm text-gray-600">Loading...</div>
+          <div id="actions" class="mb-3"></div>
+          <div id="slideList" class="max-h-[75vh] overflow-y-auto space-y-4 p-2 bg-gray-50 rounded"></div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview right ad slot">
+          {% if ADS_ENABLED and ADSENSE_ENABLED %}
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="5229719529"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          {% else %}
+          <div class="text-gray-300 text-sm">Ads disabled</div>
+          {% endif %}
+        </div>
+      </div>
+    </aside>
   </div>
 </div>
 
 <script>
 (function() {
-  const deckId = {{ deck_id|tojson }};
-  const imageEl = document.getElementById('slideImage');
-  const prevBtn = document.getElementById('prevBtn');
-  const nextBtn = document.getElementById('nextBtn');
-  const posEl = document.getElementById('pos');
-  const captionEl = document.getElementById('caption');
+  const deckId = JSON.parse('{{ deck_id | tojson | safe }}');
+  const slideListEl = document.getElementById('slideList');
+  const metaEl = document.getElementById('meta');
+  const actionsEl = document.getElementById('actions');
   const downloadLink = document.getElementById('downloadLink');
+  const themeSelect = document.getElementById('themeSelect');
 
-  // Construct predictable download URL (export uses deck_<id>.pptx)
-  downloadLink.href = `/download/${deckId}/deck_${deckId}.pptx`;
-
-  let slides = [];
-  let idx = 0; // zero-based
-
-  function setIndex(n) {
-    if (!slides.length) return;
-    idx = Math.max(0, Math.min(n, slides.length - 1));
-    const s = slides[idx];
-    const bust = `${Date.now()}-${s.n || (idx+1)}`;
-    const imgUrl = s.url ? `${s.url}${s.url.includes('?') ? '&' : '?'}v=${bust}` : '';
-    imageEl.src = imgUrl;
-    captionEl.textContent = s.title || `Slide ${s.n}`;
-    posEl.textContent = `${idx + 1} / ${slides.length}`;
+  function getTheme() {
+    return (themeSelect && themeSelect.value) ? String(themeSelect.value) : '';
   }
 
-  function next() { setIndex(idx + 1); }
-  function prev() { setIndex(idx - 1); }
+  function updateDownloadHref() {
+    if (!downloadLink) return;
+    const theme = getTheme();
+    const qs = theme ? ('?theme=' + encodeURIComponent(theme)) : '';
+    downloadLink.href = `/download_page/${deckId}${qs}`;
+  }
 
-  prevBtn.addEventListener('click', prev);
-  nextBtn.addEventListener('click', next);
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowRight') next();
-    if (e.key === 'ArrowLeft') prev();
-  });
+  updateDownloadHref();
 
-  async function loadSlides() {
+  function setBusy(isBusy, label) {
     try {
-      const resp = await fetch(`/api/previews/${deckId}`);
-      if (!resp.ok) {
-        alert('No previews found for this deck.');
-        return;
-      }
-      const data = await resp.json();
-      slides = data.slides || [];
-      if (!slides.length) {
-        alert('No slides to preview');
-        return;
-      }
-      setIndex(0);
+      if (themeSelect) themeSelect.disabled = isBusy;
+      if (downloadLink) downloadLink.classList.toggle('opacity-60', isBusy);
+      if (metaEl) metaEl.textContent = label || '';
     } catch (e) {
-      console.error(e);
-      alert('Failed to load preview images');
+      console.warn(e);
     }
   }
 
-  loadSlides();
+  async function exportDeck(themeName) {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 60000);
+    const body = { deck_id: deckId };
+    if (themeName) body.theme_name = themeName;
+    const resp = await fetch('/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    }).finally(() => clearTimeout(t));
+    const data = await resp.json();
+    if (!resp.ok || !data || !data.ok) {
+      const msg = (data && (data.error || data.details)) || 'Export failed';
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  async function loadDeckAndInitTheme() {
+    try {
+      const resp = await fetch(`/api/decks/${deckId}`);
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const t = (data && data.theme_name) ? String(data.theme_name) : '';
+      if (themeSelect && t) themeSelect.value = t;
+      updateDownloadHref();
+      return data;
+    } catch (e) {
+      console.warn(e);
+      return null;
+    }
+  }
+
+  function renderSlides(slides, renderId) {
+    if (!slideListEl) return;
+    if (actionsEl) actionsEl.innerHTML = '';
+    const cb = renderId ? String(renderId) : String(Date.now());
+    const safe = Array.isArray(slides) ? slides : [];
+    slideListEl.innerHTML = safe.map((sl, i) => {
+      const n = (sl && (sl.index || sl.n)) ? String(sl.index || sl.n) : String(i + 1);
+      const url = (sl && sl.url) ? String(sl.url) : '';
+      const src = url ? (url + (url.includes('?') ? '&' : '?') + 'cb=' + cb + '_' + n) : '';
+      return `
+        <div class="bg-white border rounded-lg overflow-hidden shadow-sm">
+          <div class="px-3 py-2 text-xs text-gray-500 border-b">Slide ${n}</div>
+          <img src="${src}" alt="Slide ${n}" class="w-full h-auto block" loading="lazy" />
+        </div>`;
+    }).join('');
+  }
+
+  function setDownloadEnabled(enabled) {
+    if (!downloadLink) return;
+    downloadLink.classList.toggle('opacity-60', !enabled);
+    downloadLink.classList.toggle('pointer-events-none', !enabled);
+  }
+
+  async function loadPreviews() {
+    const theme = getTheme();
+    const qs = theme ? (`?theme=${encodeURIComponent(theme)}`) : '';
+    const resp = await fetch(`/api/previews/${deckId}${qs}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data || !data.ok) {
+      const msg = (data && (data.error || data.details)) || 'Failed to load previews';
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  async function boot() {
+    setBusy(true, 'Loading preview...');
+    try {
+      const deck = await loadDeckAndInitTheme();
+      if (!deck) throw new Error('Deck not found');
+      const previews = await loadPreviews();
+      const imgs = Array.isArray(previews && previews.slides) ? previews.slides : [];
+      const rid = previews && previews.render_id ? String(previews.render_id) : '';
+      if (!imgs.length) {
+        setDownloadEnabled(false);
+        if (slideListEl) slideListEl.innerHTML = '';
+        if (metaEl) metaEl.textContent = 'No preview images yet.';
+        const themeName = themeSelect ? themeSelect.value : '';
+        if (actionsEl) {
+          actionsEl.innerHTML = `
+            <a class="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" href="/preview_loading/${deckId}?theme=${encodeURIComponent(themeName)}">Generate Preview</a>
+          `;
+        }
+        return;
+      }
+      renderSlides(imgs, rid);
+      setBusy(false);
+      setDownloadEnabled(true);
+      if (metaEl) metaEl.textContent = `${imgs.length} slides`;
+    } catch (e) {
+      console.error(e);
+      setDownloadEnabled(false);
+      if (slideListEl) slideListEl.innerHTML = '';
+      if (metaEl) metaEl.textContent = (e && e.message) ? String(e.message) : 'Failed to load preview';
+      const themeName = themeSelect ? themeSelect.value : '';
+      if (actionsEl) {
+        actionsEl.innerHTML = `
+          <a class="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" href="/preview_loading/${deckId}?theme=${encodeURIComponent(themeName)}">Retry</a>
+        `;
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (themeSelect) {
+    themeSelect.addEventListener('change', async () => {
+      const themeName = themeSelect.value;
+      setDownloadEnabled(false);
+      updateDownloadHref();
+      window.location.assign(`/preview_loading/${deckId}?theme=${encodeURIComponent(themeName)}`);
+    });
+  }
+
+  downloadLink.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const themeName = themeSelect ? themeSelect.value : null;
+    setBusy(true, 'Exporting PPTX...');
+    try {
+      const data = await exportDeck(themeName);
+      const id = (data && data.deck_id) ? String(data.deck_id) : String(deckId);
+      const qs = themeName ? ('?theme=' + encodeURIComponent(themeName)) : '';
+      window.location.assign(`/download_page/${id}${qs}`);
+    } catch (err) {
+      console.error(err);
+      alert(err && err.message ? err.message : 'Export failed');
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  setDownloadEnabled(false);
+  boot();
 })();
 </script>
+{% if ADS_ENABLED and ADSENSE_ENABLED %}
+<script>
+try {
+  const push = () => { try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch(e) { console.warn('adsbygoogle push failed', e); } };
+  if (document.readyState === 'complete') { setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150); }
+  else { window.addEventListener('load', () => setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150), { once: true }); }
+} catch (e) { console.warn(e); }
+</script>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-[75vh] py-8">
+  <div class="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_300px] gap-6 px-4">
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview loading left ad slot">
+          {% if ADS_ENABLED and ADSENSE_ENABLED %}
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="6319439915"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          {% else %}
+          <div class="text-gray-300 text-sm">Ads disabled</div>
+          {% endif %}
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="flex flex-col items-center text-center">
+        <div class="max-w-xl w-full bg-white rounded shadow p-6 text-center">
+          <h1 class="text-2xl font-bold mb-2">Preparing Preview</h1>
+          <p class="text-gray-600 mb-6">We're finalizing your slides for preview and download.</p>
+
+          <div class="flex items-center justify-center">
+            <div class="h-10 w-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" aria-label="Loading"></div>
+          </div>
+
+          <div id="status" class="mt-6 text-sm text-gray-600">Starting...</div>
+          <div id="error" class="mt-4 text-sm text-red-600 hidden" style="white-space: pre-line;"></div>
+          <div class="mt-4">
+            <a id="retryLink" href="#" class="hidden inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Retry</a>
+          </div>
+
+          <div class="mt-6">
+            <a href="{{ url_for('main.generate_page') }}" class="px-4 py-2 rounded border hover:bg-gray-50">Back</a>
+          </div>
+        </div>
+
+        <div class="mt-10 w-full flex justify-center">
+          <div class="bg-white rounded shadow p-4 w-full max-w-3xl min-h-[300px]" aria-label="Preview loading center ad container">
+            {% if ADS_ENABLED and ADSENSE_ENABLED %}
+            <ins class="adsbygoogle"
+                 style="display:block; width:100%; min-height:280px;"
+                 data-ad-client="{{ ADSENSE_CLIENT }}"
+                 data-ad-slot="7907957016"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+            {% else %}
+            <div class="text-gray-300">Ads disabled</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview loading right ad slot">
+          {% if ADS_ENABLED and ADSENSE_ENABLED %}
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="5229719529"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          {% else %}
+          <div class="text-gray-300 text-sm">Ads disabled</div>
+          {% endif %}
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+  const deckId = JSON.parse('{{ deck_id | tojson | safe }}');
+  const statusEl = document.getElementById('status');
+  const errorEl = document.getElementById('error');
+  const retryLink = document.getElementById('retryLink');
+
+  function setStatus(s){ if (statusEl) statusEl.textContent = s; }
+  function showError(msg){
+    if (!errorEl) return;
+    let out = String(msg || '');
+    if (out.toLowerCase().includes('libreoffice') || out.toLowerCase().includes('soffice')) {
+      out += "\n\nFix (Windows):\n1) Install LibreOffice\n2) Set LIBREOFFICE_PATH to: C:\\\\Program Files\\\\LibreOffice\\\\program\\\\soffice.com\n   (or add that folder to PATH)\n3) Restart the Flask server";
+    }
+    errorEl.textContent = out;
+    errorEl.classList.remove('hidden');
+    if (retryLink) {
+      retryLink.href = window.location.href;
+      retryLink.classList.remove('hidden');
+    }
+  }
+
+  async function postJson(url, body){
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data || data.ok === false) {
+      const msg = (data && (data.error || data.details)) || `Request failed (${resp.status})`;
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  async function getJson(url){
+    const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data || data.ok === false) {
+      const msg = (data && (data.error || data.details)) || `Request failed (${resp.status})`;
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  async function run(){
+    try {
+      const qs = new URLSearchParams(window.location.search);
+      const theme = (qs.get('theme') || '').trim();
+      if (retryLink) retryLink.classList.add('hidden');
+
+      if (theme) {
+        setStatus('Updating theme...');
+        await postJson(`/api/decks/${deckId}/theme`, { theme_name: theme });
+      }
+
+      setStatus('Building PPTX...');
+      await postJson('/export', { deck_id: deckId, theme_name: theme || undefined, no_log: true });
+
+      setStatus('Rendering PDF...');
+      setStatus('Rendering slide images...');
+      const q = new URLSearchParams();
+      q.set('refresh', '1');
+      if (theme) q.set('theme', theme);
+      const previews = await getJson(`/api/previews/${deckId}?` + q.toString());
+      const count = previews && typeof previews.count === 'number' ? previews.count : 0;
+      if (!count) {
+        throw new Error('No preview images were produced.');
+      }
+
+      setStatus('Opening preview...');
+      window.location.assign(`/preview/${deckId}`);
+    } catch (e) {
+      console.error(e);
+      showError(e && e.message ? e.message : 'Failed to prepare preview');
+      setStatus('');
+    }
+  }
+
+  run();
+})();
+</script>
+{% if ADS_ENABLED and ADSENSE_ENABLED %}
+<script>
+try {
+  const push = () => { try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch(e) { console.warn('adsbygoogle push failed', e); } };
+  if (document.readyState === 'complete') { setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150); }
+  else { window.addEventListener('load', () => setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150), { once: true }); }
+} catch (e) { console.warn(e); }
+</script>
+{% endif %}
+{% endblock %}
