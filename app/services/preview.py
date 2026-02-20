@@ -104,6 +104,25 @@ def _find_soffice() -> str | None:
         path = shutil.which(cand)
         if path:
             return path
+    # 1b) Probe common non-Windows install locations
+    if os.name != "nt":
+        candidates = [
+            "/usr/bin/soffice",
+            "/usr/bin/libreoffice",
+            "/usr/local/bin/soffice",
+            "/usr/local/bin/libreoffice",
+            "/usr/lib/libreoffice/program/soffice",
+            "/usr/lib64/libreoffice/program/soffice",
+            "/opt/libreoffice/program/soffice",
+            "/snap/bin/libreoffice",
+            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+        ]
+        for p in candidates:
+            try:
+                if os.path.isfile(p) and os.access(p, os.X_OK):
+                    return p
+            except Exception:
+                pass
     # 2) Probe common Windows install locations
     candidates = []
     for env_key in ("PROGRAMFILES", "PROGRAMFILES(X86)"):

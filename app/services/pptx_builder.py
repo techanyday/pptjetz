@@ -2013,6 +2013,296 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         _add_textbox(s, start_x - 0.8, start_y + (cell_h + gap_y) * 0.5, 0.6, cell_h,
                     "Likelihood\n↓", font_size_pt=14, bold=True, color=pal["text"], align="center")
 
+    def _render_impact_effort_matrix(sl) -> None:
+        content = _content(sl)
+        title = (sl.get("title") or content.get("title") or "Impact / Effort Matrix").strip()
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL, align="center")
+
+        bg = pal.get("bg", (255, 255, 255))
+        text_col = pal.get("text", (33, 37, 41))
+        primary = pal.get("primary", text_col)
+        muted = pal.get("muted", text_col)
+        h, l, ss = _rgb_to_hls(primary)
+        accent = _hls_to_rgb(h + 0.10, l, ss)
+        if _rgb_dist(accent, bg) < 55:
+            accent = _shade(accent, -30 if not _is_dark_rgb(bg) else 30)
+        border = _blend_rgb(muted, bg, 0.60)
+
+        def _contrast(fill_rgb: Tuple[int, int, int]) -> Tuple[int, int, int]:
+            return (255, 255, 255) if _is_dark_rgb(fill_rgb) else text_col
+
+        def _extract_list(obj) -> List[str]:
+            if isinstance(obj, dict):
+                obj = obj.get("bullets") or obj.get("points") or obj.get("items")
+            if not isinstance(obj, list):
+                return []
+            out: List[str] = []
+            for x in obj:
+                t = str(x or "").strip()
+                if t:
+                    out.append(t)
+            return out
+
+        quads = content.get("quadrants") if isinstance(content.get("quadrants"), dict) else {}
+        tl_items = _extract_list(content.get("quick_easy_wins") or content.get("quick_wins") or quads.get("quick_easy_wins") or quads.get("quick_wins") or quads.get("top_left") or content.get("top_left"))
+        tr_items = _extract_list(content.get("major_projects") or quads.get("major_projects") or quads.get("top_right") or content.get("top_right"))
+        bl_items = _extract_list(content.get("fill_in") or quads.get("fill_in") or quads.get("bottom_left") or content.get("bottom_left"))
+        br_items = _extract_list(content.get("thankless_tasks") or content.get("money_pit") or quads.get("thankless_tasks") or quads.get("money_pit") or quads.get("bottom_right") or content.get("bottom_right"))
+
+        grid_x = 1.0
+        grid_y = 1.85
+        grid_w = SLIDE_W_IN - 2.0
+        grid_h = SLIDE_H_IN - 2.35
+        center_x = grid_x + grid_w / 2
+        center_y = grid_y + grid_h / 2
+
+        cross_gutter_w = grid_w * 0.08
+        cross_gutter_h = grid_h * 0.08
+        half_gutter_w = cross_gutter_w / 2
+        half_gutter_h = cross_gutter_h / 2
+
+        q_w = (grid_w / 2) - half_gutter_w
+        q_h = (grid_h / 2) - half_gutter_h
+
+        tl = (grid_x, grid_y, q_w, q_h)
+        tr = (center_x + half_gutter_w, grid_y, q_w, q_h)
+        bl = (grid_x, center_y + half_gutter_h, q_w, q_h)
+        br = (center_x + half_gutter_w, center_y + half_gutter_h, q_w, q_h)
+
+        tl_bg = _blend_rgb(bg, primary, 0.06)
+        tr_bg = _blend_rgb(bg, accent, 0.06)
+        bl_bg = _blend_rgb(bg, muted, 0.04)
+        br_bg = _blend_rgb(bg, muted, 0.08)
+
+        def _quad_rect(x: float, y: float, w: float, h: float, fill_rgb: Tuple[int, int, int]):
+            r = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+            r.fill.solid(); r.fill.fore_color.rgb = RGBColor(*fill_rgb)
+            r.line.color.rgb = RGBColor(*border)
+            r.line.width = Pt(1)
+            return r
+
+        _quad_rect(*tl, tl_bg)
+        _quad_rect(*tr, tr_bg)
+        _quad_rect(*bl, bl_bg)
+        _quad_rect(*br, br_bg)
+
+        header_h = q_h * 0.14
+        pad_x = max(0.12, q_w * 0.05)
+        pad_y = max(0.10, q_h * 0.05)
+        gap_after_header = max(0.14, q_h * 0.05)
+
+        tl_bar = primary
+        tr_bar = accent
+        bl_bar = _blend_rgb(muted, bg, 0.30)
+        br_bar = _blend_rgb(muted, text_col, 0.18)
+
+        def _label_bar(qx: float, qy: float, qw: float, fill_rgb: Tuple[int, int, int], label: str):
+            x = qx + pad_x
+            y = qy + pad_y
+            w = max(0.5, qw - (2 * pad_x))
+            r = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(header_h))
+            r.fill.solid(); r.fill.fore_color.rgb = RGBColor(*fill_rgb)
+            r.line.fill.background()
+            tf = r.text_frame
+            tf.clear()
+            p = tf.paragraphs[0]
+            p.text = label
+            p.font.size = Pt(13)
+            p.font.bold = True
+            p.font.color.rgb = RGBColor(*_contrast(fill_rgb))
+            p.alignment = PP_ALIGN.CENTER
+            return r
+
+        _label_bar(tl[0], tl[1], tl[2], tl_bar, "QUICK / EASY WINS")
+        _label_bar(tr[0], tr[1], tr[2], tr_bar, "MAJOR PROJECTS")
+        _label_bar(bl[0], bl[1], bl[2], bl_bar, "FILL-IN")
+        _label_bar(br[0], br[1], br[2], br_bar, "THANKLESS TASKS / MONEY PIT")
+
+        def _bullets_text(items: List[str]) -> str:
+            items = [str(x).strip() for x in (items or []) if str(x).strip()]
+            if len(items) > 5:
+                items = items[:4] + ["…"]
+            return "\n".join([f"• {x}" for x in items])
+
+        def _add_quad_bullets(qx: float, qy: float, qw: float, qh: float, items: List[str]):
+            txt = _bullets_text(items)
+            if not txt:
+                return
+            x = qx + pad_x
+            y = qy + pad_y + header_h + gap_after_header
+            w = max(0.5, qw - (2 * pad_x))
+            h = max(0.5, (qy + qh - pad_y) - y)
+            _add_textbox(s, x, y, w, h, txt, font_size_pt=13, color=text_col, word_wrap=True, auto_fit=True)
+
+        _add_quad_bullets(tl[0], tl[1], tl[2], tl[3], tl_items)
+        _add_quad_bullets(tr[0], tr[1], tr[2], tr[3], tr_items)
+        _add_quad_bullets(bl[0], bl[1], bl[2], bl[3], bl_items)
+        _add_quad_bullets(br[0], br[1], br[2], br[3], br_items)
+
+        axis_fill = _blend_rgb(bg, muted, 0.35)
+        axis_text = _contrast(axis_fill)
+
+        ax_v_x = center_x - (cross_gutter_w * 0.30)
+        ax_v_y = grid_y
+        ax_v_w = cross_gutter_w * 0.60
+        ax_v_h = grid_h
+
+        ax_h_x = grid_x
+        ax_h_y = center_y - (cross_gutter_h * 0.30)
+        ax_h_w = grid_w
+        ax_h_h = cross_gutter_h * 0.60
+
+        v_head_h = max(0.18, cross_gutter_h * 0.80)
+        v_head_w = min(cross_gutter_w * 0.90, ax_v_w * 1.60)
+        h_head_w = max(0.18, cross_gutter_w * 0.80)
+        h_head_h = min(cross_gutter_h * 0.90, ax_h_h * 1.40)
+
+        v_shaft = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(ax_v_x), Inches(ax_v_y + (v_head_h * 0.50)), Inches(ax_v_w), Inches(max(0.2, ax_v_h - v_head_h)))
+        v_shaft.fill.solid(); v_shaft.fill.fore_color.rgb = RGBColor(*axis_fill)
+        v_shaft.line.fill.background()
+
+        h_shaft = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(ax_h_x + (h_head_w * 0.50)), Inches(ax_h_y), Inches(max(0.2, ax_h_w - h_head_w)), Inches(ax_h_h))
+        h_shaft.fill.solid(); h_shaft.fill.fore_color.rgb = RGBColor(*axis_fill)
+        h_shaft.line.fill.background()
+
+        up_head = s.shapes.add_shape(MsoShape.ISOSCELES_TRIANGLE, Inches(center_x - (v_head_w / 2)), Inches(grid_y), Inches(v_head_w), Inches(v_head_h))
+        up_head.fill.solid(); up_head.fill.fore_color.rgb = RGBColor(*axis_fill)
+        up_head.line.fill.background()
+
+        down_head = s.shapes.add_shape(MsoShape.ISOSCELES_TRIANGLE, Inches(center_x - (v_head_w / 2)), Inches(grid_y + grid_h - v_head_h), Inches(v_head_w), Inches(v_head_h))
+        down_head.fill.solid(); down_head.fill.fore_color.rgb = RGBColor(*axis_fill)
+        down_head.line.fill.background()
+        try:
+            down_head.rotation = 180
+        except Exception:
+            pass
+
+        left_head = s.shapes.add_shape(MsoShape.ISOSCELES_TRIANGLE, Inches(grid_x), Inches(center_y - (h_head_h / 2)), Inches(h_head_w), Inches(h_head_h))
+        left_head.fill.solid(); left_head.fill.fore_color.rgb = RGBColor(*axis_fill)
+        left_head.line.fill.background()
+        try:
+            left_head.rotation = 270
+        except Exception:
+            pass
+
+        right_head = s.shapes.add_shape(MsoShape.ISOSCELES_TRIANGLE, Inches(grid_x + grid_w - h_head_w), Inches(center_y - (h_head_h / 2)), Inches(h_head_w), Inches(h_head_h))
+        right_head.fill.solid(); right_head.fill.fore_color.rgb = RGBColor(*axis_fill)
+        right_head.line.fill.background()
+        try:
+            right_head.rotation = 90
+        except Exception:
+            pass
+
+        v_half_h = (grid_h / 2) - half_gutter_h
+        v_box_w = max(0.35, v_half_h)
+        # After rotation, this becomes the horizontal "thickness" of the label.
+        # Match the shaft width so the label sits precisely on the axis.
+        v_box_h = max(0.18, ax_v_w)
+
+        # IMPORTANT: rotation changes the visual bounding box. Use pre-swapped dimensions
+        # (long dimension in width) and center the box within the vertical gutter half.
+        top_center_y = grid_y + (v_half_h / 2)
+        bot_center_y = (center_y + half_gutter_h) + (v_half_h / 2)
+        v_center_x = center_x
+
+        high_tb = s.shapes.add_textbox(
+            Inches(v_center_x - (v_box_w / 2)),
+            Inches(top_center_y - (v_box_h / 2)),
+            Inches(v_box_w),
+            Inches(v_box_h),
+        )
+        high_tf = high_tb.text_frame
+        high_tf.clear()
+        try:
+            from pptx.enum.text import MSO_ANCHOR
+            high_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        except Exception:
+            pass
+        high_tf.word_wrap = False
+        try:
+            high_tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        except Exception:
+            pass
+        try:
+            high_tf.margin_left = Pt(0)
+            high_tf.margin_right = Pt(0)
+            high_tf.margin_top = Pt(0)
+            high_tf.margin_bottom = Pt(0)
+        except Exception:
+            pass
+        hp = high_tf.paragraphs[0]
+        hp.text = "HIGH IMPACT"
+        hp.font.size = Pt(10)
+        hp.font.bold = True
+        hp.font.color.rgb = RGBColor(*axis_text)
+        hp.alignment = PP_ALIGN.CENTER
+        try:
+            high_tb.rotation = 90
+        except Exception:
+            pass
+
+        low_tb = s.shapes.add_textbox(
+            Inches(v_center_x - (v_box_w / 2)),
+            Inches(bot_center_y - (v_box_h / 2)),
+            Inches(v_box_w),
+            Inches(v_box_h),
+        )
+        low_tf = low_tb.text_frame
+        low_tf.clear()
+        try:
+            from pptx.enum.text import MSO_ANCHOR
+            low_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        except Exception:
+            pass
+        low_tf.word_wrap = False
+        try:
+            low_tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        except Exception:
+            pass
+        try:
+            low_tf.margin_left = Pt(0)
+            low_tf.margin_right = Pt(0)
+            low_tf.margin_top = Pt(0)
+            low_tf.margin_bottom = Pt(0)
+        except Exception:
+            pass
+        lp = low_tf.paragraphs[0]
+        lp.text = "LOW IMPACT"
+        lp.font.size = Pt(10)
+        lp.font.bold = True
+        lp.font.color.rgb = RGBColor(*axis_text)
+        lp.alignment = PP_ALIGN.CENTER
+        try:
+            low_tb.rotation = 90
+        except Exception:
+            pass
+
+        left_seg_w = (grid_w / 2) - half_gutter_w
+        right_seg_x = center_x + half_gutter_w
+        right_seg_w = (grid_w / 2) - half_gutter_w
+
+        left_lbl = s.shapes.add_textbox(Inches(grid_x + (h_head_w * 0.80)), Inches(ax_h_y), Inches(max(0.5, left_seg_w - (h_head_w * 0.80))), Inches(ax_h_h))
+        lf = left_lbl.text_frame
+        lf.clear()
+        lpp = lf.paragraphs[0]
+        lpp.text = "LOW EFFORT"
+        lpp.font.size = Pt(11)
+        lpp.font.bold = True
+        lpp.font.color.rgb = RGBColor(*axis_text)
+        lpp.alignment = PP_ALIGN.LEFT
+
+        right_lbl = s.shapes.add_textbox(Inches(right_seg_x), Inches(ax_h_y), Inches(max(0.5, right_seg_w - (h_head_w * 0.80))), Inches(ax_h_h))
+        rf = right_lbl.text_frame
+        rf.clear()
+        rpp = rf.paragraphs[0]
+        rpp.text = "HIGH EFFORT"
+        rpp.font.size = Pt(11)
+        rpp.font.bold = True
+        rpp.font.color.rgb = RGBColor(*axis_text)
+        rpp.alignment = PP_ALIGN.RIGHT
+
     def _render_before_after(sl) -> None:
         """Render before/after comparison with two columns."""
         content = _content(sl)
@@ -4947,6 +5237,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def _render_architecture_wrapper(sl):
         _render_architecture(sl)
 
+    def _render_impact_effort_matrix_wrapper(sl):
+        _render_impact_effort_matrix(sl)
+
     for sl in slides_norm:
         t = _ctype(sl)
         print(f"DEBUG: Processing slide type: {t}")
@@ -5032,6 +5325,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         elif t == "architecture":
             print(f"DEBUG: Rendering architecture slide with content: {_content(sl)}")
             _render_architecture_wrapper(sl)
+        elif t in {"impact_effort_matrix", "impact_matrix", "prioritization_matrix"}:
+            _render_impact_effort_matrix_wrapper(sl)
         elif t in {"thank_you", "cta"}:
             # skip for now; rendered at end to guarantee last
             print(f"DEBUG: Skipping {t} slide")

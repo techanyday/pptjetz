@@ -137,6 +137,7 @@ def build_prompt(
                             "overview",
                             "infographic",
                             "key_takeaways",
+                            "impact_effort_matrix",
                             "thank_you",
                         ],
                     },
@@ -148,6 +149,10 @@ def build_prompt(
                         "type": "object",
                         "properties": {
                             "bullets": {"type": "array", "items": {"type": "string"}},
+                            "quick_easy_wins": {"type": "array", "items": {"type": "string"}},
+                            "major_projects": {"type": "array", "items": {"type": "string"}},
+                            "fill_in": {"type": "array", "items": {"type": "string"}},
+                            "thankless_tasks": {"type": "array", "items": {"type": "string"}},
                             "left_points": {"type": "array", "items": {"type": "string"}},
                             "right_points": {"type": "array", "items": {"type": "string"}},
                             "table": {
