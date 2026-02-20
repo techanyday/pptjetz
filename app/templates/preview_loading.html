@@ -151,11 +151,23 @@
       const q = new URLSearchParams();
       q.set('refresh', '1');
       if (theme) q.set('theme', theme);
-      const previews = await getJson(`/api/previews/${deckId}?` + q.toString());
-      const count = previews && typeof previews.count === 'number' ? previews.count : 0;
-      if (!count) {
-        throw new Error('No preview images were produced.');
+      await getJson(`/api/previews/${deckId}?` + q.toString());
+
+      const q2 = new URLSearchParams();
+      if (theme) q2.set('theme', theme);
+      let previews = null;
+      for (let i = 0; i < 90; i++) {
+        previews = await getJson(`/api/previews/${deckId}?` + q2.toString());
+        if (previews && previews.status === 'processing') {
+          setStatus('Rendering slide images...');
+          await new Promise(r => setTimeout(r, 1500));
+          continue;
+        }
+        break;
       }
+
+      const count = previews && typeof previews.count === 'number' ? previews.count : 0;
+      if (!count) throw new Error('No preview images were produced.');
 
       setStatus('Opening preview...');
       window.location.assign(`/preview/${deckId}`);

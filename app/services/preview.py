@@ -808,7 +808,15 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
         pdf_tmp_dir,
         pptx_path,
     ]
-    proc = subprocess.run(cmd_pdf, capture_output=True, text=True)
+    timeout_s = 0
+    try:
+        timeout_s = int(os.environ.get("SOFFICE_TIMEOUT_SECONDS") or "90")
+    except Exception:
+        timeout_s = 90
+    try:
+        proc = subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=timeout_s)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"LibreOffice conversion timed out after {timeout_s}s: {exc}")
     soffice_stdout = (proc.stdout or "").strip()
     soffice_stderr = (proc.stderr or "").strip()
 

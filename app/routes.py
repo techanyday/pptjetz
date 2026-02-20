@@ -8,6 +8,8 @@ import glob
 import shutil
 import tempfile
 import traceback
+import threading
+import time
 import requests
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -49,6 +51,9 @@ bp = Blueprint("main", __name__)
 # In-memory deck store for multi-page flow (outline -> export)
 # deck_id -> {"slides": [...], "theme_name": str, "deck_title": str, "input_text": str}
 DECK_STORE: Dict[str, Dict[str, Any]] = {}
+
+PREVIEW_JOBS: Dict[str, Dict[str, Any]] = {}
+PREVIEW_JOBS_LOCK = threading.Lock()
 
 
 THEME_OPTIONS = [
@@ -849,6 +854,54 @@ def api_previews(deck_id: str) -> Any:
     out_dir = os.path.join(PREVIEW_ROOT, deck_id, "previews", theme_key)
     os.makedirs(out_dir, exist_ok=True)
 
+    job_key = f"{deck_id}:{theme_key}"
+
+    def _job_state() -> dict:
+        with PREVIEW_JOBS_LOCK:
+            return dict(PREVIEW_JOBS.get(job_key) or {})
+
+    def _set_job_state(state: dict) -> None:
+        with PREVIEW_JOBS_LOCK:
+            PREVIEW_JOBS[job_key] = dict(state)
+
+    def _start_job_if_needed() -> dict:
+        with PREVIEW_JOBS_LOCK:
+            st = PREVIEW_JOBS.get(job_key)
+            if isinstance(st, dict) and st.get("status") in {"running", "done"}:
+                return dict(st)
+            if isinstance(st, dict) and st.get("status") == "error":
+                pass
+            st = {
+                "status": "running",
+                "started_at": time.time(),
+                "error": None,
+                "trace": None,
+            }
+            PREVIEW_JOBS[job_key] = dict(st)
+
+        def _run() -> None:
+            try:
+                export_all_previews(pptx_path, out_dir, dpi=170, expected_count=expected_count)
+                _set_job_state({
+                    "status": "done",
+                    "started_at": st.get("started_at"),
+                    "finished_at": time.time(),
+                    "error": None,
+                    "trace": None,
+                })
+            except Exception as exc:  # noqa: BLE001
+                _set_job_state({
+                    "status": "error",
+                    "started_at": st.get("started_at"),
+                    "finished_at": time.time(),
+                    "error": str(exc),
+                    "trace": traceback.format_exc(limit=12),
+                })
+
+        t = threading.Thread(target=_run, name=f"preview:{job_key}", daemon=True)
+        t.start()
+        return dict(st)
+
     def _read_meta() -> dict:
         try:
             meta_path = os.path.join(out_dir, "_meta.json")
@@ -956,6 +1009,27 @@ def api_previews(deck_id: str) -> Any:
                 "out_dir": meta.get("outdir") or out_dir,
             })
 
+        st = _job_state()
+        if st.get("status") == "running":
+            return jsonify({
+                "ok": True,
+                "status": "processing",
+                "deck_id": deck_id,
+                "theme": theme_key,
+            }), 202
+        if st.get("status") == "error":
+            return jsonify({
+                "ok": False,
+                "error": st.get("error") or "Preview generation failed",
+                "debug": {
+                    "theme": theme_key,
+                    "deck_id": deck_id,
+                    "pptx_path": pptx_path,
+                    "out_dir": out_dir,
+                    "trace": st.get("trace"),
+                },
+            }), 500
+
     if refresh:
         try:
             for fn in _all_pngs(out_dir):
@@ -966,29 +1040,55 @@ def api_previews(deck_id: str) -> Any:
         except Exception:
             pass
 
-    try:
-        export_all_previews(pptx_path, out_dir, dpi=170, expected_count=expected_count)
-    except Exception as exc:  # noqa: BLE001
+        _start_job_if_needed()
+        return jsonify({
+            "ok": True,
+            "status": "processing",
+            "deck_id": deck_id,
+            "theme": theme_key,
+        }), 202
+
+    st = _job_state()
+    if st.get("status") == "error":
         return jsonify({
             "ok": False,
-            "error": str(exc),
+            "error": st.get("error") or "Preview generation failed",
             "debug": {
                 "theme": theme_key,
                 "deck_id": deck_id,
                 "pptx_path": pptx_path,
                 "out_dir": out_dir,
-                "trace": traceback.format_exc(limit=6),
+                "trace": st.get("trace"),
             },
         }), 500
+
+    if st.get("status") != "running":
+        _start_job_if_needed()
+        return jsonify({
+            "ok": True,
+            "status": "processing",
+            "deck_id": deck_id,
+            "theme": theme_key,
+        }), 202
 
     produced = _slide_pngs(out_dir)
     if not produced:
         any_pngs = _all_pngs(out_dir)
         produced = _normalize_to_slide_pngs(any_pngs)
         if not produced:
-            return jsonify({"ok": False, "error": "No preview images were produced."}), 500
+            return jsonify({
+                "ok": True,
+                "status": "processing",
+                "deck_id": deck_id,
+                "theme": theme_key,
+            }), 202
     if expected_count and expected_count > 1 and len(produced) < 2:
-        return jsonify({"ok": False, "error": "Preview generation produced too few images."}), 500
+        return jsonify({
+            "ok": True,
+            "status": "processing",
+            "deck_id": deck_id,
+            "theme": theme_key,
+        }), 202
 
     produced.sort(key=_num)
     slides = []
