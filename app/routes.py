@@ -31,7 +31,7 @@ from flask_login import login_user, logout_user, current_user, login_required
 from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI, derive_topic_comparison_table, ENABLE_EXPORT_COMPARISON_AI, derive_one_idea_intro, ENABLE_EXPORT_ONE_IDEA_AI
 # Preview PNG generation is removed; only PPTX export remains
 from app.services.pptx_builder import build_pptx_from_positions, build_pptx_from_slides
-from app.services.preview import export_all_previews
+from app.services.preview import export_all_previews, _find_soffice, _soffice_diagnostics
 from app import db
 from app.models import User, BlogPost, Pricing, LLMCall, ProviderCost
 from app.presentation_log import PresentationLog
@@ -72,6 +72,23 @@ os.makedirs(PREVIEW_ROOT, exist_ok=True)
 def download_file(folder: str, fname: str):
     """Serve the generated PPTX for download from PREVIEW_ROOT."""
     return send_from_directory(os.path.join(PREVIEW_ROOT, folder), fname, as_attachment=True)
+
+
+@bp.get("/api/diagnostics/soffice")
+def api_diagnostics_soffice() -> Any:
+    expected = (os.environ.get("DIAGNOSTICS_TOKEN") or "").strip()
+    if not expected:
+        abort(404)
+    provided = (request.headers.get("X-Diagnostics-Token") or request.args.get("token") or "").strip()
+    if not provided or provided != expected:
+        abort(404)
+    soffice = _find_soffice()
+    diag = _soffice_diagnostics()
+    return jsonify({
+        "ok": True,
+        "soffice": soffice,
+        "diagnostics": diag,
+    })
 
 
 @bp.get("/download_pptx/<deck_id>")
