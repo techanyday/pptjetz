@@ -137,8 +137,14 @@ def create_app():
         path = (request.path or "").lower()
         # Disable ads on admin and blog admin routes
         ads_enabled = not (path.startswith("/admin"))
+        is_render = bool(
+            os.environ.get("RENDER")
+            or os.environ.get("RENDER_SERVICE_ID")
+            or os.environ.get("RENDER_INSTANCE_ID")
+        )
         return {
             "user": current_user,
+            "IS_RENDER": is_render,
             "FB_APP_ID": os.environ.get("FB_APP_ID", ""),
             "EZOIC_ENABLED": os.environ.get("EZOIC_ENABLED", "0") == "1",
             "ADSENSE_ENABLED": os.environ.get("ADSENSE_ENABLED", "0") == "1",

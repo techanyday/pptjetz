@@ -6,6 +6,8 @@ import subprocess
 import tempfile
 import re
 import json
+import sys
+import platform
 from typing import List
 
 
@@ -147,7 +149,65 @@ def _find_soffice() -> str | None:
     return None
 
 
+def _soffice_diagnostics() -> dict:
+    def _safe_path_val() -> str:
+        p = os.environ.get("PATH") or ""
+        # Keep enough signal but avoid giant payloads
+        return p[:1200]
+
+    env_lo = os.environ.get("LIBREOFFICE_PATH")
+    which_map = {}
+    for cand in ("soffice", "libreoffice", "soffice.com", "soffice.exe"):
+        try:
+            which_map[cand] = shutil.which(cand)
+        except Exception:
+            which_map[cand] = None
+
+    nonwin_candidates = []
+    if os.name != "nt":
+        for p in (
+            "/usr/bin/soffice",
+            "/usr/bin/libreoffice",
+            "/usr/local/bin/soffice",
+            "/usr/local/bin/libreoffice",
+            "/usr/lib/libreoffice/program/soffice",
+            "/usr/lib64/libreoffice/program/soffice",
+            "/opt/libreoffice/program/soffice",
+            "/snap/bin/libreoffice",
+            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+        ):
+            try:
+                nonwin_candidates.append({
+                    "path": p,
+                    "exists": bool(os.path.isfile(p)),
+                    "x_ok": bool(os.access(p, os.X_OK)) if os.path.exists(p) else False,
+                })
+            except Exception:
+                nonwin_candidates.append({"path": p, "exists": False, "x_ok": False})
+
+    return {
+        "os_name": os.name,
+        "sys_platform": sys.platform,
+        "platform": platform.platform(),
+        "libreoffice_path_env": env_lo,
+        "env_path_prefix": _safe_path_val(),
+        "which": which_map,
+        "non_windows_candidates": nonwin_candidates,
+    }
+
+
 def _soffice_missing_message() -> str:
+    is_render = bool(
+        os.environ.get("RENDER")
+        or os.environ.get("RENDER_SERVICE_ID")
+        or os.environ.get("RENDER_INSTANCE_ID")
+    )
+    if is_render:
+        return (
+            "LibreOffice is not installed in this deployment environment. "
+            "Ensure the Docker image installs LibreOffice."
+        )
+
     msg = "LibreOffice (soffice) is not installed on the server or not in PATH."
     if os.name == "nt":
         msg += " On Windows, install LibreOffice and ensure 'soffice.com' is available."
@@ -155,6 +215,10 @@ def _soffice_missing_message() -> str:
         msg += " (or set LIBREOFFICE_PATH to the full soffice path)."
     else:
         msg += " Install LibreOffice and ensure 'soffice' is in PATH (or set LIBREOFFICE_PATH)."
+    try:
+        msg += " Diagnostics: " + json.dumps(_soffice_diagnostics(), ensure_ascii=False)
+    except Exception:
+        pass
     return msg
 
 

@@ -80,6 +80,7 @@
 <script>
 (function(){
   const deckId = JSON.parse('{{ deck_id | tojson | safe }}');
+  const isRender = JSON.parse('{{ IS_RENDER | tojson | safe }}');
   const statusEl = document.getElementById('status');
   const errorEl = document.getElementById('error');
   const retryLink = document.getElementById('retryLink');
@@ -89,7 +90,11 @@
     if (!errorEl) return;
     let out = String(msg || '');
     if (out.toLowerCase().includes('libreoffice') || out.toLowerCase().includes('soffice')) {
-      out += "\n\nFix (Windows):\n1) Install LibreOffice\n2) Set LIBREOFFICE_PATH to: C:\\\\Program Files\\\\LibreOffice\\\\program\\\\soffice.com\n   (or add that folder to PATH)\n3) Restart the Flask server";
+      if (isRender) {
+        out += "\n\nFix (Production):\nThis deployment is missing LibreOffice. Ensure the Render service is deployed using Docker and that the Docker image installs LibreOffice + poppler-utils.";
+      } else {
+        out += "\n\nFix (Windows):\n1) Install LibreOffice\n2) Set LIBREOFFICE_PATH to: C:\\\\Program Files\\\\LibreOffice\\\\program\\\\soffice.com\n   (or add that folder to PATH)\n3) Restart the Flask server";
+      }
     }
     errorEl.textContent = out;
     errorEl.classList.remove('hidden');

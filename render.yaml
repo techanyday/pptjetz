@@ -2,18 +2,12 @@ services:
   # Development Environment
   - type: web
     name: pptjet-dev
-    env: python
+    env: docker
     region: ohio
     plan: free
     branch: develop
-    buildCommand: |
-      apt-get update
-      apt-get install -y libreoffice poppler-utils
-      mkdir -p public/static/images/templates
-      cp -r app/static/images/templates/* public/static/images/templates/
-      pip install -r requirements.txt
-    staticPublishPath: ./public/static
-    startCommand: gunicorn wsgi:app
+    dockerfilePath: ./Dockerfile
+    startCommand: python run.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -27,18 +21,12 @@ services:
   # Production Environment
   - type: web
     name: pptjet
-    env: python
+    env: docker
     region: ohio
     plan: free
     branch: main
-    buildCommand: |
-      apt-get update
-      apt-get install -y libreoffice poppler-utils
-      mkdir -p public/static/images/templates
-      cp -r app/static/images/templates/* public/static/images/templates/
-      pip install -r requirements.txt
-    staticPublishPath: ./public/static
-    startCommand: gunicorn wsgi:app
+    dockerfilePath: ./Dockerfile
+    startCommand: python run.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
