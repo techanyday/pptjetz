@@ -2,12 +2,12 @@ services:
   # Development Environment
   - type: web
     name: pptjet-dev
-    env: docker
+    runtime: docker
     region: ohio
     plan: free
     branch: develop
     dockerfilePath: ./Dockerfile
-    startCommand: python run.py
+    dockerCommand: python run.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -21,12 +21,12 @@ services:
   # Production Environment
   - type: web
     name: pptjet
-    env: docker
+    runtime: docker
     region: ohio
     plan: free
     branch: main
     dockerfilePath: ./Dockerfile
-    startCommand: python run.py
+    dockerCommand: python run.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
