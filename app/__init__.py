@@ -7,12 +7,15 @@ env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 print("Loading .env from:", os.path.abspath(env_path))
 load_dotenv(env_path)
 
-from flask import Flask
+import traceback
+
+from flask import Flask, jsonify, request
 from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.exceptions import HTTPException
 from oauthlib.oauth2 import WebApplicationClient
 
 # Initialize extensions
@@ -229,4 +232,35 @@ def create_app():
 
     # Ensure Flask respects X-Forwarded-Proto/Host headers so generated URLs use HTTPS and correct host on Render
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+    @app.errorhandler(Exception)
+    def _handle_unexpected_error(err: Exception):
+        try:
+            wants_json = False
+            try:
+                accept = (request.headers.get("Accept") or "").lower()
+                wants_json = ("application/json" in accept) or request.path.startswith("/api/") or request.path == "/export"
+            except Exception:
+                wants_json = False
+
+            if not wants_json:
+                if isinstance(err, HTTPException):
+                    return err
+                return str(err), 500
+
+            status = 500
+            if isinstance(err, HTTPException) and getattr(err, "code", None):
+                status = int(err.code)
+            payload = {
+                "ok": False,
+                "error": str(err) or "Request failed",
+            }
+            try:
+                payload["trace"] = traceback.format_exc(limit=12)
+            except Exception:
+                pass
+            return jsonify(payload), status
+        except Exception:
+            return jsonify({"ok": False, "error": "Request failed"}), 500
+
     return app
