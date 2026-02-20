@@ -1075,6 +1075,8 @@ def export_presentation() -> Any:
     # Default is normal behaviour (no special showcase handling).
     mode = (data.get("mode") or "").strip().lower()
 
+    ENABLE_EXPORT_SEMANTIC_SLIDE_ROUTER = os.getenv("DISABLE_EXPORT_SEMANTIC_SLIDE_ROUTER", "0") != "1"
+
     # If client only sends deck_id, load persisted deck (memory or disk)
     deck_obj: Dict[str, Any] | None = None
     if (not slides) and deck_id:
@@ -1703,75 +1705,519 @@ def export_presentation() -> Any:
                 "intent": intent,
             })
 
-        # Decide which topics will actually render as infographic slides.
-        # Infographics are eligible, not mandatory: only use them when a semantic
-        # intent is present, and fall back to simpler layouts otherwise.
-        showcase_mode = mode == "showcase"
-        eligible_specs = [s for s in topic_specs if s.get("intent")]
+        ai_router_cache: Dict[str, Dict[str, Any]] = {}
 
-        for spec in topic_specs:
-            spec["final_layout"] = spec["base_layout"]
-            spec["use_infographic"] = False
+        router_counts: Dict[str, int] = {}
+        router_recent: List[str] = []
 
-        if showcase_mode:
-            # Showcase mode is intentionally visual, but still deterministic.
-            # Keep a reasonable cap unless the deck is explicitly operational.
-            is_operational = deck_category in {"project_planning", "technical_product"}
-            max_infographics = 4 if is_operational else 2
-            candidates = [s for s in topic_specs if s.get("intent")]
-            candidates.sort(key=lambda s: (_INTENT_PRIORITY.get(str(s.get("intent")), 99), s["idx"]))
-            for spec in candidates[:max_infographics]:
-                spec["use_infographic"] = True
-                spec["final_layout"] = "infographic"
-        else:
-            # Normal mode: keep infographics intentional and capped.
-            # Limit to 1–2 per deck unless the topic is explicitly operational.
-            is_operational = deck_category in {"project_planning", "technical_product"}
-            max_infographics = 3 if is_operational else 2
+        def _router_caps(total_topics: int) -> Dict[str, int]:
+            # Policy:
+            # - Avoid repeating slide types across the deck.
+            # - Allow limited repeats for double_column (with visual rotation) and infographic (many variants).
+            # - Encourage at least one comparison slide when suitable.
+            double_cap = 3 if total_topics >= 10 else 2
+            info_cap = 3 if total_topics >= 10 else 2
+            comp_cap = 2 if total_topics >= 10 else 1
+            return {
+                "cards": 1,
+                "double_column": double_cap,
+                "comparison": comp_cap,
+                "infographic": info_cap,
+                "impact_effort_matrix": 1,
+                "timeline": 1,
+                "roadmap": 1,
+                "swot": 1,
+                "kpi": 1,
+                "risk_matrix": 1,
+                "before_after": 1,
+                "architecture": 1,
+                "pricing": 1,
+            }
 
-            # Start from the category pattern, but only honour infographic slots
-            # when semantically eligible.
+        def _ai_route_topic_layout(
+            topic: str,
+            pts: List[str],
+            *,
+            idx: int,
+            total: int,
+            allowed_override: set[str] | None = None,
+            prefer_type: str | None = None,
+        ) -> Dict[str, Any] | None:
+            try:
+                from app.utils.chatgpt_client import ChatGPTError, chat_completion
+            except Exception:
+                raise RuntimeError("OpenAI slide router unavailable: failed to import chatgpt_client")
+
+            points = [str(x).strip() for x in (pts or []) if str(x).strip()]
+            caps = _router_caps(total)
+            state_sig = {
+                "counts": router_counts,
+                "recent": router_recent[-3:],
+                "caps": caps,
+                "idx": idx,
+                "total": total,
+            }
+            cache_key = json.dumps({"t": str(topic or "").strip(), "p": points, "state": state_sig}, ensure_ascii=False)
+            if cache_key in ai_router_cache:
+                return ai_router_cache[cache_key]
+
+            allowed_types = allowed_override or {
+                "cards",
+                "double_column",
+                "comparison",
+                "infographic",
+                "impact_effort_matrix",
+                "timeline",
+                "roadmap",
+                "swot",
+                "kpi",
+                "risk_matrix",
+                "before_after",
+                "architecture",
+                "pricing",
+            }
+
+            def _as_list_str(v: Any, *, max_n: int) -> List[str]:
+                if not isinstance(v, list):
+                    return []
+                out: List[str] = []
+                for x in v:
+                    s = str(x or "").strip()
+                    if s:
+                        out.append(s)
+                    if len(out) >= max_n:
+                        break
+                return out
+
+            def _validate_content(t: str, content: Dict[str, Any] | None) -> None:
+                if t in {"cards", "double_column", "comparison", "infographic"}:
+                    return
+                if t == "impact_effort_matrix":
+                    return
+                if not isinstance(content, dict):
+                    raise ValueError(f"Missing content object for type '{t}'")
+                if t in {"timeline", "roadmap"}:
+                    tl = content.get("timeline")
+                    if not isinstance(tl, list) or len(tl) < 4:
+                        raise ValueError(f"Type '{t}' requires content.timeline with 4-6 items")
+                    ok = 0
+                    for it in tl[:6]:
+                        if isinstance(it, dict) and str(it.get("label") or "").strip():
+                            ok += 1
+                    if ok < 4:
+                        raise ValueError(f"Type '{t}' requires 4-6 timeline items with non-empty label")
+                elif t == "swot":
+                    keys = ["strengths", "weaknesses", "opportunities", "threats"]
+                    nonempty = 0
+                    for k in keys:
+                        q = content.get(k)
+                        pts2 = None
+                        if isinstance(q, dict):
+                            pts2 = q.get("points")
+                        if isinstance(pts2, list) and any(str(x).strip() for x in pts2):
+                            nonempty += 1
+                    if nonempty < 2:
+                        raise ValueError("Type 'swot' requires at least 2 non-empty quadrants")
+                elif t == "kpi":
+                    metrics = content.get("metrics")
+                    if not isinstance(metrics, list) or len(metrics) < 2:
+                        raise ValueError("Type 'kpi' requires content.metrics with 2-4 items")
+                    ok = 0
+                    for m in metrics[:4]:
+                        if not isinstance(m, dict):
+                            continue
+                        if str(m.get("label") or "").strip() and str(m.get("value") or "").strip():
+                            ok += 1
+                    if ok < 2:
+                        raise ValueError("Type 'kpi' requires at least 2 metrics with label and value")
+                elif t == "risk_matrix":
+                    keys = [
+                        "low_likelihood_low_impact",
+                        "low_likelihood_high_impact",
+                        "high_likelihood_low_impact",
+                        "high_likelihood_high_impact",
+                    ]
+                    nonempty = 0
+                    for k in keys:
+                        q = content.get(k)
+                        pts2 = None
+                        if isinstance(q, dict):
+                            pts2 = q.get("points")
+                        if isinstance(pts2, list) and any(str(x).strip() for x in pts2):
+                            nonempty += 1
+                    if nonempty < 2:
+                        raise ValueError("Type 'risk_matrix' requires at least 2 non-empty quadrants")
+                elif t == "before_after":
+                    b = content.get("before")
+                    a = content.get("after")
+                    if not (isinstance(b, dict) and isinstance(a, dict)):
+                        raise ValueError("Type 'before_after' requires content.before and content.after objects")
+                    bp = _as_list_str(b.get("points"), max_n=8)
+                    ap = _as_list_str(a.get("points"), max_n=8)
+                    if len(bp) < 3 or len(ap) < 3:
+                        raise ValueError("Type 'before_after' requires at least 3 points in each column")
+                elif t == "architecture":
+                    boxes = content.get("boxes")
+                    conns = content.get("connections")
+                    if not isinstance(boxes, list) or len(boxes) < 4:
+                        raise ValueError("Type 'architecture' requires content.boxes with 4-8 items")
+                    if not isinstance(conns, list) or len(conns) < 2:
+                        raise ValueError("Type 'architecture' requires content.connections with at least 2 items")
+                    labels: List[str] = []
+                    for b in boxes[:8]:
+                        if isinstance(b, dict):
+                            lab = str(b.get("label") or "").strip()
+                            if lab:
+                                labels.append(lab)
+                    if len(labels) < 4:
+                        raise ValueError("Type 'architecture' requires boxes with non-empty label")
+                    ok2 = 0
+                    for c in conns[:12]:
+                        if not isinstance(c, dict):
+                            continue
+                        fb = str(c.get("from_box") or "").strip()
+                        tb = str(c.get("to_box") or "").strip()
+                        if fb in labels and tb in labels:
+                            ok2 += 1
+                    if ok2 < 2:
+                        raise ValueError("Type 'architecture' requires connections referencing existing box labels")
+                elif t == "pricing":
+                    plans = content.get("plans")
+                    if not isinstance(plans, list) or len(plans) < 2:
+                        raise ValueError("Type 'pricing' requires content.plans with 2-4 items")
+                    ok = 0
+                    for p in plans[:4]:
+                        if not isinstance(p, dict):
+                            continue
+                        if str(p.get("name") or "").strip() and isinstance(p.get("features"), list):
+                            ok += 1
+                    if ok < 2:
+                        raise ValueError("Type 'pricing' requires at least 2 plans with name and features")
+                else:
+                    raise ValueError(f"Unsupported type '{t}'")
+
+            system = (
+                "You are a presentation slide-type router. Output ONLY valid JSON. "
+                "Choose the best slide layout type for a single topic slide based on meaning, not keywords. "
+                "Prefer visual slide types when they genuinely fit the slide title and content."
+            )
+            user_payload: Dict[str, Any] = {
+                "task": "Select the best slide layout type for this slide.",
+                "slide": {"title": str(topic or "").strip(), "bullets": points},
+                "variety": {
+                    "index": idx,
+                    "total": total,
+                    "counts": router_counts,
+                    "recent": router_recent[-3:],
+                    "caps": caps,
+                    "rules": [
+                        "Avoid using the same type twice in a row.",
+                        "Do not exceed caps[type].",
+                        "Prefer underused types when multiple choices are equally relevant.",
+                    ],
+                },
+                "preference": {"prefer_type": (prefer_type or "")},
+                "types": {
+                    "cards": "A process/sequence/timeline/steps slide (chevrons / process cards).",
+                    "double_column": "Two-column bullet slide for explanations or lists.",
+                    "comparison": "Two-column comparison table (A vs B, options, pros/cons).",
+                    "infographic": "Visual summary / map / diagram style slide.",
+                    "impact_effort_matrix": "A 2x2 prioritization matrix with axes impact and effort/ease.",
+                    "timeline": "A timeline with 4-6 labeled stages; will render with varied timeline templates.",
+                    "roadmap": "A roadmap with 4-6 phases (title/date_range/description).",
+                    "swot": "SWOT analysis with strengths/weaknesses/opportunities/threats.",
+                    "kpi": "KPI metrics slide with 2-4 metric cards (label/value/caption).",
+                    "risk_matrix": "Risk matrix (likelihood vs impact) with 2x2 quadrants.",
+                    "before_after": "Before vs After transformation comparison.",
+                    "architecture": "System architecture diagram with boxes and connections.",
+                    "pricing": "Pricing/plan comparison with 2-4 plans and features.",
+                },
+                "rules": [
+                    "Return schema: {type: <one of the keys above>, confidence: 0..1, content?: {...}, quadrants?: {...}}.",
+                    "If preference.prefer_type is provided and is relevant, choose it.",
+                    "Only choose impact_effort_matrix if the slide is truly about prioritizing items by impact and effort/ease.",
+                    "If you choose impact_effort_matrix, you MUST output a quadrants object with keys: quick_easy_wins, major_projects, fill_in, thankless_tasks. Each value is an array of strings (0-6 items).",
+                    "If you choose timeline or roadmap, you MUST output content.timeline = [{label, description, date_range?}] with 4-6 items.",
+                    "If you choose timeline, you may optionally set content.timeline_variant to one of: horizontal, linear, vertical, roadmap, vchevrons.",
+                    "Only choose timeline when the slide is explicitly chronological or stage-based (dates/quarters/phases/milestones). If it's just a list of items or categories, choose infographic/cards/double_column instead.",
+                    "If you choose swot, you MUST output content.strengths/weaknesses/opportunities/threats each with {points:[...]} and at least 2 non-empty quadrants.",
+                    "If you choose kpi, you MUST output content.metrics = [{label, value, caption?}] with 2-4 items.",
+                    "If you choose risk_matrix, you MUST output content.low_likelihood_low_impact/low_likelihood_high_impact/high_likelihood_low_impact/high_likelihood_high_impact each with {points:[...]} and at least 2 non-empty quadrants.",
+                    "If you choose before_after, you MUST output content.before and content.after each with {heading, points:[...]} and at least 3 points per side.",
+                    "If you choose architecture, you MUST output content.boxes=[{label, description?}] (4-8) and content.connections=[{from_box,to_box,label?}] referencing existing labels.",
+                    "If you choose pricing, you MUST output content.plans=[{name, price?, features:[...]}] with 2-4 plans.",
+                    "If you choose infographic, you may optionally set content.infographic_intent or content.intent to one of: IMPACT_MAP_SIMPLE, IMPACT_MAP_COMPLEX, PROCESS_FLOW_CHEVRON, RISK_MATRIX_ADVANCED, LAYERED_BENEFITS_STACK, CYCLIC_OPTIMIZATION_LOOP, GANTT_CHART, BUSINESS_MODEL_CANVAS. You may also set content.impact_map_variant to one of: classic, radial, pyramid, two_sided, swimlane.",
+                    "Avoid selecting comparison/double_column when a more visual type above is clearly applicable.",
+                ],
+            }
+
+            last_err: str | None = None
+            last_raw: str | None = None
+            for attempt in range(2):
+                # If we hit a cap, the repair attempt should be constrained to remaining eligible types
+                # to avoid hard-failing export when the model keeps repeating an overused layout.
+                allowed_types_attempt = set(allowed_types)
+                if attempt == 1:
+                    try:
+                        eligible = {
+                            t for t in allowed_types
+                            if router_counts.get(t, 0) < caps.get(t, 99)
+                        }
+                        if router_recent:
+                            eligible = {t for t in eligible if t != str(router_recent[-1])}
+                        if eligible:
+                            allowed_types_attempt = eligible
+                    except Exception:
+                        allowed_types_attempt = set(allowed_types)
+
+                avoid: List[str] = []
+                try:
+                    if router_recent:
+                        avoid.append(str(router_recent[-1]))
+                    for t2, cap in caps.items():
+                        if router_counts.get(t2, 0) >= cap:
+                            avoid.append(t2)
+                except Exception:
+                    avoid = []
+                user_payload["avoid_types"] = sorted(list({str(x) for x in avoid if str(x).strip()}))
+                user_payload["allowed_types"] = sorted(list(allowed_types_attempt))
+
+                messages = [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+                ]
+                if attempt == 1 and last_err and last_raw is not None:
+                    fix_payload = {
+                        "task": "Repair your previous JSON to satisfy the schema and constraints exactly.",
+                        "validation_error": last_err,
+                        "previous_response": last_raw,
+                        "slide": {"title": str(topic or "").strip(), "bullets": points},
+                        "allowed_types": sorted(list(allowed_types_attempt)),
+                        "avoid_types": user_payload.get("avoid_types") or [],
+                        "variety": user_payload.get("variety") or {},
+                    }
+                    messages.append({"role": "user", "content": json.dumps(fix_payload, ensure_ascii=False)})
+
+                try:
+                    raw = chat_completion(
+                        messages,
+                        max_tokens=900,
+                        temperature=0.0,
+                        timeout=60,
+                    )
+                except ChatGPTError as exc:
+                    raise RuntimeError(f"OpenAI slide router failed: {exc}")
+                except Exception as exc:
+                    raise RuntimeError(f"OpenAI slide router failed: {exc}")
+
+                last_raw = raw
+
+                try:
+                    obj = json.loads(raw)
+                except Exception:
+                    last_err = f"Invalid JSON" 
+                    continue
+                if not isinstance(obj, dict):
+                    last_err = f"Non-object JSON" 
+                    continue
+
+                out_type = str(obj.get("type") or "").strip().lower()
+                try:
+                    conf_v = float(obj.get("confidence") or 0.0)
+                except Exception:
+                    conf_v = 0.0
+
+                if out_type not in allowed_types:
+                    last_err = f"Invalid type '{out_type}'"
+                    continue
+
+                if out_type not in allowed_types_attempt:
+                    last_err = f"Invalid type '{out_type}' (not in allowed_types for this attempt)"
+                    continue
+
+                out: Dict[str, Any] = {"type": out_type, "confidence": conf_v}
+
+                content_obj = obj.get("content")
+                if isinstance(content_obj, dict):
+                    out["content"] = content_obj
+
+                if out_type == "impact_effort_matrix":
+                    quads = obj.get("quadrants")
+                    if not isinstance(quads, dict) or not quads:
+                        last_err = "impact_effort_matrix missing quadrants"
+                        continue
+                    out["quadrants"] = quads
+
+                # Enforce deck-level variety caps and no immediate repeats.
+                # First attempt: strict (forces a reroute/repair if violated).
+                # Second attempt: best-effort (still steered by avoid_types/caps, but do not hard-fail export).
+                try:
+                    # Always enforce caps to prevent overuse (e.g., timeline should not dominate a deck).
+                    if router_counts.get(out_type, 0) >= caps.get(out_type, 99):
+                        # If there are eligible alternatives remaining, enforce strictly.
+                        # Otherwise accept best-effort to avoid hard-failing export.
+                        try:
+                            has_alts = any(
+                                (t != out_type) and (router_counts.get(t, 0) < caps.get(t, 99))
+                                for t in allowed_types
+                            )
+                        except Exception:
+                            has_alts = False
+                        if has_alts:
+                            last_err = f"Variety violation: overused type '{out_type}'"
+                            continue
+                except Exception:
+                    pass
+
+                try:
+                    if router_recent and out_type == str(router_recent[-1]):
+                        last_err = f"Variety violation: repeated type '{out_type}'"
+                        continue
+                except Exception:
+                    pass
+
+                try:
+                    _validate_content(out_type, out.get("content") if isinstance(out.get("content"), dict) else None)
+                except Exception as exc:
+                    last_err = str(exc)
+                    continue
+
+                ai_router_cache[cache_key] = out
+                return out
+
+            raise RuntimeError(f"OpenAI slide router could not produce a valid result for '{topic}': {last_err or 'unknown error'}")
+
+        if not ENABLE_EXPORT_SEMANTIC_SLIDE_ROUTER:
+            showcase_mode = mode == "showcase"
+            eligible_specs = [s for s in topic_specs if s.get("intent")]
+
             for spec in topic_specs:
-                if spec["base_layout"] == "infographic" and spec.get("intent"):
-                    spec["use_infographic"] = True
-                    spec["final_layout"] = "infographic"
+                spec["final_layout"] = spec["base_layout"]
+                spec["use_infographic"] = False
 
-            # Demote non-eligible 'infographic' slots to simpler layouts.
-            for spec in topic_specs:
-                if spec["base_layout"] == "infographic" and not spec.get("intent"):
-                    pts = spec.get("pts") or []
-                    # Prefer two-column bullets when there is enough content;
-                    # otherwise use cards. This keeps behaviour deterministic.
-                    spec["final_layout"] = "double_column" if len(pts) >= 4 else "cards"
-
-            # Allow high-signal operational infographics (like Gantt/process flow)
-            # even if the base pattern didn't include an infographic slot.
-            if is_operational:
-                for spec in topic_specs:
-                    if spec.get("intent") in {"GANTT", "PROCESS_FLOW"}:
-                        spec["final_layout"] = "infographic"
-
-            # Enforce cap by demoting lowest-priority infographics.
-            current = [s for s in topic_specs if s.get("final_layout") == "infographic" and s.get("intent")]
-            current.sort(key=lambda s: (_INTENT_PRIORITY.get(str(s.get("intent")), 99), s["idx"]))
-            keep = set((s["idx"]) for s in current[:max_infographics])
-            for spec in topic_specs:
-                if spec.get("final_layout") == "infographic" and spec.get("intent") and spec["idx"] not in keep:
-                    pts = spec.get("pts") or []
-                    # Deterministic demotion choice
-                    spec["final_layout"] = "double_column" if len(pts) >= 4 else "cards"
-                    spec["use_infographic"] = False
-
-            # Ensure at least one infographic when eligible, but never exceed cap.
-            total_eligible = len(eligible_specs)
-            current_infographics = sum(1 for s in topic_specs if s.get("final_layout") == "infographic" and s.get("intent"))
-            if total_eligible >= 1 and current_infographics < 1:
+            if showcase_mode:
+                is_operational = deck_category in {"project_planning", "technical_product"}
+                max_infographics = 4 if is_operational else 2
                 candidates = [s for s in topic_specs if s.get("intent")]
                 candidates.sort(key=lambda s: (_INTENT_PRIORITY.get(str(s.get("intent")), 99), s["idx"]))
-                pick = candidates[0] if candidates else None
-                if pick:
-                    pick["use_infographic"] = True
-                    pick["final_layout"] = "infographic"
+                for spec in candidates[:max_infographics]:
+                    spec["use_infographic"] = True
+                    spec["final_layout"] = "infographic"
+            else:
+                is_operational = deck_category in {"project_planning", "technical_product"}
+                max_infographics = 3 if is_operational else 2
+
+                for spec in topic_specs:
+                    if spec["base_layout"] == "infographic" and spec.get("intent"):
+                        spec["use_infographic"] = True
+                        spec["final_layout"] = "infographic"
+
+                for spec in topic_specs:
+                    if spec["base_layout"] == "infographic" and not spec.get("intent"):
+                        pts = spec.get("pts") or []
+                        spec["final_layout"] = "double_column" if len(pts) >= 4 else "cards"
+
+                if is_operational:
+                    for spec in topic_specs:
+                        if spec.get("intent") in {"GANTT", "PROCESS_FLOW"}:
+                            spec["final_layout"] = "infographic"
+
+                current = [s for s in topic_specs if s.get("final_layout") == "infographic" and s.get("intent")]
+                current.sort(key=lambda s: (_INTENT_PRIORITY.get(str(s.get("intent")), 99), s["idx"]))
+                keep = set((s["idx"]) for s in current[:max_infographics])
+                for spec in topic_specs:
+                    if spec.get("final_layout") == "infographic" and spec.get("intent") and spec["idx"] not in keep:
+                        pts = spec.get("pts") or []
+                        spec["final_layout"] = "double_column" if len(pts) >= 4 else "cards"
+                        spec["use_infographic"] = False
+
+                total_eligible = len(eligible_specs)
+                current_infographics = sum(1 for s in topic_specs if s.get("final_layout") == "infographic" and s.get("intent"))
+                if total_eligible >= 1 and current_infographics < 1:
+                    candidates = [s for s in topic_specs if s.get("intent")]
+                    candidates.sort(key=lambda s: (_INTENT_PRIORITY.get(str(s.get("intent")), 99), s["idx"]))
+                    pick = candidates[0] if candidates else None
+                    if pick:
+                        pick["use_infographic"] = True
+                        pick["final_layout"] = "infographic"
+
+        if ENABLE_EXPORT_SEMANTIC_SLIDE_ROUTER:
+            for spec in topic_specs:
+                spec["use_infographic"] = False
+                routed = _ai_route_topic_layout(
+                    str(spec.get("topic") or ""),
+                    list(spec.get("pts") or []),
+                    idx=int(spec.get("idx") or 1),
+                    total=len(topic_specs),
+                )
+                rtype = str(routed.get("type") or "").strip().lower()
+                spec["final_layout"] = rtype
+                spec["use_infographic"] = (rtype == "infographic")
+                rcontent = routed.get("content")
+                if isinstance(rcontent, dict) and rcontent:
+                    spec["ai_content"] = rcontent
+                    if rtype == "infographic":
+                        try:
+                            ai_intent = str(rcontent.get("infographic_intent") or rcontent.get("intent") or "").strip()
+                            if ai_intent:
+                                spec["intent"] = ai_intent
+                        except Exception:
+                            pass
+                if rtype == "impact_effort_matrix":
+                    quads = routed.get("quadrants")
+                    if not isinstance(quads, dict) or not quads:
+                        raise RuntimeError(f"OpenAI slide router selected impact_effort_matrix but did not provide quadrants for '{spec.get('topic')}'")
+                    spec["ai_quadrants"] = quads
+
+                router_counts[rtype] = router_counts.get(rtype, 0) + 1
+                router_recent.append(rtype)
+                if len(router_recent) > 8:
+                    router_recent = router_recent[-8:]
+
+            # Ensure at least one comparison/table slide when suitable.
+            if router_counts.get("comparison", 0) <= 0:
+                try:
+                    def _cand_score(sp: Dict[str, Any]) -> int:
+                        t = str(sp.get("topic") or "").strip().lower()
+                        pts0 = sp.get("pts") or []
+                        n = len([p for p in pts0 if str(p).strip()])
+                        score = 0
+                        if n >= 6:
+                            score += 3
+                        if any(k in t for k in ["analysis", "compare", "comparison", "options", "approach", "aspects", "tradeoff", "trade-off", "vs", "versus", "across"]):
+                            score += 4
+                        if sp.get("final_layout") in {"double_column", "cards", "infographic"}:
+                            score += 1
+                        return score
+
+                    candidates = sorted(topic_specs, key=_cand_score, reverse=True)
+                    pick = candidates[0] if candidates else None
+                    if pick and _cand_score(pick) >= 4:
+                        r2 = _ai_route_topic_layout(
+                            str(pick.get("topic") or ""),
+                            list(pick.get("pts") or []),
+                            idx=int(pick.get("idx") or 1),
+                            total=len(topic_specs),
+                            allowed_override={"comparison", "double_column", "infographic"},
+                            prefer_type="comparison",
+                        )
+                        t2 = str(r2.get("type") or "").strip().lower()
+                        if t2 == "comparison":
+                            old = str(pick.get("final_layout") or "").strip().lower()
+                            pick["final_layout"] = "comparison"
+                            pick["use_infographic"] = False
+                            pick.pop("ai_content", None)
+                            try:
+                                if old:
+                                    router_counts[old] = max(0, int(router_counts.get(old, 0)) - 1)
+                                router_counts["comparison"] = int(router_counts.get("comparison", 0)) + 1
+                                pos = int(pick.get("idx") or 1) - 1
+                                if 0 <= pos < len(router_recent):
+                                    router_recent[pos] = "comparison"
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
 
         # Second pass: build topic slides from the resolved layouts.
         topic_slides: List[Dict[str, Any]] = []
@@ -1780,6 +2226,44 @@ def export_presentation() -> Any:
             pts = spec["pts"]
             layout = spec["final_layout"]
             intent = spec["intent"] if spec["use_infographic"] else None
+
+            if layout == "impact_effort_matrix":
+                q = spec.get("ai_quadrants")
+                if isinstance(q, dict):
+                    def _arr(k: str) -> list[str]:
+                        v = q.get(k) or []
+                        if not isinstance(v, list):
+                            return []
+                        return [str(x).strip() for x in v if str(x).strip()][:6]
+                    q_obj = {
+                        "quick_easy_wins": _arr("quick_easy_wins"),
+                        "major_projects": _arr("major_projects"),
+                        "fill_in": _arr("fill_in"),
+                        "thankless_tasks": _arr("thankless_tasks"),
+                    }
+                    topic_slides.append({
+                        "type": "impact_effort_matrix",
+                        "title": topic,
+                        "content": q_obj,
+                        "_render_exact": True,
+                    })
+                    continue
+                raise RuntimeError(f"Missing AI quadrants for impact_effort_matrix topic '{topic}'")
+
+            if layout in {"timeline", "roadmap", "swot", "kpi", "risk_matrix", "before_after", "architecture", "pricing"}:
+                c0 = spec.get("ai_content")
+                if not isinstance(c0, dict) or not c0:
+                    raise RuntimeError(f"Missing AI content for {layout} topic '{topic}'")
+                c = dict(c0)
+                if "title" not in c:
+                    c["title"] = topic
+                topic_slides.append({
+                    "type": layout,
+                    "title": topic,
+                    "content": c,
+                    "_render_exact": True,
+                })
+                continue
 
             if layout == "double_column":  # Double Column
                 # Ensure at least 3 per column; derive extras if needed
@@ -1885,7 +2369,18 @@ def export_presentation() -> Any:
                 else:
                     bullets = list(pts or [])[:5]
                 content: Dict[str, Any] = {"bullets": bullets}
-                if intent:
+                # Prefer OpenAI-provided intent tags when present; otherwise fall back to coarse heuristic.
+                ai_c = spec.get("ai_content")
+                ai_tag = ""
+                if isinstance(ai_c, dict):
+                    ai_tag = str(ai_c.get("infographic_intent") or ai_c.get("intent") or "").strip()
+                    if ai_tag:
+                        content["infographic_intent"] = ai_tag
+                        content["intent"] = ai_tag
+                        v = str(ai_c.get("impact_map_variant") or ai_c.get("variant") or "").strip()
+                        if v:
+                            content["impact_map_variant"] = v
+                if intent and not ai_tag:
                     # Map coarse intent to a specific infographic layout identifier
                     if intent == "GANTT":
                         tag = "GANTT_CHART"

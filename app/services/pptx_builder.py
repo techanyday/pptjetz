@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 from datetime import date
+import json
 import os
 import random
 import re
@@ -17,6 +18,8 @@ from .slide6_takeaways_chevrons import render_takeaways_chevrons
 
 SLIDE_W_IN = 13.333
 SLIDE_H_IN = 7.5
+
+ENABLE_SEMANTIC_CARDS_ROUTER = os.getenv("ENABLE_SEMANTIC_CARDS_ROUTER", "0") == "1"
 
 def _start_of_month(d: date) -> date:
     return date(d.year, d.month, 1)
@@ -1703,41 +1706,46 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         has_agenda = True
 
     if not render_exact:
-        # Ensure at least one of each required content layout via pattern
-        ag_idx = next((i for i, s in enumerate(slides_norm) if _ctype(s) == "agenda"), None)
-        titles_seq = _content(slides_norm[ag_idx]).get("bullets", []) if ag_idx is not None else outline_titles(max_n=50)
-        # Build a fresh list retaining pre-agenda slides
-        prefix = slides_norm[:ag_idx + 1] if ag_idx is not None else slides_norm[:1]
-        topic_slides: List[Dict[str, Any]] = []
-        for i, t in enumerate(titles_seq, start=1):
-            topic = str(t).strip()
-            if not topic:
-                continue
-            synth = _synthesize_topic_bullets(topic)
-            pat = (i - 1) % 7  # 0..6
-            if pat in {0, 1}:  # Topic 1 -> DC, Topic 2 -> DC
-                left = synth[::2][:6]
-                right = synth[1::2][:6]
-                topic_slides.append({"type": "double_column", "title": topic, "content": {"left_points": left, "right_points": right}})
-            elif pat in {2, 3}:  # Topic 3 -> Table, Topic 4 -> Table
-                mid = max(1, len(synth)//2)
-                left_pts = synth[:mid][:6]
-                right_pts = synth[mid:][:6]
-                topic_slides.append({
-                    "type": "comparison",
-                    "title": topic,
-                    "content": {"table": {"left": {"heading": "Aspects", "points": left_pts}, "right": {"heading": "Implications", "points": right_pts}}}
-                })
-            elif pat in {4, 5}:  # Topic 5 -> Cards, Topic 6 -> Cards
-                topic_slides.append({"type": "cards", "title": topic, "content": {"cards": synth[:6]}})
-            else:  # pat == 6 -> Infographic
-                topic_slides.append({"type": "infographic", "title": topic, "content": {"bullets": synth[:5]}})
+        basic_types = {"title", "agenda", "thank_you", "cta", "bullets"}
+        types_now = [(_ctype(s) or "") for s in (slides_norm or [])]
+        has_structured = any(t and t not in basic_types for t in types_now)
 
-        # Replace everything after agenda with pattern-generated topic slides
-        if ag_idx is not None:
-            slides_norm = prefix + topic_slides
-        else:
-            slides_norm = prefix + topic_slides
+        if not has_structured:
+            # Ensure at least one of each required content layout via pattern
+            ag_idx = next((i for i, s in enumerate(slides_norm) if _ctype(s) == "agenda"), None)
+            titles_seq = _content(slides_norm[ag_idx]).get("bullets", []) if ag_idx is not None else outline_titles(max_n=50)
+            # Build a fresh list retaining pre-agenda slides
+            prefix = slides_norm[:ag_idx + 1] if ag_idx is not None else slides_norm[:1]
+            topic_slides: List[Dict[str, Any]] = []
+            for i, t in enumerate(titles_seq, start=1):
+                topic = str(t).strip()
+                if not topic:
+                    continue
+                synth = _synthesize_topic_bullets(topic)
+                pat = (i - 1) % 7  # 0..6
+                if pat in {0, 1}:  # Topic 1 -> DC, Topic 2 -> DC
+                    left = synth[::2][:6]
+                    right = synth[1::2][:6]
+                    topic_slides.append({"type": "double_column", "title": topic, "content": {"left_points": left, "right_points": right}})
+                elif pat in {2, 3}:  # Topic 3 -> Table, Topic 4 -> Table
+                    mid = max(1, len(synth)//2)
+                    left_pts = synth[:mid][:6]
+                    right_pts = synth[mid:][:6]
+                    topic_slides.append({
+                        "type": "comparison",
+                        "title": topic,
+                        "content": {"table": {"left": {"heading": "Aspects", "points": left_pts}, "right": {"heading": "Implications", "points": right_pts}}}
+                    })
+                elif pat in {4, 5}:  # Topic 5 -> Cards, Topic 6 -> Cards
+                    topic_slides.append({"type": "cards", "title": topic, "content": {"cards": synth[:6]}})
+                else:  # pat == 6 -> Infographic
+                    topic_slides.append({"type": "infographic", "title": topic, "content": {"bullets": synth[:5]}})
+
+            # Replace everything after agenda with pattern-generated topic slides
+            if ag_idx is not None:
+                slides_norm = prefix + topic_slides
+            else:
+                slides_norm = prefix + topic_slides
 
     # Ensure Thank You as last slide
     if not has_thanks:
@@ -1749,29 +1757,78 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         slides_norm = [s for s in slides_norm if _ctype(s) not in {"thank_you", "cta"}] + thanks[-1:]
 
     def _render_timeline(sl) -> None:
-        """Render timeline with phases and descriptions."""
         content = _content(sl)
-        title = sl.get("title", "Timeline")
-        phases = content.get("timeline", [])
-        
-        s = prs.slides.add_slide(blank); apply_bg(s)
-        
-        # Title
-        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
-        
-        # Timeline phases
-        y = 2.5
-        for i, phase in enumerate(phases[:6]):  # Limit to 6 phases
-            label = phase.get("label", f"Phase {i+1}")
-            description = phase.get("description", "")
-            
-            # Phase label
-            _add_textbox(s, 1.0, y, 2.0, 0.4, label, font_size_pt=14, bold=True, color=TITLE_COL)
-            
-            # Phase description
-            _add_textbox(s, 3.5, y, 8.0, 0.4, description, font_size_pt=12, color=pal["text"])
-            
-            y += 0.8
+        title_txt = (sl.get("title") or content.get("title") or "Timeline").strip() or "Timeline"
+        raw = content.get("timeline")
+        items: List[str] = []
+        if isinstance(raw, list):
+            for it in raw:
+                if isinstance(it, dict):
+                    lab = str(it.get("label") or it.get("title") or "").strip()
+                    desc = str(it.get("description") or "").strip()
+                    if lab and desc:
+                        merged = f"{lab} — {desc}"
+                        items.append(merged[:110])
+                    elif lab:
+                        items.append(lab[:110])
+                    elif desc:
+                        items.append(desc[:110])
+                else:
+                    s = str(it or "").strip()
+                    if s:
+                        items.append(s[:110])
+                if len(items) >= 8:
+                    break
+
+        if not items:
+            items = ["Step 1", "Step 2", "Step 3", "Step 4"]
+
+        variant_raw = str(content.get("timeline_variant") or content.get("variant") or "").strip().lower()
+        variant_map = {
+            "horizontal": "horizontal",
+            "linear": "linear",
+            "vertical": "vertical",
+            "roadmap": "roadmap",
+            "vchevrons": "vchevrons",
+            "v-chevrons": "vchevrons",
+            "chevrons": "vchevrons",
+        }
+        forced = variant_map.get(variant_raw)
+
+        global TIMELINE_STYLE_INDEX
+        if 'TIMELINE_STYLE_INDEX' not in globals():
+            TIMELINE_STYLE_INDEX = 0
+        global LAST_TIMELINE_VARIANT
+        if 'LAST_TIMELINE_VARIANT' not in globals():
+            LAST_TIMELINE_VARIANT = None
+
+        pool = ["horizontal", "vchevrons", "linear", "vertical", "roadmap"]
+        if forced in pool:
+            chosen = forced
+        else:
+            start = TIMELINE_STYLE_INDEX % len(pool)
+            ordered = pool[start:] + pool[:start]
+            chosen = None
+            for v in ordered:
+                if v != LAST_TIMELINE_VARIANT:
+                    chosen = v
+                    break
+            chosen = chosen or ordered[0]
+
+        pts = items[:6]
+        if chosen == "linear":
+            render_timeline_linear(title_txt, pts, title_txt)
+        elif chosen == "vertical":
+            render_timeline_vertical(title_txt, pts, title_txt)
+        elif chosen == "roadmap":
+            render_timeline_roadmap(title_txt, pts, title_txt)
+        elif chosen == "vchevrons":
+            render_timeline_vchevrons(title_txt, pts, title_txt)
+        else:
+            render_timeline_horizontal(title_txt, pts, title_txt)
+
+        LAST_TIMELINE_VARIANT = chosen
+        TIMELINE_STYLE_INDEX += 1
 
     def _render_roadmap(sl) -> None:
         """Render phase-based roadmap with title, date range, and description per phase."""
@@ -1779,46 +1836,76 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         title = sl.get("title", "Roadmap")
         # AI provides timeline structure, not phases
         phases = content.get("timeline", content.get("phases", []))
+        if not isinstance(phases, list):
+            phases = []
+        phases = phases[:6]
         
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
         
-        # Layout: horizontal phases with rounded rectangles
-        start_x, start_y = 1.0, 2.2
-        phase_w, phase_h = 2.8, 2.8
-        gap = 0.6
-        
-        for i, phase in enumerate(phases[:6]):  # Max 6 phases
-            x = start_x + i * (phase_w + gap)
-            
-            # Phase container
-            phase_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(start_y), Inches(phase_w), Inches(phase_h))
-            phase_box.fill.solid(); phase_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
-            phase_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
-            
-            # Phase title
-            phase_title = str(phase.get("title", ""))[:50]  # Truncate long titles
-            _add_textbox(s, x + 0.15, start_y + 0.15, phase_w - 0.3, 0.5, phase_title, 
-                        font_size_pt=18, bold=True, color=pal["text"])
-            
-            # Date range
-            date_range = str(phase.get("date_range", ""))[:30]
-            if date_range:
-                _add_textbox(s, x + 0.15, start_y + 0.65, phase_w - 0.3, 0.4, date_range,
-                            font_size_pt=12, color=pal.get("muted", pal["text"]))
-            
-            # Description
-            desc = str(phase.get("description", ""))[:150]  # Limit description length
-            if desc:
-                _add_textbox(s, x + 0.15, start_y + 1.1, phase_w - 0.3, phase_h - 1.25, desc,
-                            font_size_pt=11, color=pal["text"])
-            
-            # Connector arrow to next phase
-            if i < len(phases) - 1:
-                arrow_x = x + phase_w + 0.05
-                arrow = s.shapes.add_shape(MsoShape.RIGHT_ARROW, Inches(arrow_x), Inches(start_y + phase_h/2 - 0.2), Inches(gap - 0.1), Inches(0.4))
-                arrow.fill.solid(); arrow.fill.fore_color.rgb = RGBColor(*pal.get("primary", pal["text"]))
-                arrow.line.fill.background()
+        nph = len(phases)
+        if nph <= 0:
+            return
+
+        start_y = 2.2
+        phase_h = 2.8
+        margin_x = 0.9
+        avail_w = SLIDE_W_IN - 2 * margin_x
+
+        use_two_rows = nph >= 5
+        if use_two_rows:
+            top_n = (nph + 1) // 2
+            rows = [phases[:top_n], phases[top_n:]]
+            row_ys = [2.05, 4.85]
+            phase_h = 2.15
+        else:
+            rows = [phases]
+            row_ys = [start_y]
+
+        for ridx, row in enumerate(rows):
+            if not row:
+                continue
+            m = len(row)
+            gap = 0.55 if m <= 4 else 0.35
+            phase_w = (avail_w - gap * (m - 1)) / max(1, m)
+            if phase_w > 2.8:
+                phase_w = 2.8
+            if phase_w < 1.8:
+                gap = 0.25
+                phase_w = (avail_w - gap * (m - 1)) / max(1, m)
+                if phase_w < 1.6:
+                    phase_w = 1.6
+            total_used = m * phase_w + (m - 1) * gap
+            x0 = margin_x + max(0.0, (avail_w - total_used) / 2)
+            y0 = row_ys[ridx] if ridx < len(row_ys) else start_y
+
+            for i, phase in enumerate(row):
+                x = x0 + i * (phase_w + gap)
+
+                phase_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y0), Inches(phase_w), Inches(phase_h))
+                phase_box.fill.solid(); phase_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+                phase_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+
+                phase_title = str((phase.get("title") if isinstance(phase, dict) else "") or "")[:50]
+                _add_textbox(s, x + 0.15, y0 + 0.15, phase_w - 0.3, 0.5, phase_title,
+                            font_size_pt=18, bold=True, color=pal["text"])
+
+                date_range = str((phase.get("date_range") if isinstance(phase, dict) else "") or "")[:30]
+                if date_range:
+                    _add_textbox(s, x + 0.15, y0 + 0.65, phase_w - 0.3, 0.4, date_range,
+                                font_size_pt=12, color=pal.get("muted", pal["text"]))
+
+                desc = str((phase.get("description") if isinstance(phase, dict) else "") or "")[:150]
+                if desc:
+                    _add_textbox(s, x + 0.15, y0 + 1.05, phase_w - 0.3, max(0.3, phase_h - 1.20), desc,
+                                font_size_pt=11, color=pal["text"])
+
+                if i < m - 1:
+                    arrow_w = max(0.22, min(0.46, gap * 0.85))
+                    arrow_x = x + phase_w + (gap - arrow_w) / 2
+                    arrow = s.shapes.add_shape(MsoShape.RIGHT_ARROW, Inches(arrow_x), Inches(y0 + phase_h/2 - 0.18), Inches(arrow_w), Inches(0.36))
+                    arrow.fill.solid(); arrow.fill.fore_color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+                    arrow.line.fill.background()
 
     def _render_swot(sl) -> None:
         """Render 2x2 SWOT grid with quadrants: Strengths, Weaknesses, Opportunities, Threats."""
@@ -2051,6 +2138,105 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         bl_items = _extract_list(content.get("fill_in") or quads.get("fill_in") or quads.get("bottom_left") or content.get("bottom_left"))
         br_items = _extract_list(content.get("thankless_tasks") or content.get("money_pit") or quads.get("thankless_tasks") or quads.get("money_pit") or quads.get("bottom_right") or content.get("bottom_right"))
 
+        try:
+            quad_map = {
+                "quick_easy_wins": list(tl_items or []),
+                "major_projects": list(tr_items or []),
+                "fill_in": list(bl_items or []),
+                "thankless_tasks": list(br_items or []),
+            }
+            keys = ["quick_easy_wins", "major_projects", "fill_in", "thankless_tasks"]
+            total_items = sum(len(quad_map[k]) for k in keys)
+            nonempty = sum(1 for k in keys if quad_map[k])
+            if nonempty <= 1 and total_items >= 3:
+                all_items: List[str] = []
+                for k in keys:
+                    all_items.extend([str(x).strip() for x in (quad_map.get(k) or []) if str(x).strip()])
+                start_idx = next((i for i, k in enumerate(keys) if quad_map.get(k)), 0)
+                new_map = {k: [] for k in keys}
+                for i, it in enumerate(all_items):
+                    new_map[keys[(start_idx + i) % 4]].append(it)
+                tl_items = new_map["quick_easy_wins"]
+                tr_items = new_map["major_projects"]
+                bl_items = new_map["fill_in"]
+                br_items = new_map["thankless_tasks"]
+        except Exception:
+            pass
+
+        labels_obj = content.get("labels") if isinstance(content.get("labels"), dict) else {}
+        quad_labels = labels_obj.get("quadrants") if isinstance(labels_obj.get("quadrants"), dict) else {}
+        axis_labels = labels_obj.get("axes") if isinstance(labels_obj.get("axes"), dict) else {}
+
+        def _infer_topic_hint() -> str:
+            try:
+                src_parts: List[str] = []
+                src_parts.append(title or "")
+                src_parts += (tl_items or [])
+                src_parts += (tr_items or [])
+                src_parts += (bl_items or [])
+                src_parts += (br_items or [])
+                blob = " ".join([str(x) for x in src_parts if str(x).strip()])
+                blob = re.sub(r"[^A-Za-z0-9\s\-]", " ", blob)
+                blob = re.sub(r"\s{2,}", " ", blob).strip().lower()
+                if not blob:
+                    return ""
+
+                stop = {
+                    "the", "and", "for", "with", "from", "into", "your", "our", "their", "this", "that",
+                    "these", "those", "are", "is", "was", "were", "be", "been", "being", "to", "of",
+                    "in", "on", "at", "by", "as", "or", "an", "a", "it", "its", "vs", "v",
+                }
+                generic = {
+                    "impact", "effort", "matrix", "analysis", "prioritization", "prioritize", "priority",
+                    "quick", "wins", "win", "major", "projects", "project", "fill", "in", "thankless",
+                    "tasks", "money", "pit", "low", "high", "easy", "hard", "value", "time", "cost",
+                }
+
+                words = [w for w in re.split(r"\s+", blob) if w]
+                words = [w for w in words if len(w) >= 4 and w not in stop and w not in generic]
+                if not words:
+                    return ""
+                freq: Dict[str, int] = {}
+                for w in words:
+                    freq[w] = freq.get(w, 0) + 1
+                ranked = sorted(freq.items(), key=lambda kv: (-kv[1], -len(kv[0]), kv[0]))
+                top = [kv[0] for kv in ranked[:2]]
+                hint = " ".join(top).strip()
+                hint = hint[:28].strip()
+                return hint.upper()
+            except Exception:
+                return ""
+
+        topic_hint = ""
+        try:
+            if not quad_labels:
+                topic_hint = _infer_topic_hint()
+        except Exception:
+            topic_hint = ""
+
+        tl_default = "QUICK / EASY WINS"
+        tr_default = "MAJOR PROJECTS"
+        bl_default = "FILL-IN"
+        br_default = "THANKLESS TASKS / MONEY PIT"
+
+        def _lbl(d: Dict[str, Any], key: str, default: str) -> str:
+            try:
+                v = d.get(key)
+                s = str(v or "").strip()
+                return s or default
+            except Exception:
+                return default
+
+        tl_label = _lbl(quad_labels, "quick_easy_wins", tl_default)
+        tr_label = _lbl(quad_labels, "major_projects", tr_default)
+        bl_label = _lbl(quad_labels, "fill_in", bl_default)
+        br_label = _lbl(quad_labels, "thankless_tasks", br_default)
+
+        y_high_label = _lbl(axis_labels, "y_high", "HIGH IMPACT")
+        y_low_label = _lbl(axis_labels, "y_low", "LOW IMPACT")
+        x_low_label = _lbl(axis_labels, "x_low", "LOW EFFORT")
+        x_high_label = _lbl(axis_labels, "x_high", "HIGH EFFORT")
+
         grid_x = 1.0
         grid_y = 1.85
         grid_w = SLIDE_W_IN - 2.0
@@ -2115,10 +2301,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             p.alignment = PP_ALIGN.CENTER
             return r
 
-        _label_bar(tl[0], tl[1], tl[2], tl_bar, "QUICK / EASY WINS")
-        _label_bar(tr[0], tr[1], tr[2], tr_bar, "MAJOR PROJECTS")
-        _label_bar(bl[0], bl[1], bl[2], bl_bar, "FILL-IN")
-        _label_bar(br[0], br[1], br[2], br_bar, "THANKLESS TASKS / MONEY PIT")
+        _label_bar(tl[0], tl[1], tl[2], tl_bar, tl_label)
+        _label_bar(tr[0], tr[1], tr[2], tr_bar, tr_label)
+        _label_bar(bl[0], bl[1], bl[2], bl_bar, bl_label)
+        _label_bar(br[0], br[1], br[2], br_bar, br_label)
 
         def _bullets_text(items: List[str]) -> str:
             items = [str(x).strip() for x in (items or []) if str(x).strip()]
@@ -2233,7 +2419,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         except Exception:
             pass
         hp = high_tf.paragraphs[0]
-        hp.text = "HIGH IMPACT"
+        hp.text = y_high_label
         hp.font.size = Pt(10)
         hp.font.bold = True
         hp.font.color.rgb = RGBColor(*axis_text)
@@ -2269,7 +2455,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         except Exception:
             pass
         lp = low_tf.paragraphs[0]
-        lp.text = "LOW IMPACT"
+        lp.text = y_low_label
         lp.font.size = Pt(10)
         lp.font.bold = True
         lp.font.color.rgb = RGBColor(*axis_text)
@@ -2287,7 +2473,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         lf = left_lbl.text_frame
         lf.clear()
         lpp = lf.paragraphs[0]
-        lpp.text = "LOW EFFORT"
+        lpp.text = x_low_label
         lpp.font.size = Pt(11)
         lpp.font.bold = True
         lpp.font.color.rgb = RGBColor(*axis_text)
@@ -2297,7 +2483,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         rf = right_lbl.text_frame
         rf.clear()
         rpp = rf.paragraphs[0]
-        rpp.text = "HIGH EFFORT"
+        rpp.text = x_high_label
         rpp.font.size = Pt(11)
         rpp.font.bold = True
         rpp.font.color.rgb = RGBColor(*axis_text)
@@ -2632,9 +2818,45 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def _timeline_subtitle(topic: str | None, labels: List[str] | None, layout: str | None = None) -> str:
         labs = [str(x).strip() for x in (labels or []) if str(x).strip()]
         lo_topic = (topic or "").lower()
+
+        def _subject_from_title(t: str) -> str:
+            words = [w for w in re.split(r"\W+", (t or "").strip()) if w]
+            stop = {
+                "the", "of", "in", "and", "to", "for", "a", "an", "on", "with", "vs", "vs.",
+                "overview", "summary", "introduction", "analysis",
+            }
+            generic = {
+                "timeline", "roadmap", "process", "workflow", "phases", "phase", "steps", "step",
+                "plan", "planning", "project", "execution", "implementation", "rollout", "journey",
+            }
+            core = [w for w in words if w.lower() not in stop and w.lower() not in generic]
+            if not core:
+                core = [w for w in words if w.lower() not in stop]
+            if not core:
+                return ""
+            return " ".join(core[:2]).title().strip()
+
+        def _title_derived_one_liner() -> str:
+            subj = _subject_from_title(topic or "")
+            if any(k in lo_topic for k in ["roadmap", "rollout", "plan"]):
+                return f"Key milestones to deliver {subj}".strip() if subj else "Key milestones to deliver the plan"
+            if any(k in lo_topic for k in ["timeline", "phases", "phase"]):
+                return f"Key phases to deliver {subj}".strip() if subj else "Key phases and milestones at a glance"
+            if any(k in lo_topic for k in ["process", "workflow", "steps", "step"]):
+                return f"A clear sequence to deliver {subj}".strip() if subj else "A clear sequence to guide execution"
+            return f"A structured path to deliver {subj}".strip() if subj else "A structured path to guide execution"
+
+        uses_process_layout = layout in {"horizontal", "v-chevrons", "process-alt", "vertical", "linear", "roadmap"}
+        if uses_process_layout:
+            return _title_derived_one_liner()
+
         if len(labs) >= 2:
             a, b = labs[0], labs[-1]
-            return f"From {a} to {b}"
+            def _ok(s: str) -> bool:
+                return bool(s) and len(s) <= 18 and not any(ch in s for ch in ["—", "-", ":", "/"])
+            if _ok(a) and _ok(b):
+                return f"From {a} to {b}"
+            return _title_derived_one_liner()
         if any(k in lo_topic for k in ["history", "evolution", "growth"]):
             return "A chronological journey through key stages"
         if layout == "roadmap":
@@ -3441,6 +3663,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             lp = left_pages[page] if page < len(left_pages) else []
             rp = right_pages[page] if page < len(right_pages) else []
 
+            style_id = DOUBLE_BULLET_STYLE_INDEX % 4
+
             def _lighter(rgb: Tuple[int,int,int], pct: float = 0.35) -> Tuple[int,int,int]:
                 r,g,b = rgb
                 return (min(255, int(r + (255-r)*pct)), min(255, int(g + (255-g)*pct)), min(255, int(b + (255-b)*pct)))
@@ -3450,9 +3674,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 subset = items[:3]
                 for i, lab in enumerate(subset):
                     idx = start_idx + i
-                    # Use deck-level chosen style so all double-column slides in this deck match
-                    global CURRENT_DOUBLE_BULLET_STYLE
-                    style_id = (CURRENT_DOUBLE_BULLET_STYLE if 'CURRENT_DOUBLE_BULLET_STYLE' in globals() else (DOUBLE_BULLET_STYLE_INDEX % 4))
                     col = colors[i % len(colors)]
                     # Draw bullet shape based on style
                     if style_id == 0:
@@ -3512,6 +3733,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             render_col(rp, right_x, right_colors, next_idx)
 
         DOUBLE_SCHEME_INDEX += 1
+        DOUBLE_BULLET_STYLE_INDEX += 1
 
     def render_table(sl):
         s = prs.slides.add_slide(blank); apply_bg(s)
@@ -3618,7 +3840,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             return "GENERAL"
         t = (title or "").lower()
         txt = t + " " + " ".join(str(x).lower() for x in (content.get("bullets") or []))
-        if "risk" in txt or "risk assessment" in txt or "risk matrix" in txt:
+        risk_like = (
+            "risk matrix" in txt
+            or "risk assessment matrix" in txt
+            or ("likelihood" in txt and "impact" in txt)
+            or ("probability" in txt and "impact" in txt)
+        )
+        if risk_like:
             return "RISK"
         if any(k in txt for k in ["impact", "business impact", "effect on"]):
             return "IMPACT"
@@ -5195,28 +5423,49 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         _render_roadmap(sl)
     
     def _render_swot_wrapper(sl):
-        # Transform AI bullets to quadrant structure
         content = _content(sl)
+        try:
+            has_structured = False
+            for k in ["strengths", "weaknesses", "opportunities", "threats"]:
+                q = content.get(k)
+                if isinstance(q, dict) and isinstance(q.get("points"), list) and any(str(x).strip() for x in q.get("points") or []):
+                    has_structured = True
+                    break
+            if has_structured:
+                _render_swot(sl)
+                return
+        except Exception:
+            pass
+
         bullets = content.get("bullets", [])
-        quadrant_data = {"strengths": {"points": []}, "weaknesses": {"points": []}, 
-                        "opportunities": {"points": []}, "threats": {"points": []}
+        if not isinstance(bullets, list) or not any(str(x).strip() for x in bullets):
+            _render_swot(sl)
+            return
+
+        quadrant_data = {
+            "strengths": {"points": []},
+            "weaknesses": {"points": []},
+            "opportunities": {"points": []},
+            "threats": {"points": []},
         }
-        
+
         for bullet in bullets:
-            bullet_lower = bullet.lower()
+            bullet_txt = str(bullet or "").strip()
+            if not bullet_txt:
+                continue
+            bullet_lower = bullet_txt.lower()
             if "strengths:" in bullet_lower:
-                quadrant_data["strengths"]["points"].append(bullet.split(":", 1)[1].strip())
+                quadrant_data["strengths"]["points"].append(bullet_txt.split(":", 1)[1].strip())
             elif "weaknesses:" in bullet_lower:
-                quadrant_data["weaknesses"]["points"].append(bullet.split(":", 1)[1].strip())
+                quadrant_data["weaknesses"]["points"].append(bullet_txt.split(":", 1)[1].strip())
             elif "opportunities:" in bullet_lower:
-                quadrant_data["opportunities"]["points"].append(bullet.split(":", 1)[1].strip())
+                quadrant_data["opportunities"]["points"].append(bullet_txt.split(":", 1)[1].strip())
             elif "threats:" in bullet_lower:
-                quadrant_data["threats"]["points"].append(bullet.split(":", 1)[1].strip())
-        
-        # Update slide content with transformed structure
+                quadrant_data["threats"]["points"].append(bullet_txt.split(":", 1)[1].strip())
+
         for key, data in quadrant_data.items():
             sl["content"][key] = data
-        
+
         _render_swot(sl)
     
     def _render_kpi_wrapper(sl):
@@ -5240,6 +5489,394 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def _render_impact_effort_matrix_wrapper(sl):
         _render_impact_effort_matrix(sl)
 
+    def _looks_like_impact_effort_cards(sl: Dict[str, Any]) -> bool:
+        try:
+            if _ctype(sl) not in {"cards", "card", "card_style", "process_timeline_alt"}:
+                return False
+            title = str(sl.get("title") or "").lower()
+            cards_arr = _content(sl).get("cards")
+            if not (isinstance(cards_arr, list) and any(str(x).strip() for x in cards_arr)):
+                return False
+            stages = [str(x).strip() for x in cards_arr if str(x).strip()]
+            blob = (title + " " + " ".join(stages)).lower()
+            if ("comparison" in title or "compare" in title or "table" in title) and not any(
+                k in blob for k in ["impact effort matrix", "impact/effort matrix", "prioritization matrix", "2x2", "quadrant"]
+            ):
+                return False
+
+            matrix_phrases = [
+                "impact effort matrix",
+                "impact/effort matrix",
+                "effort-impact matrix",
+                "impact-effort matrix",
+                "impact vs effort",
+                "effort vs impact",
+                "impact vs. effort",
+                "effort vs. impact",
+                "prioritization matrix",
+                "priority matrix",
+                "2x2",
+                "quadrant",
+            ]
+            has_matrix_phrase = any(k in blob for k in matrix_phrases)
+            has_axis_cue = ("impact" in blob and ("effort" in blob or "ease" in blob))
+            has_prioritization_cue = any(k in blob for k in ["priorit", "rank", "ranking", "trade-off", "tradeoff"])
+            strong_title_cue = ("impact" in title and ("effort" in title or "ease" in title) and has_prioritization_cue)
+
+            # Quadrant label hits (explicit naming of buckets).
+            quadrant_terms = {
+                "quick_easy_wins": ["quick", "easy win", "easy wins"],
+                "major_projects": ["major project", "major projects"],
+                "fill_in": ["fill-in", "fill in"],
+                "thankless_tasks": ["thankless", "money pit"],
+            }
+            quad_label_kinds = 0
+            for keys in quadrant_terms.values():
+                if any(k in blob for k in keys):
+                    quad_label_kinds += 1
+
+            def _stage_quadrant_hit(st: str) -> bool:
+                lo = (st or "").lower()
+                if any(k in lo for k in ["quick", "easy win", "easy wins", "major project", "major projects", "fill-in", "fill in", "thankless", "money pit"]):
+                    return True
+                if ("high" in lo and "impact" in lo and ("low" in lo or "easy" in lo) and ("effort" in lo or "ease" in lo)):
+                    return True
+                if ("high" in lo and "impact" in lo and "high" in lo and ("effort" in lo or "ease" in lo)):
+                    return True
+                if ("low" in lo and "impact" in lo and "low" in lo and ("effort" in lo or "ease" in lo)):
+                    return True
+                if ("low" in lo and "impact" in lo and "high" in lo and ("effort" in lo or "ease" in lo)):
+                    return True
+                return False
+
+            q_hits = sum(1 for st in stages if _stage_quadrant_hit(st))
+            if not (has_matrix_phrase or strong_title_cue or quad_label_kinds >= 2):
+                return False
+            if not (has_axis_cue or q_hits >= 3):
+                return False
+            return True
+        except Exception:
+            return False
+
+    def _cards_to_impact_effort_matrix(sl: Dict[str, Any]) -> Dict[str, Any] | None:
+        if not _looks_like_impact_effort_cards(sl):
+            return None
+
+        cards_arr = _content(sl).get("cards") or []
+        stages = [str(x).strip() for x in cards_arr if str(x).strip()]
+        if not stages:
+            return None
+
+        def _extract_desc(raw: str) -> str:
+            s = (raw or "").strip()
+            if not s:
+                return s
+            parts = s.splitlines()
+            if len(parts) >= 2:
+                rest = " ".join(p.strip() for p in parts[1:] if p.strip())
+                return rest or s
+            m = re.split(r"\s*[:\u2014\-]\s*", s, maxsplit=1)
+            if len(m) == 2 and m[1].strip():
+                return m[1].strip()
+            return s
+
+        def _quad_key(raw: str) -> str | None:
+            lo = (raw or "").lower()
+            if any(k in lo for k in ["quick", "easy win", "easy wins"]):
+                return "quick_easy_wins"
+            if any(k in lo for k in ["major project", "major projects"]):
+                return "major_projects"
+            if any(k in lo for k in ["fill-in", "fill in"]):
+                return "fill_in"
+            if any(k in lo for k in ["thankless", "money pit"]):
+                return "thankless_tasks"
+            if ("high" in lo and "impact" in lo and "low" in lo and "effort" in lo) or ("high" in lo and "impact" in lo and "easy" in lo):
+                return "quick_easy_wins"
+            if "high" in lo and "impact" in lo and "high" in lo and "effort" in lo:
+                return "major_projects"
+            if "low" in lo and "impact" in lo and "low" in lo and "effort" in lo:
+                return "fill_in"
+            if "low" in lo and "impact" in lo and "high" in lo and "effort" in lo:
+                return "thankless_tasks"
+            return None
+
+        quadrant_lists: Dict[str, List[str]] = {
+            "quick_easy_wins": [],
+            "major_projects": [],
+            "fill_in": [],
+            "thankless_tasks": [],
+        }
+
+        assigned = 0
+        for st in stages:
+            k = _quad_key(st)
+            if not k:
+                continue
+            d = _extract_desc(st)
+            if d:
+                quadrant_lists[k].append(d)
+                assigned += 1
+
+        if assigned == 0:
+            title = str(sl.get("title") or "")
+            blob = (title + " " + " ".join(stages)).lower()
+            explicit_matrix = any(
+                k in blob
+                for k in [
+                    "impact effort matrix",
+                    "impact/effort matrix",
+                    "impact-effort matrix",
+                    "effort-impact matrix",
+                    "impact vs effort",
+                    "effort vs impact",
+                    "prioritization matrix",
+                    "priority matrix",
+                    "2x2",
+                    "quadrant",
+                ]
+            ) or ("priorit" in blob and "impact" in blob and ("effort" in blob or "ease" in blob))
+            has_axis_cue = ("impact" in blob and ("effort" in blob or "ease" in blob))
+            if not (explicit_matrix and has_axis_cue and len(stages) >= 4):
+                return None
+
+            keys = ["quick_easy_wins", "major_projects", "fill_in", "thankless_tasks"]
+            for i, st in enumerate(stages):
+                d = _extract_desc(st)
+                if d:
+                    quadrant_lists[keys[i % 4]].append(d)
+
+        out = dict(sl)
+        out["type"] = "impact_effort_matrix"
+        out["content"] = quadrant_lists
+        return out
+
+    try:
+        ai_router_cache: Dict[str, Dict[str, Any]] = {}
+
+        def _ai_route_cards(sl: Dict[str, Any]) -> Dict[str, Any] | None:
+            if not ENABLE_SEMANTIC_CARDS_ROUTER:
+                return None
+            try:
+                from app.utils.chatgpt_client import ChatGPTError, chat_completion
+            except Exception:
+                return None
+
+            title = str(sl.get("title") or "").strip()
+            c = _content(sl)
+            items = c.get("cards") or c.get("bullets") or []
+            if not isinstance(items, list):
+                items = []
+            points = [str(x).strip() for x in items if str(x).strip()]
+            if not points:
+                return None
+
+            cache_key = json.dumps({"t": title, "p": points}, ensure_ascii=False)
+            if cache_key in ai_router_cache:
+                return ai_router_cache[cache_key]
+
+            system = (
+                "You are a presentation layout router. Output ONLY valid JSON. "
+                "Choose the best rendering kind for a single slide based on the meaning of its title and items."
+            )
+            user_payload = {
+                "task": "Classify the best layout kind for this slide.",
+                "slide": {"title": title, "items": points},
+                "kinds": {
+                    "impact_effort_matrix": "A 2x2 prioritization matrix with axes impact and effort/ease.",
+                    "benefits_stack": "A layered/stacked set of benefits or maturity tiers.",
+                    "process_cards": "A sequence of steps/phases/process or a list of items not meant for a matrix.",
+                },
+                "rules": [
+                    "Decide by semantics, not by keyword matching.",
+                    "If the slide is clearly a prioritization tradeoff between impact and effort, choose impact_effort_matrix.",
+                    "Do NOT choose impact_effort_matrix for a generic summary/recap/overview/visual summary slide unless impact-vs-effort prioritization is the central purpose.",
+                    "Only choose impact_effort_matrix if it makes sense as a 2x2.",
+                    "If you choose impact_effort_matrix, you MUST output a 'quadrants' object with keys: quick_easy_wins, major_projects, fill_in, thankless_tasks. Each value must be an array of strings (0-6 items).",
+                    "Only choose impact_effort_matrix if you can place at least 4 total items across at least 2 non-empty quadrants.",
+                    "If you choose impact_effort_matrix, you MUST output 'labels' with {quadrants: {...}, axes: {...}}. axes keys: x_low, x_high, y_low, y_high.",
+                    "If you cannot confidently build quadrants, choose process_cards instead.",
+                    "Output schema: {kind: <one of the keys above>, confidence: 0..1, quadrants?: {...}, labels?: {...}}",
+                ],
+            }
+            try:
+                raw = chat_completion(
+                    [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+                    ],
+                    max_tokens=450,
+                    temperature=0.0,
+                    timeout=45,
+                )
+            except ChatGPTError:
+                return None
+            except Exception:
+                return None
+            try:
+                obj = json.loads(raw)
+            except Exception:
+                return None
+            if not isinstance(obj, dict):
+                return None
+            kind = str(obj.get("kind") or "").strip()
+            confidence = obj.get("confidence")
+            try:
+                conf_v = float(confidence)
+            except Exception:
+                conf_v = 0.0
+            out = {"kind": kind, "confidence": conf_v}
+            quads = obj.get("quadrants")
+            if isinstance(quads, dict):
+                out["quadrants"] = quads
+            labels = obj.get("labels")
+            if isinstance(labels, dict):
+                out["labels"] = labels
+            ai_router_cache[cache_key] = out
+            return out
+
+        if ENABLE_SEMANTIC_CARDS_ROUTER:
+            new_norm: List[Dict[str, Any]] = []
+            for s in (slides_norm or []):
+                try:
+                    if not (isinstance(s, dict) and _ctype(s) in {"cards", "card", "card_style", "process_timeline_alt"}):
+                        new_norm.append(s)
+                        continue
+                    routed = _ai_route_cards(s)
+                    if not routed:
+                        new_norm.append(s)
+                        continue
+                    kind = str(routed.get("kind") or "").strip()
+                    if kind == "impact_effort_matrix":
+                        conf_v = 0.0
+                        try:
+                            conf_v = float(routed.get("confidence") or 0.0)
+                        except Exception:
+                            conf_v = 0.0
+                        if conf_v < 0.75:
+                            out = dict(s)
+                            out["_semantic_cards_kind"] = "process_cards"
+                            new_norm.append(out)
+                            continue
+                        quads = routed.get("quadrants")
+                        if isinstance(quads, dict):
+                            def _arr(k: str) -> List[str]:
+                                v = quads.get(k) or []
+                                if not isinstance(v, list):
+                                    return []
+                                return [str(x).strip() for x in v if str(x).strip()][:6]
+                            q_obj = {
+                                "quick_easy_wins": _arr("quick_easy_wins"),
+                                "major_projects": _arr("major_projects"),
+                                "fill_in": _arr("fill_in"),
+                                "thankless_tasks": _arr("thankless_tasks"),
+                            }
+                            total_items = sum(len(v) for v in q_obj.values())
+                            nonempty = sum(1 for v in q_obj.values() if v)
+                            if total_items >= 4 and nonempty >= 2:
+                                out = dict(s)
+                                out["type"] = "impact_effort_matrix"
+                                out_content = dict(q_obj)
+                                labels = routed.get("labels")
+                                if isinstance(labels, dict) and labels:
+                                    out_content["labels"] = labels
+                                out["content"] = out_content
+                                new_norm.append(out)
+                                continue
+                    out = dict(s)
+                    out["_semantic_cards_kind"] = kind
+                    new_norm.append(out)
+                except Exception:
+                    new_norm.append(s)
+            slides_norm = new_norm
+        else:
+            slides_norm = [(_cards_to_impact_effort_matrix(s) or s) for s in (slides_norm or [])]
+    except Exception:
+        pass
+
+    try:
+        def _matrix_counts(c: Dict[str, Any]) -> Tuple[int, int]:
+            keys = ["quick_easy_wins", "major_projects", "fill_in", "thankless_tasks"]
+            total = 0
+            nonempty = 0
+            for k in keys:
+                v = c.get(k)
+                if isinstance(v, dict):
+                    v = v.get("bullets") or v.get("points") or v.get("items")
+                if not isinstance(v, list):
+                    v = []
+                vv = [str(x).strip() for x in v if str(x).strip()]
+                total += len(vv)
+                if vv:
+                    nonempty += 1
+            return total, nonempty
+
+        def _matrix_to_infographic(sl: Dict[str, Any]) -> Dict[str, Any]:
+            c = _content(sl)
+            keys = ["quick_easy_wins", "major_projects", "fill_in", "thankless_tasks"]
+            bullets: List[str] = []
+            for k in keys:
+                v = c.get(k)
+                if isinstance(v, dict):
+                    v = v.get("bullets") or v.get("points") or v.get("items")
+                if isinstance(v, list):
+                    bullets += [str(x).strip() for x in v if str(x).strip()]
+            bullets = bullets[:8]
+            out = dict(sl)
+            out["type"] = "infographic"
+            out["content"] = {"bullets": bullets, "visual_hint": "summary"}
+            return out
+
+        def _should_downgrade_matrix(sl: Dict[str, Any]) -> bool:
+            t0 = _ctype(sl)
+            if t0 not in {"impact_effort_matrix", "impact_matrix", "prioritization_matrix"}:
+                return False
+            c = _content(sl)
+            title = str(sl.get("title") or "").strip()
+            title_lc = title.lower()
+            summaryish = any(k in title_lc for k in ["visual summary", "summary", "recap", "overview", "highlights"])
+            title_matrix_intent = any(
+                k in title_lc
+                for k in [
+                    "matrix",
+                    "impact vs effort",
+                    "effort vs impact",
+                    "impact vs. effort",
+                    "effort vs. impact",
+                    "prioritization",
+                    "prioritisation",
+                    "priority",
+                    "2x2",
+                    "quadrant",
+                ]
+            )
+            total, nonempty = _matrix_counts(c)
+            blob = (title + " " + " ".join([str(x) for x in (
+                (c.get("quick_easy_wins") or [])
+                + (c.get("major_projects") or [])
+                + (c.get("fill_in") or [])
+                + (c.get("thankless_tasks") or [])
+            ) if str(x).strip()])).lower()
+            has_axis_cue = ("impact" in blob and ("effort" in blob or "ease" in blob))
+            if summaryish and not title_matrix_intent:
+                return True
+            if summaryish and not has_axis_cue:
+                return True
+            if summaryish and (total < 4 or nonempty < 2):
+                return True
+            if (not summaryish) and total == 0:
+                return True
+            return False
+
+        new_norm2: List[Dict[str, Any]] = []
+        for s in (slides_norm or []):
+            if isinstance(s, dict) and _should_downgrade_matrix(s):
+                new_norm2.append(_matrix_to_infographic(s))
+            else:
+                new_norm2.append(s)
+        slides_norm = new_norm2
+    except Exception:
+        pass
+
     for sl in slides_norm:
         t = _ctype(sl)
         print(f"DEBUG: Processing slide type: {t}")
@@ -5249,11 +5886,18 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             cards_arr = _content(sl).get("cards")
             if t in {"cards", "card", "card_style", "process_timeline_alt"} and isinstance(cards_arr, list) and any(str(x).strip() for x in cards_arr):
                 stages = [str(x).strip() for x in cards_arr if str(x).strip()]
-                blob = ((sl.get("title") or "") + " " + " ".join(stages)).lower()
-                if any(k in blob for k in ["benefit", "benefits", "value", "advantages", "advantage", "gains", "gain"]):
-                    _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+                if ENABLE_SEMANTIC_CARDS_ROUTER:
+                    kind = str(sl.get("_semantic_cards_kind") or "").strip()
+                    if kind == "benefits_stack":
+                        _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+                    else:
+                        render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
                 else:
-                    render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
+                    blob = ((sl.get("title") or "") + " " + " ".join(stages)).lower()
+                    if any(k in blob for k in ["benefit", "benefits", "value", "advantages", "advantage", "gains", "gain"]):
+                        _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+                    else:
+                        render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
                 continue
         except Exception:
             pass
@@ -5296,11 +5940,18 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             # Use the rotation for all process-like slide requests so all styles, including bubbles, appear
             c = _content(sl)
             stages = [str(x).strip() for x in (c.get("cards") or c.get("bullets") or []) if str(x).strip()]
-            blob = ((sl.get("title") or "") + " " + " ".join(stages)).lower()
-            if any(k in blob for k in ["benefit", "benefits", "value", "advantages", "advantage", "gains", "gain"]):
-                _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+            if ENABLE_SEMANTIC_CARDS_ROUTER:
+                kind = str(sl.get("_semantic_cards_kind") or "").strip()
+                if kind == "benefits_stack":
+                    _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+                else:
+                    render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
             else:
-                render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
+                blob = ((sl.get("title") or "") + " " + " ".join(stages)).lower()
+                if any(k in blob for k in ["benefit", "benefits", "value", "advantages", "advantage", "gains", "gain"]):
+                    _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+                else:
+                    render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
         elif t == "timeline":
             print(f"DEBUG: Rendering timeline slide with content: {_content(sl)}")
             _render_timeline(sl)

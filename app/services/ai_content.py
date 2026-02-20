@@ -114,6 +114,7 @@ def build_prompt(
             "modules_priority": [
                 "Timeline / Background",
                 "Topic Overview",
+                "Prioritization Matrix (Impact vs Effort) when explicitly requested or when the goal is to prioritize initiatives",
                 "Double Column Bullet (2–3 variations max)",
                 "Tabular Comparison",
                 "Infographic / Visual Summary",
@@ -214,6 +215,9 @@ def build_prompt(
             "Infographic uses a concise visual_hint plus a few bullets if helpful.",
             "Key Takeaways: succinct bullets summarizing actionable insights.",
             "Thank You: include optional contact info or CTA in bullets.",
+            "If (and ONLY if) the user explicitly requests an 'impact vs effort' matrix / 'effort vs impact' matrix / 'prioritization matrix' (2x2) OR the input_text clearly asks to prioritize initiatives/features by impact and effort, include exactly one slide of type 'impact_effort_matrix' and populate content arrays: quick_easy_wins, major_projects, fill_in, thankless_tasks (3–5 items each).",
+            "Do NOT use 'impact_effort_matrix' for feature comparison tables or option comparisons. For comparisons, use type 'comparison' or 'table' and provide a real two-column comparison.",
+            "Do NOT represent an impact/effort prioritization matrix as 'cards' or 'infographic'. When doing impact vs effort, you MUST use type 'impact_effort_matrix' with the four quadrant arrays.",
             "Return ONLY a JSON array of slides; no markdown, no narrative.",
             "Avoid placeholder-like phrasing (e.g., 'Click to add ...') and avoid slide-type names as content.",
         ],
@@ -957,6 +961,8 @@ def _harmonize_titles_to_agenda(slides: List[Dict[str, Any]]) -> List[Dict[str, 
                 bullets = s.get("content", {}).get("bullets", []) or []
                 clean = [b for b in bullets if not any(p in (b or "").lower() for p in template_substrings)]
                 s.setdefault("content", {})["bullets"] = clean
+            continue
+        if stype in {"impact_effort_matrix", "impact_matrix", "prioritization_matrix"}:
             continue
         title = (s.get("title") or "").strip()
         # Map to best agenda bullet
