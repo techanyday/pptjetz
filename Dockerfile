@@ -20,4 +20,4 @@ ENV PORT=10000
 
 EXPOSE 10000
 
-CMD ["python", "run.py"]
+CMD ["sh", "-c", "gunicorn -b 0.0.0.0:${PORT:-10000} wsgi:app"]
