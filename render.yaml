@@ -26,7 +26,6 @@ services:
     plan: free
     branch: main
     dockerfilePath: ./Dockerfile
-    dockerCommand: python run.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
