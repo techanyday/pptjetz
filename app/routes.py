@@ -3540,41 +3540,6 @@ def admin_marketing_csv() -> Any:
     return Response(out, mimetype="text/csv", headers={
         "Content-Disposition": "attachment; filename=marketing_optins.csv"
     })
-            rid = (row.get('request_id') or row.get('id') or '').strip()
-            if not rid:
-                continue
-            try:
-                cost_val = float(row.get('cost_usd') or row.get('amount_usd') or row.get('cost'))
-            except Exception:
-                continue
-            model = (row.get('model') or '').strip() or None
-            ts = None
-            for k in ('timestamp','created_at','time'):
-                v = row.get(k)
-                if v:
-                    try:
-                        ts = datetime.fromisoformat(v.replace('Z','+00:00'))
-                        break
-                    except Exception:
-                        pass
-            existing = ProviderCost.query.filter_by(request_id=rid).first()
-            if existing:
-                existing.cost_usd = cost_val
-                existing.model = model or existing.model
-                existing.usage_at = ts or existing.usage_at
-                updated += 1
-            else:
-                pc = ProviderCost(request_id=rid, model=model, cost_usd=cost_val, usage_at=ts)
-                db.session.add(pc)
-                created += 1
-        db.session.commit()
-        return jsonify({"ok": True, "created": created, "updated": updated})
-    except Exception as exc:
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
-        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @bp.post("/admin/pricing/delete")
