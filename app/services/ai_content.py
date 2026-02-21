@@ -243,6 +243,7 @@ def build_prompt(
             "Tabular Comparison must be CONTEXTUAL to the topic in input_text. Headings should reflect the actual comparison dimension (e.g., 'Pre-COVID' vs 'During/After COVID', 'Developed Markets' vs 'Emerging Markets'). NEVER use 'Traditional vs AI-Driven' unless the topic is explicitly about AI approaches.",
             "For any 'Key Concepts' or concept-focused slide, provide 6–8 distinct topic-derived terms with concise, non-repetitive definitions. Derive terms from the topic and agenda; avoid umbrella words (e.g., 'Overview', 'Concepts'). Do NOT echo the slide title in the bullet text. Do NOT repeat the same template phrase across bullets.",
             "HARD BANS: Do NOT output placeholder content such as headings 'Indicator A', 'Indicator B', or cell values like 'Point 1', 'Point 2', etc. Replace all such placeholders with specific, topic-derived headings and items.",
+            "HARD BANS: Do NOT use placeholder entities like 'Company A', 'Company B', 'Company C', 'Org 1', 'Product X', or similar. If you include case studies/examples, make them concrete and topic-relevant (industry/context + what changed + measurable result).",
             "Infographic uses a concise visual_hint plus a few bullets if helpful.",
             "Key Takeaways: succinct bullets summarizing actionable insights.",
             "Thank You: include optional contact info or CTA in bullets.",

@@ -1645,6 +1645,46 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 seen.add(b2.lower())
         return out[:5]
 
+    def _looks_placeholder_node_label(s: str) -> bool:
+        txt = re.sub(r"\s+", " ", str(s or "").strip())
+        if not txt:
+            return True
+        low = txt.lower()
+        # Common placeholder patterns from LLM outputs
+        if re.match(r"^(company|org|organization|client|vendor|customer|supplier)\s*[a-z]\b", low):
+            return True
+        if re.match(r"^(company|org|organization|client|vendor|customer|supplier)\s*\d+\b", low):
+            return True
+        if re.match(r"^(product|solution|platform)\s*[xyz]\b", low):
+            return True
+        if low in {"company a", "company b", "company c", "company d"}:
+            return True
+        if low in {"example", "example company", "sample", "sample company"}:
+            return True
+        return False
+
+    def _sanitize_infographic_items(title: str, items: List[str]) -> List[str]:
+        clean = [re.sub(r"\s+", " ", str(x or "").strip()) for x in (items or [])]
+        clean = [x for x in clean if x]
+        if not clean:
+            return _synthesize_topic_bullets(title)[:5]
+        placeholder_n = sum(1 for x in clean if _looks_placeholder_node_label(x))
+        # If the majority are placeholders, replace the whole set.
+        if placeholder_n >= max(1, int(len(clean) * 0.6)):
+            return _synthesize_topic_bullets(title)[:5]
+        # Otherwise, only replace placeholder entries.
+        if placeholder_n:
+            synth = _synthesize_topic_bullets(title)
+            it = iter(synth)
+            out2: List[str] = []
+            for x in clean:
+                if _looks_placeholder_node_label(x):
+                    out2.append(next(it, x))
+                else:
+                    out2.append(x)
+            return out2
+        return clean
+
     types = [(_ctype(s) or "") for s in (slides or [])]
     # If any slide carries `_render_exact`, we will not auto-pattern or synthesize
     render_exact = any(bool(getattr(s, "get", lambda *_: None)("_render_exact")) for s in (slides or []))
@@ -1916,10 +1956,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
         
-        # Grid layout: 2x2
-        start_x, start_y = 1.0, 2.0
-        cell_w, cell_h = 5.5, 2.8
-        gap_x, gap_y = 0.8, 0.6
+        # Grid layout: 2x2 (compute to always fit within slide bounds)
+        margin_x = 1.0
+        top_y = 2.05
+        bottom_margin = 0.65
+        gap_x, gap_y = 0.55, 0.45
+
+        avail_w = max(6.0, SLIDE_W_IN - 2 * margin_x)
+        avail_h = max(3.6, SLIDE_H_IN - bottom_margin - top_y)
+        cell_w = max(3.0, (avail_w - gap_x) / 2.0)
+        cell_h = max(1.6, (avail_h - gap_y) / 2.0)
+        start_x, start_y = margin_x, top_y
         
         quadrants = [
             ("strengths", "Strengths", 0, 0),
@@ -1941,14 +1988,35 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             quad_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
             
             # Quadrant title
-            _add_textbox(s, x + 0.15, y + 0.1, cell_w - 0.3, 0.4, label,
-                        font_size_pt=16, bold=True, color=pal["primary"])
+            _add_textbox(
+                s,
+                x + 0.18,
+                y + 0.12,
+                cell_w - 0.36,
+                0.46,
+                label,
+                font_size_pt=18,
+                bold=True,
+                color=pal["primary"],
+                word_wrap=True,
+                auto_fit=True,
+            )
             
             # Bullet points
             if points:
-                bullet_text = "\n".join(f"• {str(p)[:60]}" for p in points[:5])  # Max 5 points, truncate long text
-                _add_textbox(s, x + 0.15, y + 0.5, cell_w - 0.3, cell_h - 0.65, bullet_text,
-                            font_size_pt=11, color=pal["text"])
+                bullet_text = "\n".join(f"• {str(p)[:70]}" for p in points[:6])  # Max 6 points
+                _add_textbox(
+                    s,
+                    x + 0.18,
+                    y + 0.62,
+                    cell_w - 0.36,
+                    max(0.4, cell_h - 0.78),
+                    bullet_text,
+                    font_size_pt=13,
+                    color=pal["text"],
+                    word_wrap=True,
+                    auto_fit=True,
+                )
 
     def _render_kpi(sl) -> None:
         """Render 2-4 KPI metric cards with label, value, and optional caption."""
@@ -2061,10 +2129,16 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
         
-        # Grid layout: 2x2
-        start_x, start_y = 1.0, 2.0
-        cell_w, cell_h = 5.5, 2.5
-        gap_x, gap_y = 0.8, 0.6
+        # Grid layout: 2x2 (compute to always fit within slide bounds)
+        margin_x = 1.0
+        top_y = 2.05
+        bottom_margin = 0.65
+        gap_x, gap_y = 0.55, 0.45
+        avail_w = max(6.0, SLIDE_W_IN - 2 * margin_x)
+        avail_h = max(3.6, SLIDE_H_IN - bottom_margin - top_y)
+        cell_w = max(3.0, (avail_w - gap_x) / 2.0)
+        cell_h = max(1.6, (avail_h - gap_y) / 2.0)
+        start_x, start_y = margin_x, top_y
         
         quadrants = [
             ("low_likelihood_low_impact", "Low Likelihood\nLow Impact", 0, 0, (200, 230, 201)),
@@ -2086,14 +2160,35 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             quad_box.line.color.rgb = RGBColor(*pal.get("text", (71, 71, 71)))
             
             # Quadrant label
-            _add_textbox(s, x + 0.15, y + 0.1, cell_w - 0.3, 0.6, label,
-                        font_size_pt=12, bold=True, color=pal["text"])
+            _add_textbox(
+                s,
+                x + 0.18,
+                y + 0.12,
+                cell_w - 0.36,
+                0.65,
+                label,
+                font_size_pt=13,
+                bold=True,
+                color=pal["text"],
+                word_wrap=True,
+                auto_fit=True,
+            )
             
             # Bullet points
             if points:
-                bullet_text = "\n".join(f"• {str(p)[:50]}" for p in points[:3])  # Max 3 points
-                _add_textbox(s, x + 0.15, y + 0.7, cell_w - 0.3, cell_h - 0.85, bullet_text,
-                            font_size_pt=10, color=pal["text"])
+                bullet_text = "\n".join(f"• {str(p)[:65]}" for p in points[:4])  # Max 4 points
+                _add_textbox(
+                    s,
+                    x + 0.18,
+                    y + 0.78,
+                    cell_w - 0.36,
+                    max(0.4, cell_h - 0.96),
+                    bullet_text,
+                    font_size_pt=12,
+                    color=pal["text"],
+                    word_wrap=True,
+                    auto_fit=True,
+                )
         
         # Axis labels
         _add_textbox(s, start_x + (cell_w + gap_x) * 0.5, start_y - 0.5, cell_w, 0.4, "Impact →",
@@ -3992,7 +4087,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         if not bullets:
             bullets = _synthesize_topic_bullets(title)[:5]
         n = max(3, min(5, len(bullets)))
-        items = bullets[:n]
+        items = _sanitize_infographic_items(title, bullets[:n])
 
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
@@ -4150,7 +4245,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         if not bullets:
             bullets = _synthesize_topic_bullets(title)[:6]
         items = [str(x).strip() for x in (bullets or []) if str(x).strip()]
-        items = items[:6]
+        items = _sanitize_infographic_items(title, items[:6])
         if len(items) < 3:
             items = (items + _synthesize_topic_bullets(title))[:3]
         return (title or "Impact Map"), items, (content or {})
@@ -6540,10 +6635,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
         
-        # Grid layout: 2x2
-        start_x, start_y = 1.0, 2.0
-        cell_w, cell_h = 5.5, 2.8
-        gap_x, gap_y = 0.8, 0.6
+        # Grid layout: 2x2 (compute to always fit within slide bounds)
+        margin_x = 1.0
+        top_y = 2.05
+        bottom_margin = 0.65
+        gap_x, gap_y = 0.55, 0.45
+
+        avail_w = max(6.0, SLIDE_W_IN - 2 * margin_x)
+        avail_h = max(3.6, SLIDE_H_IN - bottom_margin - top_y)
+        cell_w = max(3.0, (avail_w - gap_x) / 2.0)
+        cell_h = max(1.6, (avail_h - gap_y) / 2.0)
+        start_x, start_y = margin_x, top_y
         
         quadrants = [
             ("strengths", "Strengths", 0, 0),
@@ -6565,14 +6667,35 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             quad_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
             
             # Quadrant title
-            _add_textbox(s, x + 0.15, y + 0.1, cell_w - 0.3, 0.4, label,
-                        font_size_pt=16, bold=True, color=pal["primary"])
+            _add_textbox(
+                s,
+                x + 0.18,
+                y + 0.12,
+                cell_w - 0.36,
+                0.46,
+                label,
+                font_size_pt=18,
+                bold=True,
+                color=pal["primary"],
+                word_wrap=True,
+                auto_fit=True,
+            )
             
             # Bullet points
             if points:
-                bullet_text = "\n".join(f"• {str(p)[:60]}" for p in points[:5])  # Max 5 points, truncate long text
-                _add_textbox(s, x + 0.15, y + 0.5, cell_w - 0.3, cell_h - 0.65, bullet_text,
-                            font_size_pt=11, color=pal["text"], word_wrap=True, auto_fit=True)
+                bullet_text = "\n".join(f"• {str(p)[:70]}" for p in points[:6])  # Max 6 points
+                _add_textbox(
+                    s,
+                    x + 0.18,
+                    y + 0.62,
+                    cell_w - 0.36,
+                    max(0.4, cell_h - 0.78),
+                    bullet_text,
+                    font_size_pt=13,
+                    color=pal["text"],
+                    word_wrap=True,
+                    auto_fit=True,
+                )
 
     def _render_kpi(sl) -> None:
         """Render 2-4 KPI metric cards with label, value, and optional caption."""
@@ -6685,10 +6808,16 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
         
-        # Grid layout: 2x2
-        start_x, start_y = 1.0, 2.0
-        cell_w, cell_h = 5.5, 2.5
-        gap_x, gap_y = 0.8, 0.6
+        # Grid layout: 2x2 (compute to always fit within slide bounds)
+        margin_x = 1.0
+        top_y = 2.05
+        bottom_margin = 0.65
+        gap_x, gap_y = 0.55, 0.45
+        avail_w = max(6.0, SLIDE_W_IN - 2 * margin_x)
+        avail_h = max(3.6, SLIDE_H_IN - bottom_margin - top_y)
+        cell_w = max(3.0, (avail_w - gap_x) / 2.0)
+        cell_h = max(1.6, (avail_h - gap_y) / 2.0)
+        start_x, start_y = margin_x, top_y
         
         quadrants = [
             ("low_likelihood_low_impact", "Low Likelihood\nLow Impact", 0, 0, (200, 230, 201)),
@@ -6710,14 +6839,35 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             quad_box.line.color.rgb = RGBColor(*pal.get("text", (71, 71, 71)))
             
             # Quadrant label
-            _add_textbox(s, x + 0.15, y + 0.1, cell_w - 0.3, 0.6, label,
-                        font_size_pt=12, bold=True, color=pal["text"], word_wrap=True)
+            _add_textbox(
+                s,
+                x + 0.18,
+                y + 0.12,
+                cell_w - 0.36,
+                0.65,
+                label,
+                font_size_pt=13,
+                bold=True,
+                color=pal["text"],
+                word_wrap=True,
+                auto_fit=True,
+            )
             
             # Bullet points
             if points:
-                bullet_text = "\n".join(f"• {str(p)[:50]}" for p in points[:3])  # Max 3 points
-                _add_textbox(s, x + 0.15, y + 0.7, cell_w - 0.3, cell_h - 0.85, bullet_text,
-                            font_size_pt=10, color=pal["text"], word_wrap=True, auto_fit=True)
+                bullet_text = "\n".join(f"• {str(p)[:65]}" for p in points[:4])  # Max 4 points
+                _add_textbox(
+                    s,
+                    x + 0.18,
+                    y + 0.78,
+                    cell_w - 0.36,
+                    max(0.4, cell_h - 0.96),
+                    bullet_text,
+                    font_size_pt=12,
+                    color=pal["text"],
+                    word_wrap=True,
+                    auto_fit=True,
+                )
         
         # Axis labels
         _add_textbox(s, start_x + (cell_w + gap_x) * 0.5, start_y - 0.5, cell_w, 0.4, "Impact →",
