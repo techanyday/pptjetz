@@ -16,12 +16,15 @@ MAX_TOKENS_TABLE_HEADERS = int(os.getenv("MAX_TOKENS_TABLE_HEADERS", "96"))
 MAX_TOKENS_EXPORT_COMPARISON = int(os.getenv("MAX_TOKENS_EXPORT_COMPARISON", "220"))
 MAX_TOKENS_ONE_IDEA_INTRO = int(os.getenv("MAX_TOKENS_ONE_IDEA_INTRO", "96"))
 MAX_TOKENS_RETRY = int(os.getenv("MAX_TOKENS_RETRY", "900"))
+MAX_TOKENS_QUALITY = int(os.getenv("MAX_TOKENS_QUALITY", "900"))
 ENABLE_TABLE_HEADER_AI = os.getenv("ENABLE_TABLE_HEADER_AI", "0") == "1"
 ENABLE_LLM_RETRY = os.getenv("ENABLE_LLM_RETRY", "0") == "1"
 ENABLE_EXPORT_BULLETS_AI = os.getenv("ENABLE_EXPORT_BULLETS_AI", "1") == "1"
 ENABLE_EXPORT_COMPARISON_AI = os.getenv("ENABLE_EXPORT_COMPARISON_AI", "0") == "1"
 ENABLE_EXPORT_ONE_IDEA_AI = os.getenv("ENABLE_EXPORT_ONE_IDEA_AI", "1") == "1"
 ENABLE_LLM_HARMONIZE = os.getenv("ENABLE_LLM_HARMONIZE", "1") == "1"
+ENABLE_LLM_QUALITY_ENHANCER = os.getenv("ENABLE_LLM_QUALITY_ENHANCER", "1") == "1"
+QUALITY_MAX_RETRIES = int(os.getenv("QUALITY_MAX_RETRIES", "2"))
 
 
 def _themes_palette() -> dict[str, dict[str, str]]:
@@ -231,6 +234,7 @@ def build_prompt(
             "Title must be concise, compelling, and derived from the input_text. Do NOT repeat the input verbatim; rewrite as a strong presentation title. NEVER use generic titles like 'Generated Presentation', 'Presentation', or 'Overview'.",
             "Agenda: YOU must create the agenda (outline) from the topic/input_text; do NOT ask the user for an outline. It must reflect the main sections/topics you will cover and avoid generic labels like slide-type names.",
             "Bullets must be non-duplicative, 4–14 words, informative, and TOPIC-SPECIFIC. Avoid generic boilerplate such as 'leveraging X to improve KPIs'.",
+            "Write executive-ready content: specific mechanisms, impacts, and tradeoffs. Avoid vague claims (e.g., 'critical', 'accelerated', 'important') unless you add a short 'because/so-what' clause.",
             "For slides after the Agenda, prefer rich visual types (cards, comparison/table, infographic, timeline, roadmap, swot, kpi, risk_matrix, before_after, architecture, pricing) over plain bullets.",
             "Use type 'bullets' ONLY for the Agenda slide and as a last-resort fallback when no other slide type fits.",
             "COHERENCE & ORDER: All slides after the agenda MUST map to the agenda bullets in sequence. Use contiguous blocks per agenda item (you may use 1+ slides per item, but do not reorder).",
@@ -245,13 +249,14 @@ def build_prompt(
             "HARD BANS: Do NOT output placeholder content such as headings 'Indicator A', 'Indicator B', or cell values like 'Point 1', 'Point 2', etc. Replace all such placeholders with specific, topic-derived headings and items.",
             "HARD BANS: Do NOT use placeholder entities like 'Company A', 'Company B', 'Company C', 'Org 1', 'Product X', or similar. If you include case studies/examples, make them concrete and topic-relevant (industry/context + what changed + measurable result).",
             "Infographic uses a concise visual_hint plus a few bullets if helpful.",
-            "Key Takeaways: succinct bullets summarizing actionable insights.",
+            "Key Takeaways: 4–6 takeaways; each must include a short supporting clause (use '—' or ':'), and at least half should be actionable (what to do next).",
             "Thank You: include optional contact info or CTA in bullets.",
             "Cards: use content.cards as an array of 4-8 short stage labels (process/steps).",
             "Comparison/Table: use content.table with left/right objects each containing heading and points (4-8 points).",
             "Timeline: use content.timeline = [{label, description, date_range?}] with 4-6 items.",
+            "Timeline intent: labels must be named phases (not '1', '2', '3'). Each description must explain what changes and why it matters.",
             "Roadmap: use content.phases = [{label, description, date_range?}] with 4-6 items (or content.timeline in the same structure if you already used that key).",
-            "SWOT: use content.strengths/weaknesses/opportunities/threats each as {points:[...]} with at least 2 non-empty quadrants.",
+            "SWOT: use content.strengths/weaknesses/opportunities/threats each as {points:[...]} with 2-4 points per quadrant when possible; points must clearly match the quadrant intent.",
             "KPI: use content.metrics = [{label, value, caption?}] with 2-4 items.",
             "Risk Matrix: use content.low_likelihood_low_impact/low_likelihood_high_impact/high_likelihood_low_impact/high_likelihood_high_impact each as {points:[...]} with at least 2 non-empty quadrants.",
             "Before/After: use content.before and content.after each as {heading, points:[...]} with >=3 points per side.",
@@ -446,6 +451,49 @@ def create_deck_slides(
     except Exception:
         pass
 
+    try:
+        slides = _clamp_slide_content(slides)
+    except Exception:
+        pass
+
+    try:
+        q_issues = _content_quality_issues(slides)
+    except Exception:
+        q_issues = []
+
+    if q_issues and ENABLE_LLM_QUALITY_ENHANCER:
+        try:
+            retries = max(0, min(2, int(QUALITY_MAX_RETRIES or 0)))
+        except Exception:
+            retries = 2
+        for _attempt in range(retries):
+            try:
+                slides2 = _ai_enhance_content_quality(
+                    client=client,
+                    system_msg=messages[0]["content"],
+                    deck_title=title,
+                    input_text=input_text,
+                    slides=slides,
+                    issues=q_issues,
+                    deck_id=deck_id,
+                    user_id=user_id,
+                )
+                if slides2:
+                    slides = slides2
+                try:
+                    slides = _harmonize_titles_to_agenda(slides)
+                except Exception:
+                    pass
+                try:
+                    slides = _clamp_slide_content(slides)
+                except Exception:
+                    pass
+                q_issues = _content_quality_issues(slides)
+                if not q_issues:
+                    break
+            except Exception:
+                break
+
     if os.getenv("SLIDE_DEBUG", "0") == "1":
         try:
             import logging
@@ -507,6 +555,316 @@ def create_deck_slides(
         except Exception as exc:  # noqa: BLE001
             return slides, [f"Retry warning: {exc}"]
     return slides, []
+
+
+def _clamp_slide_content(slides: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    import re
+
+    def _clamp_words(text: str, *, max_words: int) -> str:
+        t = re.sub(r"\s+", " ", str(text or "").strip())
+        if not t:
+            return ""
+        parts = t.split(" ")
+        if len(parts) <= max_words:
+            return t
+        cut = " ".join(parts[:max_words]).rstrip(",.;:- ")
+        return (cut + "…") if cut else t
+
+    def _clamp_list(lst: Any, *, max_n: int, max_words: int) -> List[str]:
+        if not isinstance(lst, list):
+            return []
+        out: List[str] = []
+        for x in lst:
+            s = _clamp_words(str(x or ""), max_words=max_words)
+            if s:
+                out.append(s)
+            if len(out) >= max_n:
+                break
+        return out
+
+    def _ctype(sl: Dict[str, Any]) -> str:
+        return str(sl.get("type") or "").strip().lower()
+
+    out_slides: List[Dict[str, Any]] = []
+    for s in (slides or []):
+        if not isinstance(s, dict):
+            continue
+        ss = dict(s)
+        t = _ctype(ss)
+        c = ss.get("content")
+        if not isinstance(c, dict):
+            c = {}
+        if isinstance(c.get("bullets"), list):
+            c["bullets"] = _clamp_list(c.get("bullets"), max_n=10, max_words=24)
+        if isinstance(c.get("cards"), list):
+            c["cards"] = _clamp_list(c.get("cards"), max_n=8, max_words=10)
+        if isinstance(c.get("left_points"), list):
+            c["left_points"] = _clamp_list(c.get("left_points"), max_n=8, max_words=18)
+        if isinstance(c.get("right_points"), list):
+            c["right_points"] = _clamp_list(c.get("right_points"), max_n=8, max_words=18)
+
+        if t in {"timeline", "roadmap"}:
+            tl = c.get("timeline")
+            if isinstance(tl, list):
+                new_tl: List[Dict[str, str]] = []
+                for it in tl[:6]:
+                    if isinstance(it, dict):
+                        lab = _clamp_words(str(it.get("label") or it.get("title") or ""), max_words=7)
+                        desc = _clamp_words(str(it.get("description") or ""), max_words=22)
+                        dr = _clamp_words(str(it.get("date_range") or ""), max_words=6)
+                        obj: Dict[str, str] = {"label": lab, "description": desc}
+                        if dr:
+                            obj["date_range"] = dr
+                        if lab or desc:
+                            new_tl.append(obj)
+                    else:
+                        txt = _clamp_words(str(it or ""), max_words=22)
+                        if txt:
+                            new_tl.append({"label": txt[:40], "description": ""})
+                if new_tl:
+                    c["timeline"] = new_tl
+            ph = c.get("phases")
+            if isinstance(ph, list):
+                new_ph: List[Dict[str, str]] = []
+                for it in ph[:6]:
+                    if isinstance(it, dict):
+                        lab = _clamp_words(str(it.get("label") or it.get("title") or ""), max_words=7)
+                        desc = _clamp_words(str(it.get("description") or ""), max_words=22)
+                        dr = _clamp_words(str(it.get("date_range") or ""), max_words=6)
+                        obj2: Dict[str, str] = {"label": lab, "description": desc}
+                        if dr:
+                            obj2["date_range"] = dr
+                        if lab or desc:
+                            new_ph.append(obj2)
+                if new_ph:
+                    c["phases"] = new_ph
+
+        if t == "swot":
+            for k in ("strengths", "weaknesses", "opportunities", "threats"):
+                q = c.get(k)
+                if isinstance(q, dict) and isinstance(q.get("points"), list):
+                    q2 = dict(q)
+                    q2["points"] = _clamp_list(q2.get("points"), max_n=6, max_words=18)
+                    c[k] = q2
+
+        ss["content"] = c
+        out_slides.append(ss)
+    return out_slides
+
+
+def _content_quality_issues(slides: List[Dict[str, Any]]) -> List[str]:
+    import re
+
+    def _ctype(sl: Dict[str, Any]) -> str:
+        return str(sl.get("type") or "").strip().lower()
+
+    def _content(sl: Dict[str, Any]) -> Dict[str, Any]:
+        c = sl.get("content")
+        return c if isinstance(c, dict) else {}
+
+    def _as_list(v: Any) -> List[str]:
+        if not isinstance(v, list):
+            return []
+        out: List[str] = []
+        for x in v:
+            s = re.sub(r"\s+", " ", str(x or "").strip())
+            if s:
+                out.append(s)
+        return out
+
+    def _is_numeric_label(s: str) -> bool:
+        s2 = str(s or "").strip()
+        return bool(re.fullmatch(r"\d+", s2))
+
+    def _looks_step_placeholder(s: str) -> bool:
+        low = re.sub(r"\s+", " ", str(s or "").strip()).lower()
+        if not low:
+            return True
+        if _is_numeric_label(low):
+            return True
+        if re.fullmatch(r"step\s*\d+", low):
+            return True
+        if re.fullmatch(r"phase\s*\d+", low):
+            return True
+        if re.fullmatch(r"stage\s*\d+", low):
+            return True
+        return False
+
+    def _is_generic_line(line: str) -> bool:
+        low = re.sub(r"\s+", " ", str(line or "").strip()).lower()
+        if not low:
+            return True
+        wc = len(re.findall(r"[a-zA-Z]+", low))
+        if wc <= 3:
+            return True
+        if ("—" not in low) and (":" not in low) and wc <= 6:
+            if any(w in low for w in ["critical", "important", "significant", "accelerat", "key", "uneven"]):
+                return True
+        if any(w in low for w in ["leverage", "optimize", "synergy", "streamline", "enhance", "drive kpi", "improve kpi"]):
+            return True
+        return False
+
+    issues: List[str] = []
+
+    for idx, sl in enumerate(slides or [], start=1):
+        if not isinstance(sl, dict):
+            continue
+        t = _ctype(sl)
+        c = _content(sl)
+
+        if t in {"title", "agenda", "thank_you", "cta"}:
+            continue
+
+        if t == "timeline":
+            tl = c.get("timeline")
+            if not isinstance(tl, list) or len(tl) < 4:
+                issues.append(f"Slide {idx}: timeline requires 4–6 phases")
+            else:
+                bad = 0
+                for it in tl[:6]:
+                    if isinstance(it, dict):
+                        lab = str(it.get("label") or it.get("title") or "").strip()
+                        desc = str(it.get("description") or "").strip()
+                        if not lab or _is_numeric_label(lab):
+                            bad += 1
+                        if not desc or len(re.findall(r"[a-zA-Z]+", desc)) < 4:
+                            bad += 1
+                    else:
+                        bad += 1
+                if bad >= 2:
+                    issues.append(f"Slide {idx}: timeline phases need named labels and descriptions")
+
+        if t == "key_takeaways":
+            bullets = _as_list(c.get("bullets"))
+            if len(bullets) < 4:
+                issues.append(f"Slide {idx}: key_takeaways needs 4–6 takeaways")
+            else:
+                no_support = sum(1 for b in bullets if ("—" not in b and ":" not in b))
+                if no_support > max(1, int(len(bullets) * 0.5)):
+                    issues.append(f"Slide {idx}: key_takeaways bullets need a supporting clause (— or :)")
+                gen = sum(1 for b in bullets if _is_generic_line(b))
+                if gen > max(1, int(len(bullets) * 0.4)):
+                    issues.append(f"Slide {idx}: key_takeaways too generic")
+
+        if t == "swot":
+            for k in ("strengths", "weaknesses", "opportunities", "threats"):
+                q = c.get(k)
+                pts: List[str] = []
+                if isinstance(q, dict):
+                    pts = _as_list(q.get("points"))
+                if len(pts) < 2:
+                    issues.append(f"Slide {idx}: swot quadrant '{k}' needs 2–4 bullets")
+
+        if t in {"bullets", "infographic"}:
+            bullets = _as_list(c.get("bullets"))
+            if len(bullets) < 3:
+                issues.append(f"Slide {idx}: list slide is too scanty")
+            else:
+                gen = sum(1 for b in bullets if _is_generic_line(b))
+                if gen > max(1, int(len(bullets) * 0.4)):
+                    issues.append(f"Slide {idx}: bullets are too generic")
+                # Timeline placeholders sometimes appear as numbered lists
+                stepish = sum(1 for b in bullets if _looks_step_placeholder(b))
+                if stepish >= max(2, int(len(bullets) * 0.6)) and ("timeline" in (str(sl.get("title") or "").lower()) or "phase" in " ".join(bullets).lower()):
+                    issues.append(f"Slide {idx}: list slide looks like a placeholder timeline")
+
+        if t in {"cards", "card", "card_style", "process_timeline_alt"}:
+            cards = _as_list(c.get("cards"))
+            if len(cards) < 4:
+                issues.append(f"Slide {idx}: cards slide needs 4–8 steps")
+            else:
+                placeholder = sum(1 for x in cards if _looks_step_placeholder(x))
+                if placeholder >= max(2, int(len(cards) * 0.6)):
+                    issues.append(f"Slide {idx}: cards contain placeholder step labels")
+
+        if t in {"double_column", "deep_dive"}:
+            lp = _as_list(c.get("left_points"))
+            rp = _as_list(c.get("right_points"))
+            if (len(lp) + len(rp)) < 6:
+                issues.append(f"Slide {idx}: double_column should have richer density")
+
+        if t in {"comparison", "table"}:
+            tbl = c.get("table")
+            left_pts: List[str] = []
+            right_pts: List[str] = []
+            if isinstance(tbl, dict):
+                left = tbl.get("left") if isinstance(tbl.get("left"), dict) else {}
+                right = tbl.get("right") if isinstance(tbl.get("right"), dict) else {}
+                left_pts = _as_list((left or {}).get("points"))
+                right_pts = _as_list((right or {}).get("points"))
+            if (len(left_pts) + len(right_pts)) < 4:
+                issues.append(f"Slide {idx}: comparison/table needs 4–8 paired points")
+
+    return issues
+
+
+def _ai_enhance_content_quality(
+    *,
+    client: Any,
+    system_msg: str,
+    deck_title: str,
+    input_text: str,
+    slides: List[Dict[str, Any]],
+    issues: List[str],
+    deck_id: str | None = None,
+    user_id: str | None = None,
+) -> List[Dict[str, Any]] | None:
+    import json
+
+    sys = system_msg or "You are a senior presentation editor. Output ONLY valid JSON; no prose."
+    payload = {
+        "task": "Improve content quality to be executive-ready while keeping the deck structure unchanged.",
+        "deck_title": (deck_title or "").strip(),
+        "input_text": (input_text or "").strip(),
+        "issues": list(issues or []),
+        "rules": [
+            "Return ONLY a JSON array of slides.",
+            "Keep the same number of slides, in the same order.",
+            "Do NOT change slide types. For each index i, output slide[i].type exactly as the input slide[i].type.",
+            "Do NOT add or remove slides.",
+            "Improve density and specificity; remove placeholder content.",
+            "Avoid generic consultant-speak; be concrete and topic-specific.",
+            "Timeline: 4–6 phases with named labels (not numbers) and a short description explaining what changes and why it matters.",
+            "Key Takeaways: 4–6 items; each with a supporting clause using '—' or ':'; at least half actionable.",
+            "SWOT: each quadrant has 2–4 bullets; ensure bullets match quadrant intent.",
+            "List slides: 4–7 bullets typical; avoid 1–2 bullet slides unless it's title/closing.",
+            "Bullets must be informative and specific; if you use 'critical/accelerated/important', add a 'because/so-what' clause.",
+            "Keep bullets concise (roughly 8–22 words).",
+        ],
+        "slides": slides,
+    }
+    try:
+        resp = client.chat.completions.create(
+            model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": sys},
+                {"role": "user", "content": _json_dump(payload)},
+            ],
+            temperature=0.2,
+            max_tokens=MAX_TOKENS_QUALITY,
+        )
+        _log_llm_call(
+            resp=resp,
+            model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
+            route="quality_enhancer",
+            deck_id=deck_id,
+            export_id=deck_id,
+            user_id=user_id,
+        )
+        raw = (resp.choices[0].message.content or "").strip()
+        edited, err = _parse_json_array(raw)
+        if err or not isinstance(edited, list):
+            return None
+        if len(edited) != len(slides):
+            return None
+        for i in range(min(len(edited), len(slides))):
+            a = edited[i] if isinstance(edited[i], dict) else {}
+            b = slides[i] if isinstance(slides[i], dict) else {}
+            if str(a.get("type") or "").strip().lower() != str(b.get("type") or "").strip().lower():
+                return None
+        return edited
+    except Exception:
+        return None
 
 
 # ----------------------
