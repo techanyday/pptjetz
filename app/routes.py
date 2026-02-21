@@ -2277,8 +2277,12 @@ def _export_presentation_impl() -> Any:
                     continue
 
                 if out_type not in allowed_types_attempt:
-                    last_err = f"Invalid type '{out_type}' (not in allowed_types for this attempt)"
-                    continue
+                    # Second attempt is best-effort: we steer the model away from overused types by narrowing
+                    # allowed_types_attempt, but we should not hard-fail export if it still picks a globally
+                    # allowed type (e.g., double_column). Treat as acceptable on attempt 1.
+                    if attempt == 0:
+                        last_err = f"Invalid type '{out_type}' (not in allowed_types for this attempt)"
+                        continue
 
                 out: Dict[str, Any] = {"type": out_type, "confidence": conf_v}
 
