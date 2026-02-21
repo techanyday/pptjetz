@@ -113,7 +113,7 @@
     let data = {};
     try { data = await resp.json(); } catch(e) { data = {}; }
     if (!resp.ok || !data || data.ok === false) {
-      const msg = (data && (data.error || data.details)) || `Request failed (${resp.status})`;
+      const msg = (data && (data.error || data.details)) || `Request failed (${resp.status} ${resp.statusText || ''})`;
       throw new Error(msg);
     }
     return data;
@@ -124,7 +124,7 @@
     let data = {};
     try { data = await resp.json(); } catch(e) { data = {}; }
     if (!resp.ok || !data || data.ok === false) {
-      const msg = (data && (data.error || data.details)) || `Request failed (${resp.status})`;
+      const msg = (data && (data.error || data.details)) || `Request failed (${resp.status} ${resp.statusText || ''})`;
       throw new Error(msg);
     }
     return data;
@@ -138,24 +138,40 @@
 
       if (theme) {
         setStatus('Updating theme...');
-        await postJson(`/api/decks/${deckId}/theme`, { theme_name: theme });
+        try {
+          await postJson(`/api/decks/${deckId}/theme`, { theme_name: theme });
+        } catch (e) {
+          throw new Error(`Theme update failed: ${e && e.message ? e.message : 'Request failed'}`);
+        }
       }
 
       setStatus('Building PPTX...');
-      await postJson('/export', { deck_id: deckId, theme_name: theme || undefined, no_log: true });
+      try {
+        await postJson('/export', { deck_id: deckId, theme_name: theme || undefined, no_log: true });
+      } catch (e) {
+        throw new Error(`Export failed: ${e && e.message ? e.message : 'Request failed'}`);
+      }
 
       setStatus('Rendering PDF...');
       setStatus('Rendering slide images...');
       const q = new URLSearchParams();
       q.set('refresh', '1');
       if (theme) q.set('theme', theme);
-      await getJson(`/api/previews/${deckId}?` + q.toString());
+      try {
+        await getJson(`/api/previews/${deckId}?` + q.toString());
+      } catch (e) {
+        throw new Error(`Preview render start failed: ${e && e.message ? e.message : 'Request failed'}`);
+      }
 
       const q2 = new URLSearchParams();
       if (theme) q2.set('theme', theme);
       let previews = null;
       for (let i = 0; i < 90; i++) {
-        previews = await getJson(`/api/previews/${deckId}?` + q2.toString());
+        try {
+          previews = await getJson(`/api/previews/${deckId}?` + q2.toString());
+        } catch (e) {
+          throw new Error(`Preview polling failed: ${e && e.message ? e.message : 'Request failed'}`);
+        }
         if (previews && previews.status === 'processing') {
           setStatus('Rendering slide images...');
           await new Promise(r => setTimeout(r, 1500));
