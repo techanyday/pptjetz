@@ -1524,12 +1524,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
       - Thank You slide (last)
     Does NOT add Background/Evolution unless present in the outline.
     """
-    # DEBUG: Log what slides this function receives
-    try:
-        slide_types = [s.get("type", "unknown") for s in slides]
-        print(f"DEBUG: build_pptx_from_slides received slide types: {slide_types}")
-    except Exception:
-        pass
+    SLIDE_DEBUG = os.getenv("SLIDE_DEBUG", "0") == "1"
+    if SLIDE_DEBUG:
+        try:
+            slide_types = [s.get("type", "unknown") for s in slides]
+            print(f"slide_debug:render_input slide_types={slide_types}")
+        except Exception:
+            pass
     
     prs = Presentation()
     prs.slide_width = Inches(SLIDE_W_IN)
@@ -5877,10 +5878,23 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     except Exception:
         pass
 
-    for sl in slides_norm:
+    for idx, sl in enumerate(slides_norm, start=1):
         t = _ctype(sl)
-        print(f"DEBUG: Processing slide type: {t}")
-        print(f"DEBUG: Slide object: {sl}")
+        title_dbg = ""
+        try:
+            title_dbg = str(sl.get("title") or "").strip()
+        except Exception:
+            title_dbg = ""
+        if SLIDE_DEBUG:
+            try:
+                fb_from = sl.get("_fallback_from")
+                fb_to = sl.get("_fallback_to")
+                fb_reason = sl.get("_fallback_reason")
+                print(
+                    f"slide_debug:dispatch idx={idx} title={title_dbg!r} type={t} renderer=? fallback_from={fb_from} fallback_to={fb_to} reason={fb_reason}"
+                )
+            except Exception:
+                pass
         # Force replacement: any slide carrying a 'cards' array should render as a horizontal process timeline
         try:
             cards_arr = _content(sl).get("cards")
@@ -5902,8 +5916,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         except Exception:
             pass
         if t == "title":
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=render_title")
             render_title(sl)
         elif t == "agenda":
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=render_agenda")
             # Render Agenda
             render_agenda(sl)
             # Conditionally insert Timeline slide immediately after Agenda
@@ -5929,14 +5947,24 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 else:
                     render_timeline_vertical(title_txt, pts, topic_title)
         elif t == "one_idea":
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=render_one_idea")
             render_one_idea(sl)
         elif t in {"double_column", "deep_dive"}:
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=render_double")
             render_double(sl)
         elif t in {"comparison", "table"}:
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=render_table")
             render_table(sl)
         elif t in {"infographic", "key_takeaways"}:
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=render_infographic")
             render_infographic(sl)
         elif t in {"cards", "card", "card_style", "process_timeline_alt"}:
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=render_process_variant")
             # Use the rotation for all process-like slide requests so all styles, including bubbles, appear
             c = _content(sl)
             stages = [str(x).strip() for x in (c.get("cards") or c.get("bullets") or []) if str(x).strip()]
@@ -5953,41 +5981,84 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 else:
                     render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
         elif t == "timeline":
-            print(f"DEBUG: Rendering timeline slide with content: {_content(sl)}")
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=_render_timeline")
             _render_timeline(sl)
         elif t == "roadmap":
-            print(f"DEBUG: Rendering roadmap slide with content: {_content(sl)}")
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=_render_roadmap_wrapper")
             _render_roadmap_wrapper(sl)
         elif t == "swot":
-            print(f"DEBUG: Rendering swot slide with content: {_content(sl)}")
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=_render_swot_wrapper")
             _render_swot_wrapper(sl)
         elif t == "kpi":
-            print(f"DEBUG: Rendering kpi slide with content: {_content(sl)}")
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=_render_kpi_wrapper")
             _render_kpi_wrapper(sl)
         elif t == "pricing":
-            print(f"DEBUG: Rendering pricing slide with content: {_content(sl)}")
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=_render_pricing_wrapper")
             _render_pricing_wrapper(sl)
         elif t == "risk_matrix":
-            print(f"DEBUG: Rendering risk_matrix slide with content: {_content(sl)}")
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=_render_risk_matrix_wrapper")
             _render_risk_matrix_wrapper(sl)
         elif t == "before_after":
-            print(f"DEBUG: Rendering before_after slide with content: {_content(sl)}")
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=_render_before_after_wrapper")
             _render_before_after_wrapper(sl)
         elif t == "architecture":
-            print(f"DEBUG: Rendering architecture slide with content: {_content(sl)}")
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=_render_architecture_wrapper")
             _render_architecture_wrapper(sl)
         elif t in {"impact_effort_matrix", "impact_matrix", "prioritization_matrix"}:
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=_render_impact_effort_matrix_wrapper")
             _render_impact_effort_matrix_wrapper(sl)
         elif t in {"thank_you", "cta"}:
             # skip for now; rendered at end to guarantee last
-            print(f"DEBUG: Skipping {t} slide")
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=skip_thanks")
             continue
+        elif t == "bullets":
+            if SLIDE_DEBUG:
+                print(f"slide_debug:renderer idx={idx} type={t} renderer=render_bullets")
+            render_bullets(sl)
         else:
-            print(f"DEBUG: Fallback to bullets for unknown type: {t}")
-            # Fallback: bullets slide if bullets available
-            if _content(sl).get("bullets"):
-                render_bullets(sl)
-            # Ignore unsupported types silently
+            fb_to = None
+            try:
+                fb_to = str(sl.get("_fallback_to") or "").strip().lower() or None
+            except Exception:
+                fb_to = None
+
+            if SLIDE_DEBUG:
+                raise ValueError(f"Unknown/unsupported slide type '{t}' for slide idx={idx} title={title_dbg!r}")
+
+            # Non-debug: only fall back when finalizer explicitly recorded a fallback.
+            if fb_to in {"bullets", "cards", "double_column", "comparison", "table", "infographic", "key_takeaways"}:
+                sl2 = dict(sl)
+                sl2["type"] = fb_to
+                if fb_to in {"cards"}:
+                    # allow downstream existing cards routing
+                    c = _content(sl2)
+                    if "cards" not in c and c.get("bullets"):
+                        c["cards"] = c.get("bullets")
+                        sl2["content"] = c
+                if fb_to in {"bullets"}:
+                    render_bullets(sl2)
+                elif fb_to in {"double_column", "deep_dive"}:
+                    render_double(sl2)
+                elif fb_to in {"comparison", "table"}:
+                    render_table(sl2)
+                elif fb_to in {"infographic", "key_takeaways"}:
+                    render_infographic(sl2)
+                else:
+                    # cards/process types
+                    c = _content(sl2)
+                    stages = [str(x).strip() for x in (c.get("cards") or c.get("bullets") or []) if str(x).strip()]
+                    render_process_variant((sl2.get("title") or "Process"), stages, topic_src=(sl2.get("title") or ""))
+            # Otherwise: skip silently (prevents surprise plain bullet slides)
 
     # --- Smart Infographic Summary (rotate among 4 templates) ---
     def _collect_summary_from_slides(sl_list: List[Dict[str, Any]]) -> List[str]:

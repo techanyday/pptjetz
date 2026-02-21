@@ -44,4 +44,3 @@ huggingface_hub>=0.23.0
 torch>=2.2.0
 # Audio I/O for transformers ASR when reading wav files
 soundfile>=0.12.1
-psycopg2-binary==2.9.9

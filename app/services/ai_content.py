@@ -354,6 +354,29 @@ def create_deck_slides(
         return [], [err]
     if not isinstance(slides, list):
         return [], ["AI did not return a JSON array"]
+
+    if os.getenv("SLIDE_DEBUG", "0") == "1":
+        try:
+            import logging
+            log = logging.getLogger(__name__)
+            for i, s in enumerate(slides, start=1):
+                if not isinstance(s, dict):
+                    log.info("slide_debug:ai_parsed idx=%s non_dict=%s", i, type(s).__name__)
+                    continue
+                t = str(s.get("type") or "").strip().lower() or "(missing)"
+                title = str(s.get("title") or "").strip()
+                c = s.get("content")
+                keys = sorted(list(c.keys())) if isinstance(c, dict) else (["<list>"] if isinstance(c, list) else (["<str>"] if isinstance(c, str) else []))
+                log.info(
+                    "slide_debug:ai_parsed idx=%s title=%r type=%s content_keys=%s _render_exact=%s",
+                    i,
+                    title,
+                    t,
+                    keys,
+                    bool(s.get("_render_exact")),
+                )
+        except Exception:
+            pass
     # Ensure a strong, non-generic Title slide at index 0 using AI refinement if needed
     try:
         slides = _ensure_title_slide(
@@ -379,6 +402,29 @@ def create_deck_slides(
         slides = _harmonize_titles_to_agenda(slides)
     except Exception:
         pass
+
+    if os.getenv("SLIDE_DEBUG", "0") == "1":
+        try:
+            import logging
+            log = logging.getLogger(__name__)
+            for i, s in enumerate(slides, start=1):
+                if not isinstance(s, dict):
+                    log.info("slide_debug:ai_post idx=%s non_dict=%s", i, type(s).__name__)
+                    continue
+                t = str(s.get("type") or "").strip().lower() or "(missing)"
+                title = str(s.get("title") or "").strip()
+                c = s.get("content")
+                keys = sorted(list(c.keys())) if isinstance(c, dict) else (["<list>"] if isinstance(c, list) else (["<str>"] if isinstance(c, str) else []))
+                log.info(
+                    "slide_debug:ai_post idx=%s title=%r type=%s content_keys=%s _render_exact=%s",
+                    i,
+                    title,
+                    t,
+                    keys,
+                    bool(s.get("_render_exact")),
+                )
+        except Exception:
+            pass
     # Post-check quality and coherency; perform one corrective retry if enabled
     issues, agenda = _quality_issues(slides)
     # Post-pass: AI harmonization of titles/bullets to agenda and topic

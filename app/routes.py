@@ -34,6 +34,7 @@ from app.services.ai_content import create_deck_slides, derive_topic_bullets, EN
 # Preview PNG generation is removed; only PPTX export remains
 from app.services.pptx_builder import build_pptx_from_positions, build_pptx_from_slides
 from app.services.preview import export_all_previews, _find_soffice, _soffice_diagnostics
+from app.services.slide_finalizer import finalize_slides, debug_log_slides
 from app import db
 from app.models import User, BlogPost, Pricing, LLMCall, ProviderCost
 from app.presentation_log import PresentationLog
@@ -615,6 +616,8 @@ def generate() -> Any:
     if errors or not slides:
         return jsonify({"ok": False, "errors": errors or ["No slides generated"]}), 422
 
+    debug_log_slides("ai_raw", slides)
+
     # Multi-page change: persist slides and return deck_id + redirect URL
     # deck_id already created earlier for logging
     
@@ -748,7 +751,9 @@ def generate() -> Any:
     deck_title = derive_deck_title(slides) or "Generated Presentation"
 
     deck_obj = {
+        "deck_id": deck_id,
         "slides": slides,
+        "slides_out": finalize_slides(slides, stage="post_generate"),
         "theme_name": theme_name,
         "deck_title": deck_title,
         "input_text": input_text,
@@ -1255,7 +1260,7 @@ def _export_presentation_impl() -> Any:
                 has_rich = False
 
             if has_rich:
-                slides_out = cached
+                slides_out = finalize_slides(cached, stage="export_cached")
                 if dry_run:
                     return jsonify({
                         "ok": True,
@@ -1350,7 +1355,7 @@ def _export_presentation_impl() -> Any:
                     has_rich = False
 
                 if has_rich:
-                    slides_out = persisted
+                    slides_out = finalize_slides(persisted, stage="export_persisted")
                     try:
                         deck_obj["slides_out"] = slides_out
                         DECK_STORE[deck_id] = deck_obj
@@ -2666,6 +2671,7 @@ def _export_presentation_impl() -> Any:
 
         # Build final slides list: Title → Agenda → One-Idea Intro → Topic slides → Thank You
         slides_out: List[Dict[str, Any]] = [title_slide, agenda_slide, one_idea_slide] + topic_slides + [thanks_slide]
+        slides_out = finalize_slides(slides_out, stage="export_final")
 
         if deck_id and deck_obj is not None:
             try:
