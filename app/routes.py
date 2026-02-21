@@ -1196,68 +1196,127 @@ def export_presentation() -> Any:
     if deck_id and deck_obj is not None and (not (data.get("slides") or [])):
         cached = deck_obj.get("slides_out")
         if isinstance(cached, list) and cached:
-            slides_out = cached
-            if dry_run:
-                return jsonify({
-                    "ok": True,
-                    "deck_id": deck_id,
-                    "deck_title": deck_title,
-                    "theme_name": theme_name,
-                    "slides": slides_out,
-                    "count": len(slides_out),
-                })
-
+            # Only trust cache if it looks like our rich routed slide objects.
+            # Older/other flows may store plain LLM slide schema (e.g., type=text), which bypasses the rich router.
+            rich_types = {
+                "cards",
+                "double_column",
+                "comparison",
+                "infographic",
+                "impact_effort_matrix",
+                "timeline",
+                "roadmap",
+                "swot",
+                "kpi",
+                "risk_matrix",
+                "before_after",
+                "architecture",
+                "pricing",
+                "title",
+                "agenda",
+                "thank_you",
+            }
             try:
-                import uuid
-                folder = (deck_id or uuid.uuid4().hex[:8])
-                pptx_name = f"deck_{folder}.pptx"
-                theme_key = (theme_name or "SLEEK").strip().upper()
-                out_dir = os.path.join(PREVIEW_ROOT, folder)
-                export_dir = os.path.join(out_dir, "exports", theme_key)
-                os.makedirs(export_dir, exist_ok=True)
-                pptx_path = os.path.join(export_dir, pptx_name)
-                build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
-                download_url = url_for("main.download_pptx", deck_id=folder, theme=theme_key, _external=True)
+                has_rich = any(
+                    isinstance(s, dict)
+                    and (
+                        bool(s.get("_render_exact"))
+                        or str(s.get("type") or "").strip().lower() in rich_types
+                    )
+                    for s in cached
+                )
+            except Exception:
+                has_rich = False
 
-                if not no_log:
-                    try:
-                        if getattr(current_user, "is_authenticated", False) and getattr(current_user, "id", None):
-                            log = PresentationLog(
-                                user_id=current_user.id,
-                                title=deck_title,
-                                num_slides=len(slides_out),
-                                units_used=1,
-                            )
-                            db.session.add(log)
-                            try:
-                                current_user.presentations_count = (getattr(current_user, "presentations_count", 0) or 0) + 1
-                            except Exception:
-                                pass
-                            db.session.commit()
-                    except Exception:
-                        db.session.rollback()
+            if has_rich:
+                slides_out = cached
+                if dry_run:
+                    return jsonify({
+                        "ok": True,
+                        "deck_id": deck_id,
+                        "deck_title": deck_title,
+                        "theme_name": theme_name,
+                        "slides": slides_out,
+                        "count": len(slides_out),
+                    })
 
-                return jsonify({
-                    "ok": True,
-                    "download_url": download_url,
-                    "pptx_path": pptx_name,
-                    "theme": theme_key,
-                    "folder": folder,
-                    "deck_id": folder,
-                })
-            except Exception as exc:  # noqa: BLE001
-                return jsonify({"ok": False, "error": str(exc)}), 500
+                try:
+                    import uuid
+                    folder = (deck_id or uuid.uuid4().hex[:8])
+                    pptx_name = f"deck_{folder}.pptx"
+                    theme_key = (theme_name or "SLEEK").strip().upper()
+                    out_dir = os.path.join(PREVIEW_ROOT, folder)
+                    export_dir = os.path.join(out_dir, "exports", theme_key)
+                    os.makedirs(export_dir, exist_ok=True)
+                    pptx_path = os.path.join(export_dir, pptx_name)
+                    build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
+                    download_url = url_for("main.download_pptx", deck_id=folder, theme=theme_key, _external=True)
 
-        # If we already have generated slide objects persisted on the deck, export them directly
-        # instead of regenerating via LLM (which can time out and surface as an HTML 502).
+                    if not no_log:
+                        try:
+                            if getattr(current_user, "is_authenticated", False) and getattr(current_user, "id", None):
+                                log = PresentationLog(
+                                    user_id=current_user.id,
+                                    title=deck_title,
+                                    num_slides=len(slides_out),
+                                    units_used=1,
+                                )
+                                db.session.add(log)
+                                try:
+                                    current_user.presentations_count = (getattr(current_user, "presentations_count", 0) or 0) + 1
+                                except Exception:
+                                    pass
+                                db.session.commit()
+                        except Exception:
+                            db.session.rollback()
+
+                    return jsonify({
+                        "ok": True,
+                        "download_url": download_url,
+                        "pptx_path": pptx_name,
+                        "theme": theme_key,
+                        "folder": folder,
+                        "deck_id": folder,
+                    })
+                except Exception as exc:  # noqa: BLE001
+                    return jsonify({"ok": False, "error": str(exc)}), 500
+
+        # If we already have *rich* slide objects persisted on the deck (i.e., already routed),
+        # export them directly instead of regenerating.
         try:
             persisted = deck_obj.get("slides")
             if isinstance(persisted, list) and persisted:
-                looks_like_slides = all(
-                    isinstance(s, dict) and str(s.get("type") or "").strip()
-                    for s in persisted
-                )
-                if looks_like_slides:
+                rich_types = {
+                    "cards",
+                    "double_column",
+                    "comparison",
+                    "infographic",
+                    "impact_effort_matrix",
+                    "timeline",
+                    "roadmap",
+                    "swot",
+                    "kpi",
+                    "risk_matrix",
+                    "before_after",
+                    "architecture",
+                    "pricing",
+                }
+                is_rich = False
+                try:
+                    for s in persisted:
+                        if not isinstance(s, dict):
+                            continue
+                        t = str(s.get("type") or "").strip().lower()
+                        if t in rich_types:
+                            is_rich = True
+                            break
+                        if bool(s.get("_render_exact")):
+                            is_rich = True
+                            break
+                except Exception:
+                    is_rich = False
+
+                if is_rich:
                     slides_out = persisted
                     try:
                         deck_obj["slides_out"] = slides_out
