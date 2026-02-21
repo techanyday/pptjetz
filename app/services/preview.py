@@ -9,10 +9,70 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from typing import List
+from typing import Any, Dict, List
 
 
 logger = logging.getLogger(__name__)
+
+
+def _find_soffice() -> str | None:
+    env = (os.environ.get("SOFFICE_PATH") or os.environ.get("LIBREOFFICE_PATH") or "").strip()
+    if env and os.path.isfile(env):
+        return env
+
+    exe = shutil.which("soffice") or shutil.which("soffice.exe")
+    if exe:
+        return exe
+
+    # Common locations
+    candidates: List[str] = []
+    if os.name == "nt":
+        candidates.extend([
+            r"C:\\Program Files\\LibreOffice\\program\\soffice.exe",
+            r"C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe",
+        ])
+    else:
+        candidates.extend([
+            "/usr/bin/soffice",
+            "/usr/local/bin/soffice",
+            "/snap/bin/libreoffice",
+            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+        ])
+
+    for p in candidates:
+        try:
+            if p and os.path.isfile(p):
+                return p
+        except Exception:
+            pass
+    return None
+
+
+def _soffice_missing_message() -> str:
+    return (
+        "LibreOffice (soffice) is required to generate slide previews. "
+        "Install LibreOffice and ensure `soffice` is on PATH, "
+        "or set SOFFICE_PATH to the full executable path."
+    )
+
+
+def _soffice_diagnostics() -> Dict[str, Any]:
+    soffice = None
+    try:
+        soffice = _find_soffice()
+    except Exception:
+        soffice = None
+
+    out: Dict[str, Any] = {
+        "platform": platform.platform(),
+        "python": sys.version,
+        "os_name": os.name,
+        "soffice_found": bool(soffice),
+        "soffice_path": soffice,
+        "SOFFICE_PATH": os.environ.get("SOFFICE_PATH"),
+        "SOFFICE_TIMEOUT_SECONDS": os.environ.get("SOFFICE_TIMEOUT_SECONDS"),
+    }
+    return out
 
 def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_count: int | None = None) -> List[str]:
     """
