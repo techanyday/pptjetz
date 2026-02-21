@@ -9,7 +9,7 @@ load_dotenv(env_path)
 
 import traceback
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, g
 from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -17,6 +17,7 @@ from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.exceptions import HTTPException
 from oauthlib.oauth2 import WebApplicationClient
+import uuid
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -233,9 +234,33 @@ def create_app():
     # Ensure Flask respects X-Forwarded-Proto/Host headers so generated URLs use HTTPS and correct host on Render
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
+    @app.before_request
+    def _assign_trace_id() -> None:
+        try:
+            incoming = (request.headers.get("X-Trace-Id") or "").strip()
+        except Exception:
+            incoming = ""
+        g.trace_id = incoming or uuid.uuid4().hex
+
+    @app.after_request
+    def _attach_trace_id(resp):
+        try:
+            tid = getattr(g, "trace_id", None)
+            if tid:
+                resp.headers["X-Trace-Id"] = str(tid)
+        except Exception:
+            pass
+        return resp
+
     @app.errorhandler(Exception)
     def _handle_unexpected_error(err: Exception):
         try:
+            trace_id = None
+            try:
+                trace_id = getattr(g, "trace_id", None)
+            except Exception:
+                trace_id = None
+
             wants_json = False
             try:
                 accept = (request.headers.get("Accept") or "").lower()
@@ -250,15 +275,22 @@ def create_app():
 
             status = 500
             if isinstance(err, HTTPException) and getattr(err, "code", None):
-                status = int(err.code)
-            payload = {
-                "ok": False,
-                "error": str(err) or "Request failed",
-            }
+                try:
+                    status = int(err.code)
+                except Exception:
+                    status = 500
+
             try:
-                payload["trace"] = traceback.format_exc(limit=12)
+                app.logger.exception("unhandled_error trace_id=%s path=%s", trace_id, request.path)
             except Exception:
                 pass
+
+            payload = {
+                "ok": False,
+                "trace_id": trace_id,
+                "error": str(err) or "Request failed",
+                "type": err.__class__.__name__,
+            }
             return jsonify(payload), status
         except Exception:
             return jsonify({"ok": False, "error": "Request failed"}), 500

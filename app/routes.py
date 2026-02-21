@@ -11,6 +11,9 @@ import traceback
 import threading
 import time
 import requests
+import sys
+import platform
+import uuid
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
@@ -27,6 +30,7 @@ from flask import (
     send_from_directory,
     session,
     url_for,
+    g,
 )
 from flask_login import login_user, logout_user, current_user, login_required
 
@@ -846,6 +850,22 @@ def api_previews(deck_id: str) -> Any:
     except Exception:
         expected_count = None
 
+    trace_id = None
+    try:
+        trace_id = getattr(g, "trace_id", None)
+    except Exception:
+        trace_id = None
+
+    preview_max = 0
+    try:
+        preview_max = int(os.getenv("PREVIEW_MAX_SLIDES") or "20")
+    except Exception:
+        preview_max = 20
+    max_pages = None
+    if expected_count and expected_count > preview_max:
+        max_pages = preview_max
+        expected_count = preview_max
+
     pptx_name = f"deck_{deck_id}.pptx"
     pptx_path = os.path.join(PREVIEW_ROOT, deck_id, "exports", theme_key, pptx_name)
     if not os.path.isfile(pptx_path):
@@ -886,7 +906,25 @@ def api_previews(deck_id: str) -> Any:
 
         def _run() -> None:
             try:
-                export_all_previews(pptx_path, out_dir, dpi=170, expected_count=expected_count)
+                try:
+                    current_app.logger.info(
+                        "preview:job_start trace_id=%s deck_id=%s theme=%s expected_count=%s max_pages=%s pptx=%s",
+                        trace_id,
+                        deck_id,
+                        theme_key,
+                        expected_count,
+                        max_pages,
+                        pptx_path,
+                    )
+                except Exception:
+                    pass
+
+                t0 = time.perf_counter()
+                export_all_previews(pptx_path, out_dir, dpi=170, expected_count=expected_count, max_pages=max_pages)
+                try:
+                    current_app.logger.info("preview:job_done trace_id=%s ms=%s", trace_id, int((time.perf_counter() - t0) * 1000))
+                except Exception:
+                    pass
                 _set_job_state({
                     "status": "done",
                     "started_at": st.get("started_at"),
@@ -1158,18 +1196,7 @@ def download_page(deck_id: str) -> Any:
 
 @bp.route("/export", methods=["POST"])
 def export_presentation() -> Any:
-    try:
-        return _export_presentation_impl()
-    except Exception as e:  # noqa: BLE001
-        try:
-            current_app.logger.exception("export:unhandled_error")
-        except Exception:
-            pass
-        return jsonify({
-            "ok": False,
-            "error": str(e),
-            "trace": traceback.format_exc(),
-        }), 500
+    return _export_presentation_impl()
 
 
 def _export_presentation_impl() -> Any:
@@ -1197,13 +1224,81 @@ def _export_presentation_impl() -> Any:
 
     ENABLE_EXPORT_SEMANTIC_SLIDE_ROUTER = os.getenv("DISABLE_EXPORT_SEMANTIC_SLIDE_ROUTER", "0") != "1"
 
+    trace_id = None
+    try:
+        trace_id = getattr(g, "trace_id", None)
+    except Exception:
+        trace_id = None
+
+    def _t0() -> float:
+        try:
+            return time.perf_counter()
+        except Exception:
+            return time.time()
+
+    def _ms(dt: float) -> int:
+        try:
+            return int(dt * 1000)
+        except Exception:
+            return -1
+
+    def _types_summary(arr: Any) -> dict:
+        out: dict = {}
+        if not isinstance(arr, list):
+            return out
+        for s in arr:
+            if isinstance(s, dict):
+                t = str(s.get("type") or "unknown").strip().lower() or "unknown"
+            else:
+                t = "non_dict"
+            out[t] = int(out.get(t, 0)) + 1
+        return out
+
+    # Preview-only guardrails: preview_loading calls /export with no_log=1.
+    preview_guardrails = bool(no_log)
+    preview_max_slides = 0
+    try:
+        preview_max_slides = int(os.getenv("PREVIEW_MAX_SLIDES") or "20")
+    except Exception:
+        preview_max_slides = 20
+
+    def _clamp_for_preview(sl_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not preview_guardrails:
+            return sl_list
+        max_bullets = 0
+        try:
+            max_bullets = int(os.getenv("PREVIEW_MAX_BULLETS") or "8")
+        except Exception:
+            max_bullets = 8
+        out: List[Dict[str, Any]] = []
+        for s in (sl_list or [])[:preview_max_slides]:
+            if not isinstance(s, dict):
+                continue
+            s2 = dict(s)
+            c = s2.get("content")
+            if isinstance(c, dict):
+                c2 = dict(c)
+                for k in ["bullets", "cards", "points", "items", "takeaways"]:
+                    v = c2.get(k)
+                    if isinstance(v, list) and len(v) > max_bullets:
+                        c2[k] = v[:max_bullets]
+                for k in ["left_points", "right_points"]:
+                    v = c2.get(k)
+                    if isinstance(v, list) and len(v) > max_bullets:
+                        c2[k] = v[:max_bullets]
+                s2["content"] = c2
+            out.append(s2)
+        return out
+
     try:
         current_app.logger.info(
-            "export:start deck_id=%s theme=%s slides_in=%s dry_run=%s",
+            "export:start trace_id=%s deck_id=%s theme=%s slides_in=%s dry_run=%s types=%s",
+            trace_id,
             deck_id,
             theme_name,
             (len(slides) if isinstance(slides, list) else "?"),
             dry_run,
+            _types_summary(slides),
         )
     except Exception:
         pass
@@ -1260,7 +1355,13 @@ def _export_presentation_impl() -> Any:
                 has_rich = False
 
             if has_rich:
+                t_stage = _t0()
                 slides_out = finalize_slides(cached, stage="export_cached")
+                try:
+                    current_app.logger.info("export:stage finalize_cached trace_id=%s ms=%s", trace_id, _ms(_t0() - t_stage))
+                except Exception:
+                    pass
+                slides_out = _clamp_for_preview(slides_out)
                 if dry_run:
                     return jsonify({
                         "ok": True,
@@ -1285,12 +1386,20 @@ def _export_presentation_impl() -> Any:
                             "export:build_pptx deck_id=%s theme=%s slides_out=%s out=%s",
                             deck_id,
                             theme_key,
-                            len(slides_out),
+                            (len(slides_out) if isinstance(slides_out, list) else "?"),
                             pptx_path,
                         )
                     except Exception:
                         pass
-                    build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
+                    t_build = _t0()
+                    try:
+                        build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
+                    except Exception as exc:  # noqa: BLE001
+                        raise RuntimeError(f"export_stage=build_pptx_cached failed: {exc}")
+                    try:
+                        current_app.logger.info("export:stage build_pptx_cached trace_id=%s ms=%s", getattr(g, "trace_id", None), _ms(_t0() - t_build))
+                    except Exception:
+                        pass
                     download_url = url_for("main.download_pptx", deck_id=folder, theme=theme_key, _external=True)
 
                     if not no_log:
@@ -1355,7 +1464,13 @@ def _export_presentation_impl() -> Any:
                     has_rich = False
 
                 if has_rich:
+                    t_stage = _t0()
                     slides_out = finalize_slides(persisted, stage="export_persisted")
+                    try:
+                        current_app.logger.info("export:stage finalize_persisted trace_id=%s ms=%s", getattr(g, "trace_id", None), _ms(_t0() - t_stage))
+                    except Exception:
+                        pass
+                    slides_out = _clamp_for_preview(slides_out)
                     try:
                         deck_obj["slides_out"] = slides_out
                         DECK_STORE[deck_id] = deck_obj
@@ -1384,7 +1499,26 @@ def _export_presentation_impl() -> Any:
                     export_dir = os.path.join(out_dir3, "exports", theme_key)
                     os.makedirs(export_dir, exist_ok=True)
                     pptx_path = os.path.join(export_dir, pptx_name)
-                    build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
+                    try:
+                        current_app.logger.info(
+                            "export:stage build_pptx_persisted_start trace_id=%s deck_id=%s theme=%s slides_out=%s out=%s",
+                            trace_id,
+                            deck_id,
+                            theme_key,
+                            len(slides_out),
+                            pptx_path,
+                        )
+                    except Exception:
+                        pass
+                    t_build = _t0()
+                    try:
+                        build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
+                    except Exception as exc:  # noqa: BLE001
+                        raise RuntimeError(f"export_stage=build_pptx_persisted failed: {exc}")
+                    try:
+                        current_app.logger.info("export:stage build_pptx_persisted_done trace_id=%s ms=%s", trace_id, _ms(_t0() - t_build))
+                    except Exception:
+                        pass
                     download_url = url_for("main.download_pptx", deck_id=folder, theme=theme_key, _external=True)
 
                     return jsonify({
@@ -2671,7 +2805,13 @@ def _export_presentation_impl() -> Any:
 
         # Build final slides list: Title → Agenda → One-Idea Intro → Topic slides → Thank You
         slides_out: List[Dict[str, Any]] = [title_slide, agenda_slide, one_idea_slide] + topic_slides + [thanks_slide]
+        t_stage = _t0()
         slides_out = finalize_slides(slides_out, stage="export_final")
+        try:
+            current_app.logger.info("export:stage finalize_final trace_id=%s ms=%s", trace_id, _ms(_t0() - t_stage))
+        except Exception:
+            pass
+        slides_out = _clamp_for_preview(slides_out)
 
         if deck_id and deck_obj is not None:
             try:
@@ -2714,7 +2854,15 @@ def _export_presentation_impl() -> Any:
         except Exception:
             pass
         # Build PPTX from our exact-pattern slides
-        build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
+        t_build = _t0()
+        try:
+            build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"export_stage=build_pptx_final failed: {exc}")
+        try:
+            current_app.logger.info("export:stage build_pptx_final trace_id=%s ms=%s", trace_id, _ms(_t0() - t_build))
+        except Exception:
+            pass
 
         download_url = url_for("main.download_pptx", deck_id=folder, theme=theme_key, _external=True)
 
@@ -2750,6 +2898,65 @@ def _export_presentation_impl() -> Any:
 
 
 # Preview-related endpoints removed
+
+
+@bp.get("/api/diagnostics/export_health")
+def export_health() -> Any:
+    token = (request.args.get("token") or "").strip()
+    expected = (os.getenv("DIAGNOSTICS_TOKEN") or os.getenv("EXPORT_HEALTH_TOKEN") or "").strip()
+    if not expected or token != expected:
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
+
+    trace_id = None
+    try:
+        trace_id = getattr(g, "trace_id", None)
+    except Exception:
+        trace_id = None
+
+    soffice_path = None
+    try:
+        soffice_path = _find_soffice()
+    except Exception:
+        soffice_path = None
+
+    diag = {}
+    try:
+        diag = _soffice_diagnostics()
+    except Exception:
+        diag = {}
+
+    tmp = None
+    try:
+        tmp = tempfile.gettempdir()
+    except Exception:
+        tmp = None
+
+    free_disk = None
+    try:
+        usage = shutil.disk_usage(tmp or os.getcwd())
+        free_disk = {"total": int(usage.total), "used": int(usage.used), "free": int(usage.free)}
+    except Exception:
+        free_disk = None
+
+    mem = None
+    try:
+        import psutil  # type: ignore
+        vm = psutil.virtual_memory()
+        mem = {"total": int(vm.total), "available": int(vm.available), "percent": float(vm.percent)}
+    except Exception:
+        mem = None
+
+    return jsonify({
+        "ok": True,
+        "trace_id": trace_id,
+        "sys_platform": sys.platform,
+        "os_name": os.name,
+        "platform": platform.platform(),
+        "soffice": {"path": soffice_path, "diagnostics": diag},
+        "temp_dir": tmp,
+        "disk": free_disk,
+        "memory": mem,
+    })
 
 
 # ---------- Admin: Blog Management ----------
@@ -3171,6 +3378,168 @@ def admin_provider_costs_upload() -> Any:
         reader = csv.DictReader(stream)
         from datetime import datetime
         for row in reader:
+            rid = (row.get('request_id') or row.get('id') or '').strip()
+            if not rid:
+                continue
+            try:
+                cost_val = float(row.get('cost_usd') or row.get('amount_usd') or row.get('cost'))
+            except Exception:
+                continue
+            model = (row.get('model') or '').strip() or None
+            ts = None
+            for k in ('timestamp','created_at','time'):
+                v = row.get(k)
+                if v:
+                    try:
+                        ts = datetime.fromisoformat(v.replace('Z','+00:00'))
+                        break
+                    except Exception:
+                        pass
+            existing = ProviderCost.query.filter_by(request_id=rid).first()
+            if existing:
+                existing.cost_usd = cost_val
+                existing.model = model or existing.model
+                existing.usage_at = ts or existing.usage_at
+                updated += 1
+            else:
+                pc = ProviderCost(request_id=rid, model=model, cost_usd=cost_val, usage_at=ts)
+                db.session.add(pc)
+                created += 1
+        db.session.commit()
+        return jsonify({"ok": True, "created": created, "updated": updated})
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@bp.post("/admin/pricing/delete")
+@login_required
+def admin_pricing_delete() -> Any:
+    _admin_guard()
+    data = request.get_json(silent=True) or {}
+    try:
+        rid = int(data.get("id"))
+        row = Pricing.query.get(rid)
+        if not row:
+            return jsonify({"ok": False, "error": "Not found"}), 404
+        db.session.delete(row); db.session.commit()
+        return jsonify({"ok": True})
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+# ---------- SEO: robots.txt and sitemap.xml ----------
+@bp.get("/robots.txt")
+def robots_txt_route() -> Any:
+    """Serve a simple robots.txt that references our sitemap."""
+    lines = [
+        "User-agent: *",
+        "Allow: /",
+        f"Sitemap: {url_for('main.sitemap_xml_route', _external=True)}",
+        "",
+    ]
+    return Response("\n".join(lines), mimetype="text/plain")
+
+
+@bp.get("/sitemap.xml")
+def sitemap_xml_route() -> Any:
+    """Generate a basic XML sitemap for key pages and published blog posts."""
+    # Core URLs
+    urls = [
+        {"loc": url_for('main.home', _external=True), "changefreq": "daily", "priority": "1.0"},
+        {"loc": url_for('main.generate_page', _external=True), "changefreq": "weekly", "priority": "0.9"},
+        {"loc": url_for('main.blog_index', _external=True), "changefreq": "daily", "priority": "0.6"},
+        {"loc": url_for('main.privacy', _external=True), "changefreq": "yearly", "priority": "0.2"},
+        {"loc": url_for('main.terms', _external=True), "changefreq": "yearly", "priority": "0.2"},
+    ]
+
+    # Blog posts
+    try:
+        posts = BlogPost.query.filter(BlogPost.published.is_(True)).all()
+        for p in posts:
+            lastmod = (p.updated_at or p.published_at)
+            urls.append({
+                "loc": url_for('main.blog_post_page', slug=p.slug, _external=True),
+                "lastmod": (lastmod.strftime('%Y-%m-%d') if lastmod else None),
+                "changefreq": "weekly",
+                "priority": "0.7",
+            })
+    except Exception:
+        # If DB unavailable, still serve core URLs
+        pass
+
+    # Build XML
+    from xml.sax.saxutils import escape as _esc
+    parts = [
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+        "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">",
+    ]
+    for u in urls:
+        parts.append("  <url>")
+        parts.append(f"    <loc>{_esc(u['loc'])}</loc>")
+        if u.get("lastmod"):
+            parts.append(f"    <lastmod>{_esc(u['lastmod'])}</lastmod>")
+        if u.get("changefreq"):
+            parts.append(f"    <changefreq>{_esc(u['changefreq'])}</changefreq>")
+        if u.get("priority"):
+            parts.append(f"    <priority>{_esc(u['priority'])}</priority>")
+        parts.append("  </url>")
+    parts.append("</urlset>")
+    xml = "\n".join(parts)
+    return Response(xml, mimetype="application/xml")
+
+# ---------- Admin: Marketing Opt-ins ----------
+@bp.get("/admin/marketing")
+@login_required
+def admin_marketing() -> Any:
+    _admin_guard()
+    from app.models import User
+    rows = (
+        User.query
+        .filter(User.marketing_opt_in.is_(True))
+        .filter(User.unsubscribed_at.is_(None))
+        .order_by(User.marketing_opt_in_at.desc())
+        .all()
+    )
+    return render_template("admin/marketing.html", rows=rows)
+
+
+@bp.get("/admin/marketing.csv")
+@login_required
+def admin_marketing_csv() -> Any:
+    _admin_guard()
+    from app.models import User
+    import csv
+    from io import StringIO
+    rows = (
+        User.query
+        .filter(User.marketing_opt_in.is_(True))
+        .filter(User.unsubscribed_at.is_(None))
+        .order_by(User.marketing_opt_in_at.desc())
+        .all()
+    )
+    si = StringIO()
+    w = csv.writer(si)
+    w.writerow(["id", "email", "name", "opt_in_at", "source"]) 
+    for u in rows:
+        w.writerow([
+            getattr(u, "id", ""),
+            getattr(u, "email", ""),
+            getattr(u, "name", ""),
+            (u.marketing_opt_in_at.isoformat() if getattr(u, "marketing_opt_in_at", None) else ""),
+            getattr(u, "marketing_opt_in_source", ""),
+        ])
+    out = si.getvalue()
+    return Response(out, mimetype="text/csv", headers={
+        "Content-Disposition": "attachment; filename=marketing_optins.csv"
+    })
             rid = (row.get('request_id') or row.get('id') or '').strip()
             if not rid:
                 continue

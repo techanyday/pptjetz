@@ -32,6 +32,9 @@
 
           <div id="status" class="mt-6 text-sm text-gray-600">Starting...</div>
           <div id="error" class="mt-4 text-sm text-red-600 hidden" style="white-space: pre-line;"></div>
+          <div class="mt-3">
+            <button id="copyDebug" type="button" class="hidden inline-block px-3 py-2 rounded border hover:bg-gray-50 text-sm">Copy debug info</button>
+          </div>
           <div class="mt-4">
             <a id="retryLink" href="#" class="hidden inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Retry</a>
           </div>
@@ -84,11 +87,14 @@
   const statusEl = document.getElementById('status');
   const errorEl = document.getElementById('error');
   const retryLink = document.getElementById('retryLink');
+  const copyBtn = document.getElementById('copyDebug');
+  let lastDebug = null;
 
   function setStatus(s){ if (statusEl) statusEl.textContent = s; }
-  function showError(msg){
+  function showError(msg, debugInfo){
     if (!errorEl) return;
     let out = String(msg || '');
+    lastDebug = debugInfo || null;
     if (out.toLowerCase().includes('libreoffice') || out.toLowerCase().includes('soffice')) {
       if (isRender) {
         out += "\n\nFix (Production):\nThis deployment is missing LibreOffice. Ensure the Render service is deployed using Docker and that the Docker image installs LibreOffice + poppler-utils.";
@@ -98,10 +104,26 @@
     }
     errorEl.textContent = out;
     errorEl.classList.remove('hidden');
+    if (copyBtn) {
+      copyBtn.classList.toggle('hidden', !lastDebug);
+    }
     if (retryLink) {
       retryLink.href = window.location.href;
       retryLink.classList.remove('hidden');
     }
+  }
+
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      try {
+        const txt = JSON.stringify(lastDebug || {}, null, 2);
+        await navigator.clipboard.writeText(txt);
+        copyBtn.textContent = 'Copied';
+        setTimeout(() => { copyBtn.textContent = 'Copy debug info'; }, 1200);
+      } catch (e) {
+        console.warn(e);
+      }
+    });
   }
 
   async function postJson(url, body){
@@ -110,22 +132,38 @@
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify(body || {})
     });
+    const ct = (resp.headers.get('content-type') || '').toLowerCase();
+    const traceId = resp.headers.get('x-trace-id') || '';
     let data = {};
-    try { data = await resp.json(); } catch(e) { data = {}; }
+    if (ct.includes('application/json')) {
+      try { data = await resp.json(); } catch(e) { data = {}; }
+    }
     if (!resp.ok || !data || data.ok === false) {
+      if (!ct.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${resp.status} ${resp.statusText || ''}). trace_id ${traceId || 'unknown'}.`);
+      }
+      const tid = (data && data.trace_id) ? String(data.trace_id) : (traceId || 'unknown');
       const msg = (data && (data.error || data.details)) || `Request failed (${resp.status} ${resp.statusText || ''})`;
-      throw new Error(msg);
+      throw new Error(`${msg} (trace_id ${tid})`);
     }
     return data;
   }
 
   async function getJson(url){
     const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const ct = (resp.headers.get('content-type') || '').toLowerCase();
+    const traceId = resp.headers.get('x-trace-id') || '';
     let data = {};
-    try { data = await resp.json(); } catch(e) { data = {}; }
+    if (ct.includes('application/json')) {
+      try { data = await resp.json(); } catch(e) { data = {}; }
+    }
     if (!resp.ok || !data || data.ok === false) {
+      if (!ct.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${resp.status} ${resp.statusText || ''}). trace_id ${traceId || 'unknown'}.`);
+      }
+      const tid = (data && data.trace_id) ? String(data.trace_id) : (traceId || 'unknown');
       const msg = (data && (data.error || data.details)) || `Request failed (${resp.status} ${resp.statusText || ''})`;
-      throw new Error(msg);
+      throw new Error(`${msg} (trace_id ${tid})`);
     }
     return data;
   }
@@ -149,7 +187,9 @@
       try {
         await postJson('/export', { deck_id: deckId, theme_name: theme || undefined, no_log: true });
       } catch (e) {
-        throw new Error(`Export failed: ${e && e.message ? e.message : 'Request failed'}`);
+        const debugInfo = { step: 'export', deck_id: deckId, theme: theme || null, error: (e && e.message) ? String(e.message) : 'Request failed' };
+        showError(`Export failed: ${e && e.message ? e.message : 'Request failed'}`, debugInfo);
+        throw e;
       }
 
       setStatus('Rendering PDF...');
@@ -160,7 +200,9 @@
       try {
         await getJson(`/api/previews/${deckId}?` + q.toString());
       } catch (e) {
-        throw new Error(`Preview render start failed: ${e && e.message ? e.message : 'Request failed'}`);
+        const debugInfo = { step: 'preview_start', deck_id: deckId, theme: theme || null, error: (e && e.message) ? String(e.message) : 'Request failed' };
+        showError(`Preview render start failed: ${e && e.message ? e.message : 'Request failed'}`, debugInfo);
+        throw e;
       }
 
       const q2 = new URLSearchParams();
@@ -170,7 +212,9 @@
         try {
           previews = await getJson(`/api/previews/${deckId}?` + q2.toString());
         } catch (e) {
-          throw new Error(`Preview polling failed: ${e && e.message ? e.message : 'Request failed'}`);
+          const debugInfo = { step: 'preview_poll', deck_id: deckId, theme: theme || null, error: (e && e.message) ? String(e.message) : 'Request failed' };
+          showError(`Preview polling failed: ${e && e.message ? e.message : 'Request failed'}`, debugInfo);
+          throw e;
         }
         if (previews && previews.status === 'processing') {
           setStatus('Rendering slide images...');
@@ -187,7 +231,9 @@
       window.location.assign(`/preview/${deckId}`);
     } catch (e) {
       console.error(e);
-      showError(e && e.message ? e.message : 'Failed to prepare preview');
+      if (!errorEl || errorEl.classList.contains('hidden')) {
+        showError(e && e.message ? e.message : 'Failed to prepare preview', lastDebug);
+      }
       setStatus('');
     }
   }

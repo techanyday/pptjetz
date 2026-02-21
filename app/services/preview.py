@@ -640,7 +640,7 @@ def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_coun
     return files
 
 
-def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_count: int | None = None) -> List[str]:
+def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_count: int | None = None, max_pages: int | None = None) -> List[str]:
     """
     Export every slide to PNG deterministically via:
     PPTX -> PDF (LibreOffice) -> PNG (PyMuPDF)
@@ -650,6 +650,12 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
     render_id = uuid.uuid4().hex[:10]
     converter = "soffice_pdf+pymupdf"
     os.makedirs(outdir, exist_ok=True)
+
+    t0 = None
+    try:
+        t0 = time.perf_counter()
+    except Exception:
+        t0 = None
 
     # Clear old PNG previews (case-insensitive)
     try:
@@ -696,8 +702,24 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
         timeout_s = int(os.environ.get("SOFFICE_TIMEOUT_SECONDS") or "60")
     except Exception:
         timeout_s = 60
+    env = None
     try:
-        proc = subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=timeout_s)
+        env = dict(os.environ)
+        safe_home = os.path.join(outdir, "_home")
+        safe_tmp = os.path.join(outdir, "_tmp")
+        os.makedirs(safe_home, exist_ok=True)
+        os.makedirs(safe_tmp, exist_ok=True)
+        env["HOME"] = safe_home
+        env["TMPDIR"] = safe_tmp
+        env["TMP"] = safe_tmp
+        env["TEMP"] = safe_tmp
+        if os.name == "nt":
+            env["USERPROFILE"] = safe_home
+    except Exception:
+        env = None
+
+    try:
+        proc = subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=timeout_s, env=env)
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(f"LibreOffice conversion timed out after {timeout_s}s: {exc}")
     soffice_stdout = (proc.stdout or "").strip()
@@ -744,6 +766,12 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
     except Exception:
         pass
 
+    try:
+        if t0 is not None:
+            logger.info("preview:stage pptx_to_pdf_ms=%s", int((time.perf_counter() - t0) * 1000))
+    except Exception:
+        pass
+
     src_pdf = max(pdf_candidates, key=lambda p: os.path.getmtime(p))
     try:
         if os.path.abspath(src_pdf) != os.path.abspath(pdf_path):
@@ -773,11 +801,27 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
 
     doc = None
     final_paths: List[str] = []
+    pdf_timeout_s = 0
+    try:
+        pdf_timeout_s = int(os.environ.get("PYMUPDF_TIMEOUT_SECONDS") or "60")
+    except Exception:
+        pdf_timeout_s = 60
+    t_pdf = None
+    try:
+        t_pdf = time.perf_counter()
+    except Exception:
+        t_pdf = None
     try:
         doc = fitz.open(pdf_path)
         zoom = float(dpi) / 72.0
         mat = fitz.Matrix(zoom, zoom)
-        for i in range(len(doc)):
+        total_pages = len(doc)
+        limit_pages = total_pages
+        if isinstance(max_pages, int) and max_pages > 0:
+            limit_pages = min(limit_pages, max_pages)
+        for i in range(limit_pages):
+            if t_pdf is not None and (time.perf_counter() - t_pdf) > float(pdf_timeout_s):
+                raise RuntimeError(f"PDF->PNG conversion exceeded {pdf_timeout_s}s (rendered {i}/{limit_pages} pages)")
             pix = doc.load_page(i).get_pixmap(matrix=mat)
             dst = os.path.join(outdir, f"slide_{i+1}.png")
             if os.path.exists(dst):
@@ -802,6 +846,12 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
     except Exception:
         pass
 
+    try:
+        if t_pdf is not None:
+            logger.info("preview:stage pdf_to_png_ms=%s", int((time.perf_counter() - t_pdf) * 1000))
+    except Exception:
+        pass
+
     meta = {
         "ok": True,
         "render_id": render_id,
@@ -811,6 +861,7 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
         "outdir": outdir,
         "count": len(final_paths),
         "expected_count": expected_count,
+        "max_pages": max_pages,
         "soffice_returncode": proc.returncode,
         "soffice_stdout": soffice_stdout[-4000:],
         "soffice_stderr": soffice_stderr[-4000:],
