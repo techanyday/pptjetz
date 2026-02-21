@@ -1243,7 +1243,7 @@ def _export_presentation_impl() -> Any:
                 "thank_you",
             }
             try:
-                is_fully_routed = all(
+                has_rich = any(
                     isinstance(s, dict)
                     and (
                         bool(s.get("_render_exact"))
@@ -1252,9 +1252,9 @@ def _export_presentation_impl() -> Any:
                     for s in cached
                 )
             except Exception:
-                is_fully_routed = False
+                has_rich = False
 
-            if is_fully_routed:
+            if has_rich:
                 slides_out = cached
                 if dry_run:
                     return jsonify({
@@ -1338,7 +1338,7 @@ def _export_presentation_impl() -> Any:
                     "pricing",
                 }
                 try:
-                    is_fully_routed = all(
+                    has_rich = any(
                         isinstance(s, dict)
                         and (
                             bool(s.get("_render_exact"))
@@ -1347,9 +1347,9 @@ def _export_presentation_impl() -> Any:
                         for s in persisted
                     )
                 except Exception:
-                    is_fully_routed = False
+                    has_rich = False
 
-                if is_fully_routed:
+                if has_rich:
                     slides_out = persisted
                     try:
                         deck_obj["slides_out"] = slides_out
@@ -1960,7 +1960,7 @@ def _export_presentation_impl() -> Any:
             # - Avoid repeating slide types across the deck.
             # - Allow limited repeats for double_column (with visual rotation) and infographic (many variants).
             # - Encourage at least one comparison slide when suitable.
-            double_cap = 3 if total_topics >= 10 else 2
+            double_cap = 2
             info_cap = 3 if total_topics >= 10 else 2
             comp_cap = 2 if total_topics >= 10 else 1
             return {
