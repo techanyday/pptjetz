@@ -60,3 +60,29 @@ def test_finalize_slides_enforces_known_types_and_render_exact_and_fallback_meta
     # Cap double column to max 2
     dc_count = sum(1 for s in out if s.get("type") == "double_column")
     assert dc_count <= 2
+
+
+def test_finalize_slides_merges_short_bullet_fragments():
+    slides = [
+        {
+            "type": "text",
+            "title": "Applications of AI in Business",
+            "content": {
+                "bullets": [
+                    "Enhancing Customer Experience with",
+                    "AI",
+                    "Automation of Routine Tasks",
+                ]
+            },
+        },
+    ]
+
+    out = finalize_slides(slides)
+    assert len(out) == 1
+    s0 = out[0]
+    assert s0.get("type") == "bullets"
+    bullets = (s0.get("content") or {}).get("bullets")
+    assert bullets == [
+        "Enhancing Customer Experience with AI",
+        "Automation of Routine Tasks",
+    ]

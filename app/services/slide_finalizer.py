@@ -75,6 +75,55 @@ _ALLOWED_TYPES = {
 }
 
 
+def _merge_bullet_fragments(items: List[str]) -> List[str]:
+    out: List[str] = []
+    for raw in items or []:
+        txt = str(raw or "").strip()
+        if not txt:
+            continue
+
+        if not out:
+            out.append(txt)
+            continue
+
+        prev = out[-1]
+        prev_low = prev.rstrip().lower()
+        txt_low = txt.lower()
+
+        # Heuristic: merge very short continuation fragments into the previous bullet
+        # when the previous bullet ends with a connector word.
+        connector_suffixes = {
+            "with",
+            "and",
+            "or",
+            "of",
+            "to",
+            "in",
+            "for",
+            "on",
+            "by",
+            "via",
+            "using",
+            "from",
+            "as",
+            "into",
+            "at",
+        }
+
+        prev_last = prev_low.split()[-1] if prev_low.split() else ""
+        is_short_fragment = (len(txt) <= 20) and (len(txt.split()) <= 3)
+        prev_ends_with_connector = prev_last in connector_suffixes
+        prev_looks_complete = prev_low.endswith((".", "!", "?", ";"))
+
+        if is_short_fragment and prev_ends_with_connector and (not prev_looks_complete):
+            out[-1] = (prev.rstrip() + " " + txt).strip()
+            continue
+
+        out.append(txt)
+
+    return out
+
+
 def _extract_bullets(sl: Dict[str, Any]) -> List[str]:
     c = sl.get("content")
     bullets: List[str] = []
@@ -96,6 +145,7 @@ def _extract_bullets(sl: Dict[str, Any]) -> List[str]:
         elif isinstance(raw2, str):
             bullets = [x.strip() for x in raw2.splitlines() if x.strip()]
 
+    bullets = _merge_bullet_fragments(bullets)
     return bullets[:12]
 
 
@@ -124,6 +174,11 @@ def normalize_slide(slide: Dict[str, Any]) -> Dict[str, Any]:
 
     if bullets and "bullets" not in c and t in {"bullets", "infographic", "key_takeaways"}:
         c["bullets"] = bullets
+
+    # Always normalize bullet lists for bullet-like slide types.
+    if t in {"agenda", "bullets", "infographic", "key_takeaways"}:
+        if bullets:
+            c["bullets"] = bullets
 
     if t in {"cards", "card", "card_style", "process_timeline_alt"}:
         if "cards" not in c and bullets:
