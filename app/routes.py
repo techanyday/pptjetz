@@ -1247,6 +1247,59 @@ def export_presentation() -> Any:
                 })
             except Exception as exc:  # noqa: BLE001
                 return jsonify({"ok": False, "error": str(exc)}), 500
+
+        # If we already have generated slide objects persisted on the deck, export them directly
+        # instead of regenerating via LLM (which can time out and surface as an HTML 502).
+        try:
+            persisted = deck_obj.get("slides")
+            if isinstance(persisted, list) and persisted:
+                looks_like_slides = all(
+                    isinstance(s, dict) and str(s.get("type") or "").strip()
+                    for s in persisted
+                )
+                if looks_like_slides:
+                    slides_out = persisted
+                    try:
+                        deck_obj["slides_out"] = slides_out
+                        DECK_STORE[deck_id] = deck_obj
+                        out_dir2 = os.path.join(PREVIEW_ROOT, deck_id)
+                        os.makedirs(out_dir2, exist_ok=True)
+                        with open(os.path.join(out_dir2, "deck.json"), "w", encoding="utf-8") as f:
+                            json.dump(deck_obj, f, ensure_ascii=False)
+                    except Exception:
+                        pass
+
+                    if dry_run:
+                        return jsonify({
+                            "ok": True,
+                            "deck_id": deck_id,
+                            "deck_title": deck_title,
+                            "theme_name": theme_name,
+                            "slides": slides_out,
+                            "count": len(slides_out),
+                        })
+
+                    import uuid
+                    folder = (deck_id or uuid.uuid4().hex[:8])
+                    pptx_name = f"deck_{folder}.pptx"
+                    theme_key = (theme_name or "SLEEK").strip().upper()
+                    out_dir3 = os.path.join(PREVIEW_ROOT, folder)
+                    export_dir = os.path.join(out_dir3, "exports", theme_key)
+                    os.makedirs(export_dir, exist_ok=True)
+                    pptx_path = os.path.join(export_dir, pptx_name)
+                    build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
+                    download_url = url_for("main.download_pptx", deck_id=folder, theme=theme_key, _external=True)
+
+                    return jsonify({
+                        "ok": True,
+                        "download_url": download_url,
+                        "pptx_path": pptx_name,
+                        "theme": theme_key,
+                        "folder": folder,
+                        "deck_id": folder,
+                    })
+        except Exception:
+            pass
     # Sanitization helpers
     BANNED = {"tbd", "metric 1", "metric 2", "metric 3", "step 1", "step 2", "step 3", "step 4"}
 
