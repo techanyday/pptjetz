@@ -1243,7 +1243,7 @@ def _export_presentation_impl() -> Any:
                 "thank_you",
             }
             try:
-                has_rich = any(
+                is_fully_routed = all(
                     isinstance(s, dict)
                     and (
                         bool(s.get("_render_exact"))
@@ -1252,9 +1252,9 @@ def _export_presentation_impl() -> Any:
                     for s in cached
                 )
             except Exception:
-                has_rich = False
+                is_fully_routed = False
 
-            if has_rich:
+            if is_fully_routed:
                 slides_out = cached
                 if dry_run:
                     return jsonify({
@@ -1337,22 +1337,19 @@ def _export_presentation_impl() -> Any:
                     "architecture",
                     "pricing",
                 }
-                is_rich = False
                 try:
-                    for s in persisted:
-                        if not isinstance(s, dict):
-                            continue
-                        t = str(s.get("type") or "").strip().lower()
-                        if t in rich_types:
-                            is_rich = True
-                            break
-                        if bool(s.get("_render_exact")):
-                            is_rich = True
-                            break
+                    is_fully_routed = all(
+                        isinstance(s, dict)
+                        and (
+                            bool(s.get("_render_exact"))
+                            or str(s.get("type") or "").strip().lower() in rich_types
+                        )
+                        for s in persisted
+                    )
                 except Exception:
-                    is_rich = False
+                    is_fully_routed = False
 
-                if is_rich:
+                if is_fully_routed:
                     slides_out = persisted
                     try:
                         deck_obj["slides_out"] = slides_out
