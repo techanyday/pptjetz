@@ -1,226 +1,18 @@
-import os
 import glob
-import uuid
+import json
+import logging
+import os
+import platform
+import re
 import shutil
 import subprocess
-import tempfile
-import re
-import json
 import sys
-import platform
+import tempfile
+import uuid
 from typing import List
 
 
-def _ps_quote(s: str) -> str:
-    # Single-quote for PowerShell and escape embedded quotes by doubling.
-    return "'" + s.replace("'", "''") + "'"
-
-
-def _files_all_identical(paths: List[str]) -> bool:
-    if len(paths) < 2:
-        return False
-    try:
-        import hashlib
-
-        def _md5(p: str) -> str:
-            h = hashlib.md5()
-            with open(p, "rb") as f:
-                for chunk in iter(lambda: f.read(8192), b""):
-                    h.update(chunk)
-            return h.hexdigest()
-
-        hashes = [_md5(p) for p in paths if os.path.exists(p)]
-        return len(hashes) >= 2 and len(set(hashes)) == 1
-    except Exception:
-        return False
-
-
-def _export_pngs_via_powerpoint(pptx_path: str, outdir: str, dpi: int, expected_count: int | None) -> List[str]:
-    if os.name != "nt":
-        return []
-
-    os.makedirs(outdir, exist_ok=True)
-    try:
-        for fn in glob.glob(os.path.join(outdir, "slide_*.png")):
-            try:
-                os.remove(fn)
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-    pptx_q = _ps_quote(os.path.abspath(pptx_path))
-    out_q = _ps_quote(os.path.abspath(outdir))
-
-    # PowerPoint COM export: render each slide to PNG. Requires Microsoft PowerPoint.
-    # Use WithWindow = $false to keep it headless.
-    script = (
-        "$ErrorActionPreference='Stop';"
-        f"$pptPath={pptx_q};"
-        f"$outDir={out_q};"
-        f"$dpi={[int(dpi)]};"
-        "$pp=$null; $pres=$null;"
-        "try {"
-        "  $pp = New-Object -ComObject PowerPoint.Application;"
-        "  $pres = $pp.Presentations.Open($pptPath, $true, $true, $false);"
-        "  $w = [int][math]::Round(($pres.PageSetup.SlideWidth/72.0) * $dpi);"
-        "  $h = [int][math]::Round(($pres.PageSetup.SlideHeight/72.0) * $dpi);"
-        "  $i = 1;"
-        "  foreach ($s in $pres.Slides) {"
-        "    $dst = Join-Path $outDir (\"slide_{0}.png\" -f $i);"
-        "    $s.Export($dst, 'PNG', $w, $h) | Out-Null;"
-        "    $i++;"
-        "  }"
-        "} finally {"
-        "  if ($pres -ne $null) { try { $pres.Close() } catch {} };"
-        "  if ($pp -ne $null) { try { $pp.Quit() } catch {} };"
-        "  if ($pres -ne $null) { try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($pres) | Out-Null } catch {} };"
-        "  if ($pp -ne $null) { try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($pp) | Out-Null } catch {} };"
-        "  [GC]::Collect(); [GC]::WaitForPendingFinalizers();"
-        "}"
-    )
-
-    proc = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-        capture_output=True,
-        text=True,
-    )
-    if proc.returncode != 0:
-        return []
-
-    produced = sorted(glob.glob(os.path.join(outdir, "slide_*.png")))
-    if expected_count and len(produced) != expected_count:
-        return []
-    if _files_all_identical(produced):
-        return []
-    return sorted(produced, key=lambda p: int(re.search(r"slide_(\d+)\.png$", os.path.basename(p)).group(1)))
-
-
-def _find_soffice() -> str | None:
-    # 0) Explicit override via environment variable
-    env_path = os.environ.get("LIBREOFFICE_PATH")
-    if env_path and os.path.isfile(env_path):
-        return env_path
-    # 1) Look in PATH first
-    for cand in ("soffice", "libreoffice", "soffice.com", "soffice.exe"):
-        path = shutil.which(cand)
-        if path:
-            return path
-    # 1b) Probe common non-Windows install locations
-    if os.name != "nt":
-        candidates = [
-            "/usr/bin/soffice",
-            "/usr/bin/libreoffice",
-            "/usr/local/bin/soffice",
-            "/usr/local/bin/libreoffice",
-            "/usr/lib/libreoffice/program/soffice",
-            "/usr/lib64/libreoffice/program/soffice",
-            "/opt/libreoffice/program/soffice",
-            "/snap/bin/libreoffice",
-            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
-        ]
-        for p in candidates:
-            try:
-                if os.path.isfile(p) and os.access(p, os.X_OK):
-                    return p
-            except Exception:
-                pass
-    # 2) Probe common Windows install locations
-    candidates = []
-    for env_key in ("PROGRAMFILES", "PROGRAMFILES(X86)"):
-        base = os.environ.get(env_key)
-        if not base:
-            continue
-        lo_prog = os.path.join(base, "LibreOffice", "program")
-        candidates.extend([
-            os.path.join(lo_prog, "soffice.com"),
-            os.path.join(lo_prog, "soffice.exe"),
-        ])
-    # Also try default path directly
-    candidates.extend([
-        r"C:\\Program Files\\LibreOffice\\program\\soffice.com",
-        r"C:\\Program Files\\LibreOffice\\program\\soffice.exe",
-        r"C:\\Program Files (x86)\\LibreOffice\\program\\soffice.com",
-        r"C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe",
-    ])
-    for p in candidates:
-        if os.path.isfile(p):
-            return p
-    return None
-
-
-def _soffice_diagnostics() -> dict:
-    def _safe_path_val() -> str:
-        p = os.environ.get("PATH") or ""
-        # Keep enough signal but avoid giant payloads
-        return p[:1200]
-
-    env_lo = os.environ.get("LIBREOFFICE_PATH")
-    which_map = {}
-    for cand in ("soffice", "libreoffice", "soffice.com", "soffice.exe"):
-        try:
-            which_map[cand] = shutil.which(cand)
-        except Exception:
-            which_map[cand] = None
-
-    nonwin_candidates = []
-    if os.name != "nt":
-        for p in (
-            "/usr/bin/soffice",
-            "/usr/bin/libreoffice",
-            "/usr/local/bin/soffice",
-            "/usr/local/bin/libreoffice",
-            "/usr/lib/libreoffice/program/soffice",
-            "/usr/lib64/libreoffice/program/soffice",
-            "/opt/libreoffice/program/soffice",
-            "/snap/bin/libreoffice",
-            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
-        ):
-            try:
-                nonwin_candidates.append({
-                    "path": p,
-                    "exists": bool(os.path.isfile(p)),
-                    "x_ok": bool(os.access(p, os.X_OK)) if os.path.exists(p) else False,
-                })
-            except Exception:
-                nonwin_candidates.append({"path": p, "exists": False, "x_ok": False})
-
-    return {
-        "os_name": os.name,
-        "sys_platform": sys.platform,
-        "platform": platform.platform(),
-        "libreoffice_path_env": env_lo,
-        "env_path_prefix": _safe_path_val(),
-        "which": which_map,
-        "non_windows_candidates": nonwin_candidates,
-    }
-
-
-def _soffice_missing_message() -> str:
-    is_render = bool(
-        os.environ.get("RENDER")
-        or os.environ.get("RENDER_SERVICE_ID")
-        or os.environ.get("RENDER_INSTANCE_ID")
-    )
-    if is_render:
-        return (
-            "LibreOffice is not installed in this deployment environment. "
-            "Ensure the Docker image installs LibreOffice."
-        )
-
-    msg = "LibreOffice (soffice) is not installed on the server or not in PATH."
-    if os.name == "nt":
-        msg += " On Windows, install LibreOffice and ensure 'soffice.com' is available."
-        msg += " Typical path: C:\\Program Files\\LibreOffice\\program\\soffice.com"
-        msg += " (or set LIBREOFFICE_PATH to the full soffice path)."
-    else:
-        msg += " Install LibreOffice and ensure 'soffice' is in PATH (or set LIBREOFFICE_PATH)."
-    try:
-        msg += " Diagnostics: " + json.dumps(_soffice_diagnostics(), ensure_ascii=False)
-    except Exception:
-        pass
-    return msg
-
+logger = logging.getLogger(__name__)
 
 def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_count: int | None = None) -> List[str]:
     """
@@ -230,6 +22,17 @@ def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_coun
     soffice = _find_soffice()
     if not soffice:
         raise RuntimeError(_soffice_missing_message())
+
+    try:
+        logger.info("preview:pptx_to_pdf start pptx=%s outdir=%s", pptx_path, outdir)
+    except Exception:
+        pass
+
+    timeout_s = 0
+    try:
+        timeout_s = int(os.environ.get("SOFFICE_TIMEOUT_SECONDS") or "60")
+    except Exception:
+        timeout_s = 60
 
     os.makedirs(outdir, exist_ok=True)
 
@@ -255,7 +58,10 @@ def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_coun
                 outdir,
                 pptx_path,
             ]
-            subprocess.run(cmd_pdf, capture_output=True, text=True)
+            try:
+                subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=timeout_s)
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(f"LibreOffice conversion timed out after {timeout_s}s: {exc}")
             early_paths: List[str] = []
             if os.path.isfile(pdf_path):
                 ppm = shutil.which("pdftoppm")
@@ -356,7 +162,10 @@ def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_coun
                 outdir,
                 pptx_path,
             ]
-            subprocess.run(cmd_pdf, capture_output=True, text=True)
+            try:
+                subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=timeout_s)
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(f"LibreOffice conversion timed out after {timeout_s}s: {exc}")
             final_paths_win: List[str] = []
             if os.path.isfile(pdf_path):
                 ppm = shutil.which("pdftoppm")
@@ -460,7 +269,10 @@ def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_coun
                 outdir,
                 pptx_path,
             ]
-            subprocess.run(cmd_pdf, capture_output=True, text=True)
+            try:
+                subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=timeout_s)
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(f"LibreOffice conversion timed out after {timeout_s}s: {exc}")
 
             final_paths_win: List[str] = []
             if os.path.isfile(pdf_path):
@@ -526,7 +338,10 @@ def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_coun
                 outdir,
                 pptx_path,
             ]
-            subprocess.run(cmd_pdf, capture_output=True, text=True)
+            try:
+                subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=timeout_s)
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(f"LibreOffice conversion timed out after {timeout_s}s: {exc}")
             final_paths_win: List[str] = []
             if os.path.isfile(pdf_path):
                 ppm = shutil.which("pdftoppm")
@@ -633,7 +448,10 @@ def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_coun
                 outdir,
                 pptx_path,
             ]
-            subprocess.run(cmd_pdf, capture_output=True, text=True)
+            try:
+                subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=timeout_s)
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(f"LibreOffice conversion timed out after {timeout_s}s: {exc}")
             if os.path.isfile(pdf_path):
                 ppm = shutil.which("pdftoppm")
                 final_paths: List[str] = []
@@ -743,7 +561,12 @@ def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_coun
     ]
 
     def run_and_collect(cmd):
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        timeout_s = 0
+        try:
+            timeout_s = int(os.environ.get("SOFFICE_TIMEOUT_SECONDS") or "60")
+        except Exception:
+            timeout_s = 60
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
         files = sorted(glob.glob(os.path.join(outdir, "*.png")), key=lambda p: (len(p), p))
         return proc.returncode, files, (proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")
 
@@ -810,9 +633,9 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
     ]
     timeout_s = 0
     try:
-        timeout_s = int(os.environ.get("SOFFICE_TIMEOUT_SECONDS") or "90")
+        timeout_s = int(os.environ.get("SOFFICE_TIMEOUT_SECONDS") or "60")
     except Exception:
-        timeout_s = 90
+        timeout_s = 60
     try:
         proc = subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=timeout_s)
     except subprocess.TimeoutExpired as exc:
@@ -856,6 +679,11 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
             f"returncode={proc.returncode}. stdout={soffice_stdout[-2000:]} stderr={soffice_stderr[-2000:]}"
         )
 
+    try:
+        logger.info("preview:pptx_to_pdf done returncode=%s candidates=%s", proc.returncode, len(pdf_candidates))
+    except Exception:
+        pass
+
     src_pdf = max(pdf_candidates, key=lambda p: os.path.getmtime(p))
     try:
         if os.path.abspath(src_pdf) != os.path.abspath(pdf_path):
@@ -877,6 +705,11 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
         import fitz  # PyMuPDF
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"PyMuPDF is required for preview rendering but is not available: {exc}")
+
+    try:
+        logger.info("preview:pdf_to_png start pdf=%s dpi=%s", pdf_path, dpi)
+    except Exception:
+        pass
 
     doc = None
     final_paths: List[str] = []
@@ -903,6 +736,11 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
 
     if not final_paths:
         raise RuntimeError("No preview images were produced from the rendered PDF.")
+
+    try:
+        logger.info("preview:pdf_to_png done count=%s", len(final_paths))
+    except Exception:
+        pass
 
     meta = {
         "ok": True,

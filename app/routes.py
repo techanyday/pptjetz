@@ -1153,6 +1153,21 @@ def download_page(deck_id: str) -> Any:
 
 @bp.route("/export", methods=["POST"])
 def export_presentation() -> Any:
+    try:
+        return _export_presentation_impl()
+    except Exception as e:  # noqa: BLE001
+        try:
+            current_app.logger.exception("export:unhandled_error")
+        except Exception:
+            pass
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+            "trace": traceback.format_exc(),
+        }), 500
+
+
+def _export_presentation_impl() -> Any:
     """Create a local PPTX presentation from slide content and theme.
 
     Request JSON body:
@@ -1176,6 +1191,17 @@ def export_presentation() -> Any:
     mode = (data.get("mode") or "").strip().lower()
 
     ENABLE_EXPORT_SEMANTIC_SLIDE_ROUTER = os.getenv("DISABLE_EXPORT_SEMANTIC_SLIDE_ROUTER", "0") != "1"
+
+    try:
+        current_app.logger.info(
+            "export:start deck_id=%s theme=%s slides_in=%s dry_run=%s",
+            deck_id,
+            theme_name,
+            (len(slides) if isinstance(slides, list) else "?"),
+            dry_run,
+        )
+    except Exception:
+        pass
 
     # If client only sends deck_id, load persisted deck (memory or disk)
     deck_obj: Dict[str, Any] | None = None
@@ -1249,6 +1275,16 @@ def export_presentation() -> Any:
                     export_dir = os.path.join(out_dir, "exports", theme_key)
                     os.makedirs(export_dir, exist_ok=True)
                     pptx_path = os.path.join(export_dir, pptx_name)
+                    try:
+                        current_app.logger.info(
+                            "export:build_pptx deck_id=%s theme=%s slides_out=%s out=%s",
+                            deck_id,
+                            theme_key,
+                            len(slides_out),
+                            pptx_path,
+                        )
+                    except Exception:
+                        pass
                     build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
                     download_url = url_for("main.download_pptx", deck_id=folder, theme=theme_key, _external=True)
 
@@ -1278,8 +1314,8 @@ def export_presentation() -> Any:
                         "folder": folder,
                         "deck_id": folder,
                     })
-                except Exception as exc:  # noqa: BLE001
-                    return jsonify({"ok": False, "error": str(exc)}), 500
+                except Exception:  # noqa: BLE001
+                    raise
 
         # If we already have *rich* slide objects persisted on the deck (i.e., already routed),
         # export them directly instead of regenerating.
@@ -2660,6 +2696,16 @@ def export_presentation() -> Any:
         export_dir = os.path.join(out_dir, "exports", theme_key)
         os.makedirs(export_dir, exist_ok=True)
         pptx_path = os.path.join(export_dir, pptx_name)
+        try:
+            current_app.logger.info(
+                "export:build_pptx deck_id=%s theme=%s slides_out=%s out=%s",
+                deck_id,
+                theme_key,
+                (len(slides_out) if isinstance(slides_out, list) else "?"),
+                pptx_path,
+            )
+        except Exception:
+            pass
         # Build PPTX from our exact-pattern slides
         build_pptx_from_slides(slides_out, pptx_path, theme_name=theme_name)
 
@@ -2692,8 +2738,8 @@ def export_presentation() -> Any:
             "folder": folder,
             "deck_id": folder,
         })
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"ok": False, "error": str(exc)}), 500
+    except Exception:  # noqa: BLE001
+        raise
 
 
 # Preview-related endpoints removed
