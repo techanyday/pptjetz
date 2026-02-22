@@ -83,7 +83,28 @@ let i = 0; setInterval(() => { document.getElementById('tip').textContent = tips
     const payload = JSON.parse(raw);
     const minDelay = new Promise(res => setTimeout(res, 3000)); // ensure some dwell for ad fill
     const apiPromise = fetch('/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) })
-      .then(r => r.json());
+      .then(async (r) => {
+        const ct = (r.headers.get('content-type') || '').toLowerCase();
+        const traceId = r.headers.get('x-trace-id') || '';
+        const rawText = await r.text();
+        const snippet = (rawText || '').slice(0, 800);
+
+        if (ct.includes('application/json')) {
+          try {
+            const data = rawText ? JSON.parse(rawText) : {};
+            if (!r.ok || !data || data.ok === false) {
+              const msg = (data && (data.error || data.details)) || `Request failed (${r.status} ${r.statusText || ''})`;
+              const tid = (data && data.trace_id) ? String(data.trace_id) : (traceId || 'unknown');
+              throw new Error(`${msg} (trace_id ${tid})`);
+            }
+            return data;
+          } catch (e) {
+            throw new Error(`Invalid JSON response (${r.status} ${r.statusText || ''}). trace_id ${traceId || 'unknown'}. Body: ${snippet}`);
+          }
+        }
+
+        throw new Error(`Server returned non-JSON response (${r.status} ${r.statusText || ''}). content-type ${ct || 'unknown'}. trace_id ${traceId || 'unknown'}. Body: ${snippet}`);
+      });
     const data = await Promise.all([apiPromise, minDelay]).then(([d]) => d);
     if (data && data.redirect_url) { window.location.assign(data.redirect_url); return; }
     // Fallback: render inline results like before if slides returned
