@@ -1278,7 +1278,7 @@ def _export_presentation_impl() -> Any:
         except Exception:
             max_bullets = 8
         out: List[Dict[str, Any]] = []
-        for s in (sl_list or [])[:preview_max_slides]:
+        for s in (sl_list or []):
             if not isinstance(s, dict):
                 continue
             s2 = dict(s)
