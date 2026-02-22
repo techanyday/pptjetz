@@ -20,4 +20,4 @@ ENV PORT=10000
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "gunicorn -b 0.0.0.0:${PORT:-10000} wsgi:app"]
+CMD ["sh", "-c", "gunicorn -b 0.0.0.0:${PORT:-10000} --workers 1 --threads 2 --timeout 180 --graceful-timeout 30 --keep-alive 5 wsgi:app"]
