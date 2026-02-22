@@ -5308,9 +5308,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         scale = min(1.0, avail / total) if total > 0 else 1.0
         step_w *= scale
         gate_w *= scale
+        total = n * step_w + (n - 1) * gate_w
 
         STEP_COLS = _step_colors()
-        x = cont_x + pad_x
+        x = cont_x + pad_x + max(0.0, (avail - total) / 2)
         for idx, raw in enumerate(arr):
             col = STEP_COLS[idx % len(STEP_COLS)]
             box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(mid_y - 0.55), Inches(step_w), Inches(1.10))
