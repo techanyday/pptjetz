@@ -1228,31 +1228,52 @@ def generate() -> Any:
 
 
 
-    slides, errors = create_deck_slides(
+    trace_id = None
+    try:
+        trace_id = getattr(g, "trace_id", None)
+    except Exception:
+        trace_id = None
 
-        title=title,
-
-        subtitle=subtitle,
-
-        presenter=presenter,
-
-        date=date,
-
-        theme_name=theme_name,
-
-        input_text=input_text,
-
-        num_slides=num_slides,
-
-        deck_id=deck_id,
-
-        user_id=(getattr(current_user, "id", None) or None),
-
-    )
+    try:
+        slides, errors = create_deck_slides(
+            title=title,
+            subtitle=subtitle,
+            presenter=presenter,
+            date=date,
+            theme_name=theme_name,
+            input_text=input_text,
+            num_slides=num_slides,
+            deck_id=deck_id,
+            user_id=(getattr(current_user, "id", None) or None),
+        )
+    except Exception as exc:  # noqa: BLE001
+        try:
+            current_app.logger.exception("generate:unhandled trace_id=%s deck_id=%s", trace_id, deck_id)
+        except Exception:
+            pass
+        return jsonify({
+            "ok": False,
+            "error": f"Generation failed: {exc}",
+            "errors": [f"Generation failed: {exc}"],
+            "trace_id": trace_id,
+            "deck_id": deck_id,
+        }), 500
 
     if errors or not slides:
+        errs = errors or ["No slides generated"]
+        msg = None
+        try:
+            msg = str(errs[0]) if errs else None
+        except Exception:
+            msg = None
 
-        return jsonify({"ok": False, "errors": errors or ["No slides generated"]}), 422
+        return jsonify({
+            "ok": False,
+            "error": msg or "Generation failed",
+            "errors": errs,
+            "trace_id": trace_id,
+            "deck_id": deck_id,
+        }), 422
 
 
 
@@ -1675,26 +1696,41 @@ def set_deck_theme(deck_id: str) -> Any:
 def api_previews(deck_id: str) -> Any:
 
     refresh = (request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+    full = (request.args.get("full") or "").strip().lower() in {"1", "true", "yes"}
 
 
 
     deck = DECK_STORE.get(deck_id)
-
     if not deck:
-
         try:
-
             with open(os.path.join(PREVIEW_ROOT, deck_id, "deck.json"), "r", encoding="utf-8") as f:
-
                 deck = json.load(f)
-
         except Exception:
+            deck = None
 
-            return jsonify({"ok": False, "error": "Deck not found"}), 404
+    deck_missing = deck is None
+    if deck_missing:
+        deck = {}
 
-
-
-    theme_name = ((request.args.get("theme") or "").strip() or (deck.get("theme_name") or "SLEEK")).strip()
+    theme_arg = (request.args.get("theme") or "").strip()
+    theme_name = (theme_arg or (deck.get("theme_name") or "")).strip() or "SLEEK"
+    if (not theme_arg) and (not (deck.get("theme_name") or "")):
+        try:
+            exports_root = os.path.join(PREVIEW_ROOT, deck_id, "exports")
+            if os.path.isdir(exports_root):
+                cand = [d for d in os.listdir(exports_root) if os.path.isdir(os.path.join(exports_root, d))]
+                if cand:
+                    theme_name = sorted(cand)[0]
+        except Exception:
+            pass
+        try:
+            previews_root = os.path.join(PREVIEW_ROOT, deck_id, "previews")
+            if os.path.isdir(previews_root):
+                cand = [d for d in os.listdir(previews_root) if os.path.isdir(os.path.join(previews_root, d))]
+                if cand:
+                    theme_name = sorted(cand)[0]
+        except Exception:
+            pass
 
     theme_key = theme_name.upper()
 
@@ -1740,7 +1776,7 @@ def api_previews(deck_id: str) -> Any:
 
     max_pages = None
 
-    if expected_count and expected_count > preview_max:
+    if (not full) and expected_count and expected_count > preview_max:
 
         max_pages = preview_max
 
@@ -1762,9 +1798,7 @@ def api_previews(deck_id: str) -> Any:
 
             pptx_path = legacy
 
-        else:
-
-            return jsonify({"ok": False, "error": "PPTX not found. Export the deck first."}), 404
+    pptx_exists = bool(pptx_path and os.path.isfile(pptx_path))
 
 
 
@@ -2163,6 +2197,10 @@ def api_previews(deck_id: str) -> Any:
 
 
     if refresh:
+        if not pptx_exists:
+            if deck_missing:
+                return jsonify({"ok": False, "error": "Deck not found"}), 404
+            return jsonify({"ok": False, "error": "PPTX not found. Export the deck first."}), 404
 
         try:
 
@@ -2227,6 +2265,10 @@ def api_previews(deck_id: str) -> Any:
 
 
     if st.get("status") != "running":
+        if not pptx_exists:
+            if deck_missing:
+                return jsonify({"ok": False, "error": "Deck not found"}), 404
+            return jsonify({"ok": False, "error": "PPTX not found. Export the deck first."}), 404
 
         _start_job_if_needed()
 

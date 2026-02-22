@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 def test_api_previews_supports_full_override() -> None:
@@ -6,7 +7,7 @@ def test_api_previews_supports_full_override() -> None:
     routes_py = (repo_root / "app" / "routes.py").read_text(encoding="utf-8")
 
     # Ensure /api/previews reads a 'full' query param and uses it to bypass clamping
-    assert "request.args.get(\"full\")" in routes_py
+    assert re.search(r"request\.args\.get\(\s*['\"]full['\"]\s*\)", routes_py)
     assert "if (not full)" in routes_py
 
 

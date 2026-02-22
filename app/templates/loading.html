@@ -94,11 +94,18 @@ let i = 0; setInterval(() => { document.getElementById('tip').textContent = tips
       window.location.assign(url);
       return;
     }
-    alert((data && data.error) || 'Generation failed');
+    let msg = (data && (data.error || data.details)) || 'Generation failed';
+    if (data && Array.isArray(data.errors) && data.errors.length) {
+      msg = String(msg) + "\n\n" + data.errors.map(e => String(e)).join("\n");
+    }
+    if (data && data.trace_id) {
+      msg = String(msg) + `\n\ntrace_id: ${data.trace_id}`;
+    }
+    alert(msg);
     window.location.replace('/generate');
   } catch (e) {
     console.error(e);
-    alert('Generation failed');
+    alert((e && e.message) ? String(e.message) : 'Generation failed');
     window.location.replace('/generate');
   }
 })();
