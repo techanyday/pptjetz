@@ -8,6 +8,7 @@ import random
 import re
 import math
 import colorsys
+import hashlib
 from pptx import Presentation  # type: ignore
 from pptx.util import Inches, Pt
 from .content_synthesis import synthesize_key_concepts, is_placeholder, BANNED
@@ -124,6 +125,83 @@ DOUBLE_SCHEME_INDEX: int = 0
 BULLET_COLOR_GEN_INDEX: int = 0
 # Track if any "takeaways" slide (including at-a-glance) has already been rendered
 TAKEAWAYS_RENDERED: bool = False
+IMPACT_MAP_VARIANT_INDEX: int = 0
+
+
+class VariantRotator:
+    def __init__(self) -> None:
+        self._seed: str | None = None
+        self._family_idx: Dict[str, int] = {}
+
+    def reset(self, seed: str | None = None) -> None:
+        self._seed = (str(seed) if seed is not None else None)
+        self._family_idx = {}
+
+    def _offset_for_family(self, family: str, pool_len: int) -> int:
+        if not pool_len:
+            return 0
+        if not self._seed:
+            return 0
+        h = hashlib.md5((self._seed + "|" + str(family)).encode("utf-8"), usedforsecurity=False).hexdigest()
+        return int(h[:8], 16) % pool_len
+
+    def choose_variant(self, family: str, pool: List[str], forced: str | None = None) -> str:
+        fam = str(family or "").strip() or "default"
+        opts = [str(x) for x in (pool or []) if str(x).strip()]
+        if not opts:
+            return ""
+
+        idx = self._family_idx.get(fam)
+        if idx is None:
+            idx = self._offset_for_family(fam, len(opts))
+
+        forced_norm = str(forced or "").strip() or None
+        if forced_norm and forced_norm in opts:
+            chosen = forced_norm
+        else:
+            chosen = opts[int(idx) % len(opts)]
+
+        self._family_idx[fam] = int(idx) + 1
+        return chosen
+
+    def family_index(self, family: str) -> int:
+        fam = str(family or "").strip() or "default"
+        return int(self._family_idx.get(fam, 0))
+
+
+VARIANT_ROTATOR = VariantRotator()
+
+
+def reset_variant_rotation(seed: str | None = None) -> None:
+    VARIANT_ROTATOR.reset(seed=seed)
+
+
+def choose_variant(family: str, pool: List[str], forced: str | None = None) -> str:
+    return VARIANT_ROTATOR.choose_variant(family=family, pool=pool, forced=forced)
+
+
+def _choose_impact_map_variant(*, content: Dict[str, Any] | None, has_roles: bool, index: int) -> str:
+    c = content or {}
+    raw_variant = str(c.get("impact_map_variant") or c.get("variant") or "").strip().lower()
+    variant_map = {
+        "classic": "classic",
+        "radial": "radial",
+        "pyramid": "pyramid",
+        "two_sided": "two_sided",
+        "two-sided": "two_sided",
+        "before_after": "two_sided",
+        "before-after": "two_sided",
+        "swimlane": "swimlane",
+    }
+    forced = variant_map.get(raw_variant)
+
+    pool: List[str] = ["classic", "radial", "pyramid", "two_sided"]
+    if has_roles:
+        pool.append("swimlane")
+
+    if forced and forced in pool:
+        return forced
+    return pool[int(index) % len(pool)]
 
 def _mark_takeaways_rendered():
     global TAKEAWAYS_RENDERED
@@ -508,15 +586,19 @@ def _timeline_node(slide, x_in: float, y_in: float, d_in: float, label: str, num
 
     tf = node.text_frame; tf.clear()
     pnum = tf.paragraphs[0]; pnum.alignment = PP_ALIGN.CENTER
-    r = pnum.add_run(); r.text = str(number); r.font.size = Pt(22); r.font.bold = True; r.font.color.rgb = RGBColor(*pal["primary"])
+    r = pnum.add_run(); r.text = str(number); r.font.size = Pt(24); r.font.bold = True; r.font.color.rgb = RGBColor(*pal["primary"])
 
     # Caption under circle (auto-fit)
-    cap_tf = slide.shapes.add_textbox(Inches(x_in - 0.35), Inches(y_in + d_in + 0.12), Inches(d_in + 0.7), Inches(0.9)).text_frame
+    cap_w_in = min(2.55, max(d_in + 0.55, d_in + 0.85))
+    cap_x_in = (x_in + d_in / 2) - cap_w_in / 2
+    # Clamp within slide safe margins so labels never spill outside the presentation area
+    cap_x_in = max(0.7, min(SLIDE_W_IN - 0.7 - cap_w_in, cap_x_in))
+    cap_tf = slide.shapes.add_textbox(Inches(cap_x_in), Inches(y_in + d_in + 0.12), Inches(cap_w_in), Inches(0.9)).text_frame
     cap_tf.word_wrap = True
     cap_tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
     cp = cap_tf.paragraphs[0]; cp.alignment = PP_ALIGN.CENTER
-    cp.text = (label or "(to be refined)")
-    cp.font.size = Pt(18); cp.font.bold = True; cp.font.color.rgb = RGBColor(*pal["text"]) if isinstance(pal["text"], tuple) else cp.font.color.rgb
+    cp.text = (label or "")
+    cp.font.size = Pt(20); cp.font.bold = True; cp.font.color.rgb = RGBColor(*pal["text"]) if isinstance(pal["text"], tuple) else cp.font.color.rgb
 
 def _timeline_render_row(slide, items: List[str], y_in: float, circle_d_in: float, numbered_start: int, *, pal: Dict[str, Tuple[int, int, int]]):
     n = len(items)
@@ -1536,6 +1618,18 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     prs.slide_width = Inches(SLIDE_W_IN)
     prs.slide_height = Inches(SLIDE_H_IN)
 
+    # Reset per-deck variant rotation indices for deterministic output.
+    # Seed is stable for a given deck input + theme so rotation is deterministic.
+    seed_title = ""
+    try:
+        seed_title = str((slides or [{}])[0].get("title") or "").strip()
+    except Exception:
+        seed_title = ""
+    seed = f"{(theme_name or '').strip().upper()}|{seed_title}|{len(slides or [])}"
+    reset_variant_rotation(seed=seed)
+    global IMPACT_MAP_VARIANT_INDEX
+    IMPACT_MAP_VARIANT_INDEX = 0
+
     blank = prs.slide_layouts[6]
     pal = _theme(theme_name)
 
@@ -1544,6 +1638,18 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     is_sleek_theme = theme_key == "SLEEK"
     uses_single_bullet_color = theme_key in {"SLEEK", "MINIMAL FLUX", "BLUE HORIZON"}
     pulse_bullet_slide_index = 0
+
+    current_render_idx = 0
+
+    def _debug_variant(*, family: str, chosen: str, eligible: List[str], forced: str | None) -> None:
+        if not SLIDE_DEBUG:
+            return
+        try:
+            print(
+                f"slide_debug:variant idx={current_render_idx} family={family} chosen={chosen} eligible={eligible} forced={forced}"
+            )
+        except Exception:
+            pass
 
     def _pulse_bullet_accent() -> Tuple[int, int, int]:
         nonlocal pulse_bullet_slide_index
@@ -1836,27 +1942,24 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         }
         forced = variant_map.get(variant_raw)
 
-        global TIMELINE_STYLE_INDEX
-        if 'TIMELINE_STYLE_INDEX' not in globals():
-            TIMELINE_STYLE_INDEX = 0
-        global LAST_TIMELINE_VARIANT
-        if 'LAST_TIMELINE_VARIANT' not in globals():
-            LAST_TIMELINE_VARIANT = None
-
-        pool = ["horizontal", "vchevrons", "linear", "vertical", "roadmap"]
-        if forced in pool:
-            chosen = forced
-        else:
-            start = TIMELINE_STYLE_INDEX % len(pool)
-            ordered = pool[start:] + pool[:start]
-            chosen = None
-            for v in ordered:
-                if v != LAST_TIMELINE_VARIANT:
-                    chosen = v
-                    break
-            chosen = chosen or ordered[0]
-
+        # Eligibility gating: keep layouts that fit the content.
         pts = items[:6]
+        n = len(pts)
+        max_len = 0
+        try:
+            max_len = max((len(str(x)) for x in pts), default=0)
+        except Exception:
+            max_len = 0
+
+        eligible: List[str] = ["horizontal", "vchevrons", "linear"]
+        if n >= 4 and n <= 6:
+            eligible.append("roadmap")
+        if n >= 4 or max_len >= 70:
+            eligible.append("vertical")
+
+        chosen = choose_variant("timeline", eligible, forced=forced)
+        _debug_variant(family="timeline", chosen=chosen, eligible=eligible, forced=forced)
+
         if chosen == "linear":
             render_timeline_linear(title_txt, pts, title_txt)
         elif chosen == "vertical":
@@ -1867,9 +1970,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             render_timeline_vchevrons(title_txt, pts, title_txt)
         else:
             render_timeline_horizontal(title_txt, pts, title_txt)
-
-        LAST_TIMELINE_VARIANT = chosen
-        TIMELINE_STYLE_INDEX += 1
 
     def _render_roadmap(sl) -> None:
         """Render phase-based roadmap with title, date range, and description per phase."""
@@ -1929,17 +2029,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
                 phase_title = str((phase.get("title") if isinstance(phase, dict) else "") or "")[:50]
                 _add_textbox(s, x + 0.15, y0 + 0.15, phase_w - 0.3, 0.5, phase_title,
-                            font_size_pt=18, bold=True, color=pal["text"])
+                            font_size_pt=18, bold=True, color=pal["text"], word_wrap=True, auto_fit=True)
 
                 date_range = str((phase.get("date_range") if isinstance(phase, dict) else "") or "")[:30]
                 if date_range:
                     _add_textbox(s, x + 0.15, y0 + 0.65, phase_w - 0.3, 0.4, date_range,
-                                font_size_pt=12, color=pal.get("muted", pal["text"]))
+                                font_size_pt=12, color=pal.get("muted", pal["text"]), word_wrap=True, auto_fit=True)
 
                 desc = str((phase.get("description") if isinstance(phase, dict) else "") or "")[:150]
                 if desc:
                     _add_textbox(s, x + 0.15, y0 + 1.05, phase_w - 0.3, max(0.3, phase_h - 1.20), desc,
-                                font_size_pt=11, color=pal["text"])
+                                font_size_pt=11, color=pal["text"], word_wrap=True, auto_fit=True)
 
                 if i < m - 1:
                     arrow_w = max(0.22, min(0.46, gap * 0.85))
@@ -2072,52 +2172,83 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             
         # Layout: table with plans as columns
         start_x, start_y = 1.0, 2.2
-        col_w = 2.5
+        margin_x = 1.0
+        avail_w = max(7.0, SLIDE_W_IN - 2 * margin_x)
+        n_plans = min(4, len(plans))
+        gap_x = 0.35
+        feature_w = min(4.1, max(3.2, avail_w * 0.34))
+        plan_w = (avail_w - feature_w - gap_x * max(0, n_plans - 1)) / max(1, n_plans)
+        if plan_w < 1.8:
+            feature_w = 3.0
+            plan_w = (avail_w - feature_w - gap_x * max(0, n_plans - 1)) / max(1, n_plans)
+
         row_h = 0.5
         header_h = 0.8
         
         # Plan headers
         for i, plan in enumerate(plans[:4]):  # Max 4 plans
-            x = start_x + i * col_w
+            x = start_x + feature_w + i * (plan_w + gap_x)
             
             # Header background
-            header = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(start_y), Inches(col_w - 0.1), Inches(header_h))
+            header = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(start_y), Inches(max(1.0, plan_w - 0.1)), Inches(header_h))
             header.fill.solid(); header.fill.fore_color.rgb = RGBColor(*pal.get("primary", pal["text"]))
             header.line.fill.background()
             
             # Plan name
             name = str(plan.get("name", ""))[:30]
-            _add_textbox(s, x + 0.05, start_y + 0.1, col_w - 0.2, 0.3, name,
-                        font_size_pt=16, bold=True, color=(255, 255, 255))
+            _add_textbox(s, x + 0.05, start_y + 0.08, max(0.6, plan_w - 0.2), 0.34, name,
+                        font_size_pt=15, bold=True, color=(255, 255, 255), word_wrap=True, auto_fit=True)
             
             # Price
             price = str(plan.get("price", ""))[:20]
             if price:
-                _add_textbox(s, x + 0.05, start_y + 0.4, col_w - 0.2, 0.3, price,
-                            font_size_pt=14, color=(255, 255, 255))
+                _add_textbox(s, x + 0.05, start_y + 0.42, max(0.6, plan_w - 0.2), 0.3, price,
+                            font_size_pt=13, color=(255, 255, 255), word_wrap=True, auto_fit=True)
         
         # Feature rows
-        all_features = set()
-        for plan in plans:
-            all_features.update(plan.get("features", []))
-        
-        feature_list = list(all_features)[:8]  # Max 8 features
+        all_features: List[str] = []
+        for plan in plans[:4]:
+            feats = plan.get("features", []) if isinstance(plan, dict) else []
+            if not isinstance(feats, list):
+                continue
+            for f in feats:
+                t = str(f or "").strip()
+                if t:
+                    all_features.append(t)
+
+        seen = set()
+        feature_list: List[str] = []
+        for f in sorted(all_features, key=lambda x: x.lower()):
+            if f.lower() in seen:
+                continue
+            seen.add(f.lower())
+            feature_list.append(f)
+            if len(feature_list) >= 8:
+                break
+
         for j, feature in enumerate(feature_list):
             y = start_y + header_h + j * row_h
             
             # Feature name (first column)
             feature_text = str(feature)[:40]
-            _add_textbox(s, start_x + 0.05, y + 0.05, col_w - 0.15, row_h - 0.1, feature_text,
-                        font_size_pt=11, color=pal["text"])
+            _add_textbox(s, start_x + 0.05, y + 0.05, max(0.8, feature_w - 0.15), row_h - 0.1, feature_text,
+                        font_size_pt=11, color=pal["text"], word_wrap=True, auto_fit=True)
             
             # Checkmarks for each plan
             for i, plan in enumerate(plans[:4]):
-                x = start_x + i * col_w
+                x = start_x + feature_w + i * (plan_w + gap_x)
                 has_feature = feature in plan.get("features", [])
                 
                 if has_feature:
                     # Checkmark
-                    check = s.shapes.add_shape(MsoShape.OVAL, Inches(x + col_w/2 - 0.15), Inches(y + 0.15), Inches(0.3), Inches(0.3))
+                    sz = 0.26
+                    check = s.shapes.add_shape(
+                        MsoShape.OVAL,
+                        Inches(x + plan_w / 2 - sz / 2),
+                        Inches(y + (row_h - sz) / 2),
+                        Inches(sz),
+                        Inches(sz),
+                    )
                     check.fill.solid(); check.fill.fore_color.rgb = RGBColor(*pal.get("primary", pal["text"]))
                     check.line.fill.background()
 
@@ -2594,9 +2725,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
         
         # Two-column layout
-        start_x, start_y = 1.0, 2.2
-        col_w, col_h = 5.5, 4.0
+        margin_x = 1.0
+        start_y = 2.2
         gap = 0.8
+        avail_w = max(7.0, SLIDE_W_IN - 2 * margin_x)
+        col_w = (avail_w - gap) / 2.0
+        start_x = margin_x
+        col_h = max(3.4, SLIDE_H_IN - start_y - 0.95)
         
         columns = [
             ("before", "Before", 0),
@@ -2615,14 +2750,14 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             col_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
             
             # Column heading
-            _add_textbox(s, x + 0.15, start_y + 0.15, col_w - 0.3, 0.5, heading,
-                        font_size_pt=18, bold=True, color=pal["primary"])
+            _add_textbox(s, x + 0.18, start_y + 0.16, col_w - 0.36, 0.56, heading,
+                        font_size_pt=19, bold=True, color=pal["primary"], word_wrap=True, auto_fit=True)
             
             # Bullet points
             if points:
-                bullet_text = "\n".join(f"• {str(p)[:60]}" for p in points[:8])  # Max 8 points
-                _add_textbox(s, x + 0.15, start_y + 0.7, col_w - 0.3, col_h - 0.85, bullet_text,
-                            font_size_pt=12, color=pal["text"])
+                bullet_text = "\n".join(f"• {str(p)[:68]}" for p in points[:8])  # Max 8 points
+                _add_textbox(s, x + 0.18, start_y + 0.78, col_w - 0.36, max(0.5, col_h - 0.98), bullet_text,
+                            font_size_pt=13, color=pal["text"], word_wrap=True, auto_fit=True)
 
     def _render_architecture(sl) -> None:
         """Render architecture diagram with boxes and directional arrows."""
@@ -3539,15 +3674,14 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 r2.font.color.rgb = RGBColor(*tail_rgb)
 
     def render_process_variant(title_txt: str, points: List[str], topic_src: str):
-        global PROCESS_STYLE_INDEX
-        sel = PROCESS_STYLE_INDEX % 3
-        if sel == 0:
-            render_timeline_horizontal(title_txt, points, topic_src)
-        elif sel == 1:
+        chosen = choose_variant("process_cards", ["horizontal", "alt", "vchevrons"], forced=None)
+        _debug_variant(family="process_cards", chosen=chosen, eligible=["horizontal", "alt", "vchevrons"], forced=None)
+        if chosen == "alt":
             render_process_timeline_alt(title_txt, points, topic_src)
-        else:
+        elif chosen == "vchevrons":
             render_timeline_vchevrons(title_txt, points, topic_src)
-        PROCESS_STYLE_INDEX += 1
+        else:
+            render_timeline_horizontal(title_txt, points, topic_src)
 
     def render_timeline_vertical(title_txt: str, points: List[str], topic_src: str):
         """Colorful vertical timeline with soft spine and numbered bubbles."""
@@ -3840,9 +3974,82 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         headers = [left.get("heading") or "Option A", right.get("heading") or "Option B"]
         left_pts = [str(x) for x in (left.get("points") or [])]
         right_pts = [str(x) for x in (right.get("points") or [])]
+        variant_raw = str(c.get("comparison_variant") or c.get("table_variant") or c.get("variant") or "").strip().lower()
+        variant_map = {
+            "table": "table",
+            "side_by_side_table": "table",
+            "side-by-side-table": "table",
+            "cards": "cards",
+            "pros_cons_cards": "cards",
+            "pros-cons": "cards",
+            "pros_cons": "cards",
+        }
+        forced = variant_map.get(variant_raw)
+
+        eligible = ["table", "cards"]
+        chosen = choose_variant("comparison", eligible, forced=forced)
+        _debug_variant(family="comparison", chosen=chosen, eligible=eligible, forced=forced)
+
+        def _render_comparison_cards(slide, headers_in: List[str], lp: List[str], rp: List[str]) -> None:
+            dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
+            head_rgb = (255, 255, 255) if dark_bg else pal.get("text", (24, 24, 27))
+            muted_rgb = pal.get("muted", pal.get("text", (71, 85, 105)))
+
+            margin_x = 0.9
+            gap_x = 0.55
+            cont_y = 2.15
+            cont_h = 5.05
+            col_w = (SLIDE_W_IN - 2 * margin_x - gap_x) / 2.0
+            left_x = margin_x
+            right_x = margin_x + col_w + gap_x
+
+            for x0, hdr, pts, accent in [
+                (left_x, headers_in[0] if headers_in else "Option A", lp, pal.get("primary", (59, 130, 246))),
+                (right_x, headers_in[1] if len(headers_in) > 1 else "Option B", rp, pal.get("secondary", pal.get("primary", (59, 130, 246)))),
+            ]:
+                card = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(cont_y), Inches(col_w), Inches(cont_h))
+                card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
+                card.line.color.rgb = RGBColor(*accent)
+                try:
+                    card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 10; card.shadow.distance = 2
+                except Exception:
+                    pass
+
+                band = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(cont_y), Inches(col_w), Inches(0.62))
+                band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*accent)
+                band.line.fill.background()
+
+                _add_textbox(slide, x0 + 0.25, cont_y + 0.12, col_w - 0.5, 0.45, str(hdr), font_size_pt=18, bold=True, color=_contrast_text(accent), word_wrap=True, auto_fit=True)
+
+                pts2 = [str(x).strip() for x in (pts or []) if str(x).strip()]
+                if not pts2:
+                    pts2 = ["", "", ""]
+                pts2 = pts2[:6]
+                y_txt = cont_y + 0.82
+                h_txt = cont_h - 0.96
+                tb = slide.shapes.add_textbox(Inches(x0 + 0.28), Inches(y_txt), Inches(col_w - 0.56), Inches(h_txt)).text_frame
+                tb.word_wrap = True
+                tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                tb.clear()
+                for i, ptxt in enumerate(pts2):
+                    p = tb.paragraphs[0] if i == 0 else tb.add_paragraph()
+                    p.text = f"• {ptxt}" if ptxt else ""
+                    try:
+                        p.space_after = Pt(10)
+                    except Exception:
+                        pass
+                    p.font.size = Pt(16)
+                    p.font.color.rgb = RGBColor(*head_rgb)
+                    if not ptxt:
+                        p.font.color.rgb = RGBColor(*muted_rgb)
+
         # Title uses the provided slide title (topic-aligned)
         comp_title = sl.get("title") or "Comparison"
         _add_textbox(s, 1.0, 0.9, 11.3, 1.0, comp_title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        if chosen == "cards":
+            _render_comparison_cards(s, headers, left_pts, right_pts)
+            return
         body_rows = max(3, min(max(len(left_pts), len(right_pts)), 6))
         table = _add_table(s, 1.6665, 2.2, 10.0, 3.0, rows=body_rows + 1, cols=2)
         # header row
@@ -3872,7 +4079,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 pass
         # rows: padding, centering, wrapping, and thin inner borders (header+body)
         try:
-            from pptx.util import Pt
+            from pptx.util import Pt as _Pt
             from pptx.enum.text import MSO_ANCHOR
             g1 = RGBColor(209, 213, 219)
             g2 = RGBColor(229, 231, 235)
@@ -3880,10 +4087,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 for cc in range(2):
                     cell = table.cell(rr, cc)
                     # padding
-                    cell.margin_left = Pt(6)
-                    cell.margin_right = Pt(6)
-                    cell.margin_top = Pt(4)
-                    cell.margin_bottom = Pt(4)
+                    cell.margin_left = _Pt(6)
+                    cell.margin_right = _Pt(6)
+                    cell.margin_top = _Pt(4)
+                    cell.margin_bottom = _Pt(4)
                     # vertical center + wrap
                     try:
                         cell.vertical_anchor = MSO_ANCHOR.MIDDLE
@@ -3895,11 +4102,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                         pass
                     # borders
                     try:
-                        cell.border_top.color.rgb = g1; cell.border_top.width = Pt(0.5)
-                        cell.border_bottom.color.rgb = g1; cell.border_bottom.width = Pt(0.5)
+                        cell.border_top.color.rgb = g1; cell.border_top.width = _Pt(0.5)
+                        cell.border_bottom.color.rgb = g1; cell.border_bottom.width = _Pt(0.5)
                         if cc == 0:
-                            cell.border_left.color.rgb = g2; cell.border_left.width = Pt(0.5)
-                        cell.border_right.color.rgb = g2; cell.border_right.width = Pt(0.5)
+                            cell.border_left.color.rgb = g2; cell.border_left.width = _Pt(0.5)
+                        cell.border_right.color.rgb = g2; cell.border_right.width = _Pt(0.5)
                     except Exception:
                         pass
         except Exception:
@@ -4269,7 +4476,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
 
         center_label = (content.get("center_label") or sl.get("center_label") or sl.get("title") or "Goal").strip() or "Goal"
-        cx, cy = SLIDE_W_IN / 2.0, 4.45
+        cx, cy = SLIDE_W_IN / 2.0, 4.15
         core_d = 2.05
         core = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - core_d / 2), Inches(cy - core_d / 2), Inches(core_d), Inches(core_d))
         core_rgb = pal.get("primary", (59, 130, 246))
@@ -4288,11 +4495,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         node_w, node_h = 2.70, 1.10
         pts: List[tuple[float, float]] = []
         if n == 5:
-            gap = 0.95
+            gap = 1.25
             top_y = cy - (core_d / 2.0 + node_h / 2.0 + gap)
-            side_x_off = (core_d / 2.0 + node_w / 2.0 + 1.05)
-            side_y = cy - 0.85
-            bot_y = cy + (core_d / 2.0 + node_h / 2.0 + 0.85)
+            side_x_off = (core_d / 2.0 + node_w / 2.0 + 1.25)
+            side_y = cy - 0.95
+            bot_y = cy + (core_d / 2.0 + node_h / 2.0 + 1.05)
             pts = [
                 (cx, top_y),
                 (cx - side_x_off, side_y),
@@ -4301,9 +4508,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 (cx + (node_w / 2.0 + 0.55), bot_y),
             ]
         else:
-            desired_r = max(2.25, (core_d / 2.0) + (max(node_w, node_h) / 2.0) + 0.70)
-            avail_top = (cy - (band_y + 0.25)) - (node_h / 2.0)
-            avail_bot = ((band_y + band_h - 0.25) - cy) - (node_h / 2.0)
+            desired_r = max(2.55, (core_d / 2.0) + (max(node_w, node_h) / 2.0) + 1.05)
+            edge_pad = 0.15
+            avail_top = (cy - (band_y + edge_pad)) - (node_h / 2.0)
+            avail_bot = ((band_y + band_h - edge_pad) - cy) - (node_h / 2.0)
             r = max(1.6, min(desired_r, avail_top, avail_bot))
             for i in range(n):
                 ang = (-math.pi / 2.0) + (2.0 * math.pi * i / float(n))
@@ -4317,7 +4525,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             nx = max(band_x + 0.25, min(band_x + band_w - node_w - 0.25, x - node_w / 2.0))
             ny = max(band_y + 0.25, min(band_y + band_h - node_h - 0.25, y - node_h / 2.0))
             head, _ = _split_head_tail(raw)
-            head_txt = (head or raw or "").strip() or "(to be refined)"
+            head_txt = (head or raw or "").strip() or ""
             hw = head_txt.split()
             if len(hw) > 5:
                 head_txt = " ".join(hw[:5])
@@ -4431,7 +4639,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         for i, (x, y) in enumerate(mid_positions):
             raw = mid_items[i]
             head, _ = _split_head_tail(raw)
-            txt = (head or raw or "").strip() or "(to be refined)"
+            txt = (head or raw or "").strip() or ""
             words = txt.split()
             if len(words) > 7:
                 txt = " ".join(words[:7])
@@ -4450,7 +4658,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         for i, (x, y) in enumerate(bot_positions):
             raw = bot_items[i]
             head, _ = _split_head_tail(raw)
-            txt = (head or raw or "").strip() or "(to be refined)"
+            txt = (head or raw or "").strip() or ""
             words = txt.split()
             if len(words) > 7:
                 txt = " ".join(words[:7])
@@ -4537,7 +4745,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         step_cols = _step_colors()
         def _node(i: int, x: float, y: float, raw: str) -> None:
             head, _ = _split_head_tail(raw)
-            head_txt = (head or raw or "").strip() or "(to be refined)"
+            head_txt = (head or raw or "").strip() or ""
             hw = head_txt.split()
             if len(hw) > 6:
                 head_txt = " ".join(hw[:6])
@@ -4646,7 +4854,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 conn.line.width = Pt(1.75)
 
             for j, raw in enumerate(lane_items):
-                txt = (str(raw or "").strip() or "(to be refined)")
+                txt = (str(raw or "").strip() or "")
                 words = txt.split()
                 if len(words) > 10:
                     txt = " ".join(words[:10])
@@ -5140,8 +5348,55 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             else:
                 x = x_next
 
-    def _render_process_workflow(title_txt: str, items: List[str]) -> None:
-        v = _choose_process_variant(title_txt, items)
+    def _render_process_workflow(title_txt: str, items: List[str], *, forced: str | None = None) -> None:
+        blob = _process_blob(title_txt, items)
+        n = len(items)
+        parts = [_split_head_tail(x) for x in (items or [])]
+        lens = [len(((tail or head) or "").strip()) for head, tail in parts]
+        max_len = max(lens) if lens else 0
+        avg_len = (sum(lens) / len(lens)) if lens else 0.0
+
+        governance = any(k in blob for k in [
+            "approve", "approval", "sign-off", "sign off", "compliance", "audit", "control",
+            "gate", "gating", "checkpoint", "validation", "readiness", "go/no-go", "go no-go", "review",
+        ])
+        cyclical = any(k in blob for k in [
+            "cycle", "cyclical", "continuous", "ongoing", "recurring", "repeat", "iteration", "iterate", "loop", "feedback",
+        ])
+        instructional = any(k in blob for k in [
+            "how to", "how it works", "step-by-step", "step by step", "instructions", "guide", "tutorial",
+            "setup", "configure", "install", "onboarding",
+        ])
+        exec_tone = any(k in blob for k in [
+            "overview", "executive", "high-level", "high level", "operating model", "summary",
+        ])
+        saas_tone = any(k in blob for k in [
+            "saas", "product", "platform", "app", "workflow", "automation",
+        ])
+        roles = _extract_swimlane_roles(items)
+        long_desc = (max_len >= 80) or (avg_len >= 55) or any(len(str(x)) >= 110 for x in (items or []))
+
+        eligible: List[str] = ["CHEVRON"]
+        if governance and 4 <= n <= 6:
+            eligible.append("GATE")
+        if cyclical and 4 <= n <= 6:
+            eligible.append("CYCLE")
+        if len(roles) >= 2 and n <= 6:
+            eligible.append("SWIMLANE")
+        if long_desc or n >= 7:
+            eligible.append("VERTICAL")
+        if instructional:
+            eligible.append("CARDS")
+        if saas_tone and max_len <= 36:
+            eligible.append("ICONS")
+        if exec_tone and max_len <= 60:
+            eligible.append("BANDS")
+
+        forced_norm = str(forced or "").strip().upper() or None
+        chosen = choose_variant("process_workflow", eligible, forced=forced_norm)
+        _debug_variant(family="process_workflow", chosen=chosen, eligible=eligible, forced=forced_norm)
+
+        v = chosen
         if v == "GATE":
             _render_process_milestone_gate(title_txt, items)
             return
@@ -5166,20 +5421,31 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         render_timeline_horizontal(title_txt or "Process", items[:6], topic_src=title_txt)
 
     def _render_process_flow_chevron_infographic(sl) -> None:
-        title, bullets, _ = _infographic_items(sl)
-        if not bullets:
-            bullets = _synthesize_topic_bullets(title)[:6]
+        title, bullets, content = _infographic_items(sl)
         steps = [str(x).strip() for x in (bullets or []) if str(x).strip()]
         if len(steps) < 4:
-            steps = (steps + ["(to be refined)"] * 4)[:4]
-        _render_process_workflow(title or "Process", steps)
+            steps = (steps + _synthesize_topic_bullets(title))[:4]
+        variant_raw = str(content.get("process_variant") or content.get("variant") or "").strip().upper()
+        variant_map = {
+            "CHEVRON": "CHEVRON",
+            "BANDS": "BANDS",
+            "ICONS": "ICONS",
+            "CARDS": "CARDS",
+            "VERTICAL": "VERTICAL",
+            "CYCLE": "CYCLE",
+            "GATE": "GATE",
+            "SWIMLANE": "SWIMLANE",
+        }
+        forced = variant_map.get(variant_raw)
+        _render_process_workflow(title or "Process", steps, forced=forced)
 
     def _render_risk_matrix_advanced(sl) -> None:
         title, bullets, content = _infographic_items(sl)
-        s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title or "Risk Assessment Matrix", font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+        risks = [str(x).strip() for x in (bullets or []) if str(x).strip()]
 
-        # Fixed 3x4 grid (Likelihood x Impact)
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title or "Risk Matrix", font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
         rows, cols = 3, 4
         x_labels = content.get("x_labels") or ["Low", "Moderate", "High", "Critical"]
         y_labels = content.get("y_labels") or ["Rare", "Possible", "Likely"]
@@ -5188,15 +5454,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         cell_w = grid_w / cols
         cell_h = grid_h / rows
 
-        # Color scale from green (low) to red (high)
         col_scale = [
-            (34, 197, 94),   # green
-            (234, 179, 8),   # amber
-            (249, 115, 22),  # orange
-            (239, 68, 68),   # red
+            (34, 197, 94),
+            (234, 179, 8),
+            (249, 115, 22),
+            (239, 68, 68),
         ]
 
-        # Draw cells
         for r in range(rows):
             for c_idx in range(cols):
                 x = grid_x + c_idx * cell_w
@@ -5207,21 +5471,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 rect.line.color.rgb = RGBColor(255, 255, 255)
         _draw_table_grid_rect(s, grid_x, grid_y, grid_w, grid_h, rows, cols, rgb=(209, 213, 219), weight_pt=0.75)
 
-        # Axis labels
-        # Impact (x-axis)
         for c_idx in range(cols):
             lab = str(x_labels[c_idx] if c_idx < len(x_labels) else "")
             _add_textbox(s, grid_x + c_idx * cell_w, grid_y + grid_h + 0.10, cell_w, 0.40, lab, font_size_pt=14, bold=True, align="center", color=pal.get("text", (24, 24, 27)))
         _add_textbox(s, grid_x, grid_y + grid_h + 0.60, grid_w, 0.40, "Impact", font_size_pt=14, bold=True, align="center", color=pal.get("muted", pal.get("text", (71, 85, 105))))
 
-        # Likelihood (y-axis)
         for r in range(rows):
             lab = str(y_labels[rows - 1 - r] if r < len(y_labels) else "")
             _add_textbox(s, grid_x - 1.05, grid_y + r * cell_h, 1.0, 0.40, lab, font_size_pt=14, bold=True, align="right", color=pal.get("text", (24, 24, 27)))
         _add_textbox(s, grid_x - 1.45, grid_y - 0.10, 1.40, 0.60, "Likelihood", font_size_pt=14, bold=True, align="right", color=pal.get("muted", pal.get("text", (71, 85, 105))))
 
-        # Bullet panel for specific risks (if provided)
-        if bullets:
+        if risks:
             panel_x = grid_x + grid_w + 0.45
             panel_w = max(2.0, SLIDE_W_IN - 1.0 - panel_x)
             panel_y = grid_y
@@ -5232,7 +5492,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 panel_y,
                 panel_w,
                 panel_h,
-                bullets[:6],
+                risks[:6],
                 font_size_pt=14,
                 min_items=0,
                 color=pal.get("text", (24, 24, 27)),
@@ -5326,7 +5586,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         title, bullets, _ = _infographic_items(sl)
         benefits = bullets or _synthesize_topic_bullets(title)[:6]
         n = max(4, min(6, len(benefits)))
-        benefits = benefits[:n]
+        if len(benefits) < n:
+            benefits = (list(benefits) + _synthesize_topic_bullets(title))[:n]
+        else:
+            benefits = benefits[:n]
 
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title or "Benefits", font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
@@ -5381,6 +5644,47 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         intent = _infer_infographic_intent(title, content)
         count = len(bullets)
 
+        def _render_impact_map_rotated(*, allow_simple: bool) -> None:
+            roles = _extract_swimlane_roles([str(x) for x in (bullets or [])])
+            has_roles = len(roles) >= 2
+
+            raw_variant = str((content or {}).get("impact_map_variant") or (content or {}).get("variant") or "").strip().lower()
+            variant_map = {
+                "classic": "classic",
+                "radial": "radial",
+                "pyramid": "pyramid",
+                "two_sided": "two_sided",
+                "two-sided": "two_sided",
+                "before_after": "two_sided",
+                "before-after": "two_sided",
+                "swimlane": "swimlane",
+            }
+            forced = variant_map.get(raw_variant)
+
+            eligible: List[str] = ["classic", "radial", "pyramid", "two_sided"]
+            if has_roles:
+                eligible.append("swimlane")
+
+            chosen = choose_variant("impact_map", eligible, forced=forced)
+            _debug_variant(family="impact_map", chosen=chosen, eligible=eligible, forced=forced)
+
+            # Maintain legacy index advancement for compatibility/tests.
+            global IMPACT_MAP_VARIANT_INDEX
+            if 'IMPACT_MAP_VARIANT_INDEX' not in globals():
+                IMPACT_MAP_VARIANT_INDEX = 0
+            IMPACT_MAP_VARIANT_INDEX += 1
+
+            if chosen == "radial":
+                _render_impact_map_radial(sl)
+            elif chosen == "pyramid":
+                _render_impact_map_pyramid(sl)
+            elif chosen == "two_sided":
+                _render_impact_map_two_sided(sl)
+            elif chosen == "swimlane":
+                _render_impact_map_swimlane(sl)
+            else:
+                _render_impact_map(True if allow_simple else False, sl)
+
         # Deterministic selection rules based on intent and density
         if intent == "GANTT" and count >= 4:
             _render_gantt_chart(sl)
@@ -5398,75 +5702,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             _render_layered_benefits_stack(sl)
             return
         if intent == "IMPACT":
-            global IMPACT_MAP_VARIANT_INDEX
-            if 'IMPACT_MAP_VARIANT_INDEX' not in globals():
-                IMPACT_MAP_VARIANT_INDEX = 0
-            global LAST_IMPACT_MAP_VARIANT
-            if 'LAST_IMPACT_MAP_VARIANT' not in globals():
-                LAST_IMPACT_MAP_VARIANT = None
-
-            raw_variant = str((content or {}).get("impact_map_variant") or (content or {}).get("variant") or "").strip().lower()
-            variant_map = {
-                "classic": "classic",
-                "radial": "radial",
-                "pyramid": "pyramid",
-                "two_sided": "two_sided",
-                "two-sided": "two_sided",
-                "before_after": "two_sided",
-                "before-after": "two_sided",
-                "swimlane": "swimlane",
-            }
-            forced = variant_map.get(raw_variant)
-
-            blob = ((title or "") + " " + " ".join(str(x) for x in (bullets or []))).lower()
-            roles = _extract_swimlane_roles([str(x) for x in (bullets or [])])
-            has_roles = len(roles) >= 2
-            transformational = any(k in blob for k in [
-                "before", "after", "current", "future", "baseline", "to-be", "tobe", "as-is", "asis",
-                "transform", "transformation", "moderniz", "migration", "turnaround", "recovery",
-            ])
-            causal = any(k in blob for k in [
-                "enabler", "enablers", "initiative", "initiatives", "capability", "capabilities",
-                "foundation", "build", "enable", "driver", "leads to", "results in",
-            ])
-
-            preferred = "classic"
-            if has_roles:
-                preferred = "swimlane"
-            elif transformational:
-                preferred = "two_sided"
-            elif causal:
-                preferred = "pyramid"
-            elif count >= 5:
-                preferred = "radial"
-
-            pool = ["classic", "radial", "pyramid", "two_sided", "swimlane"]
-            if forced:
-                chosen = forced
-            else:
-                start = IMPACT_MAP_VARIANT_INDEX % len(pool)
-                ordered = pool[start:] + pool[:start]
-                ordered = [preferred] + [v for v in ordered if v != preferred]
-                chosen = None
-                for v in ordered:
-                    if v != LAST_IMPACT_MAP_VARIANT:
-                        chosen = v
-                        break
-                chosen = chosen or preferred
-
-            if chosen == "radial":
-                _render_impact_map_radial(sl)
-            elif chosen == "pyramid":
-                _render_impact_map_pyramid(sl)
-            elif chosen == "two_sided":
-                _render_impact_map_two_sided(sl)
-            elif chosen == "swimlane":
-                _render_impact_map_swimlane(sl)
-            else:
-                _render_impact_map(True if count <= 4 else False, sl)
-
-            LAST_IMPACT_MAP_VARIANT = chosen
-            IMPACT_MAP_VARIANT_INDEX += 1
+            _render_impact_map_rotated(allow_simple=(count <= 4))
             return
 
         # Fallbacks: use simple impact map for general infographics or treat
@@ -5474,7 +5710,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         if t == "key_takeaways" and count >= 3:
             _render_layered_benefits_stack(sl)
         else:
-            _render_impact_map(True, sl)
+            _render_impact_map_rotated(allow_simple=True)
 
     def render_thanks(sl):
         s = prs.slides.add_slide(blank); apply_bg(s)
@@ -5490,7 +5726,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         c = _content(sl)
         bullets = [str(x).strip() for x in (c.get("bullets") or []) if str(x).strip()]
         if not bullets:
-            bullets = ["(to be refined)"]
+            bullets = _synthesize_topic_bullets(title)[:4]
         _add_bullets(s, 1.0, 2.0, 11.0, 4.5, bullets, font_size_pt=20, color=pal["text"], word_wrap=True, auto_fit=True)
 
     # Pre-pass: avoid empty bullets only if we are not in render_exact mode
@@ -5520,6 +5756,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     
     def _render_swot_wrapper(sl):
         content = _content(sl)
+        bullets: List[str] = []
         try:
             has_structured = False
             for k in ["strengths", "weaknesses", "opportunities", "threats"]:
@@ -5528,45 +5765,225 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     has_structured = True
                     break
             if has_structured:
-                _render_swot(sl)
-                return
+                bullets = []
         except Exception:
             pass
 
-        bullets = content.get("bullets", [])
-        if not isinstance(bullets, list) or not any(str(x).strip() for x in bullets):
-            _render_swot(sl)
-            return
+        if "bullets" in content:
+            bullets = content.get("bullets", [])
+        if not isinstance(bullets, list):
+            bullets = []
 
-        quadrant_data = {
-            "strengths": {"points": []},
-            "weaknesses": {"points": []},
-            "opportunities": {"points": []},
-            "threats": {"points": []},
+        if bullets and any(str(x).strip() for x in bullets):
+            quadrant_data = {
+                "strengths": {"points": []},
+                "weaknesses": {"points": []},
+                "opportunities": {"points": []},
+                "threats": {"points": []},
+            }
+
+            for bullet in bullets:
+                bullet_txt = str(bullet or "").strip()
+                if not bullet_txt:
+                    continue
+                bullet_lower = bullet_txt.lower()
+                if "strengths:" in bullet_lower:
+                    quadrant_data["strengths"]["points"].append(bullet_txt.split(":", 1)[1].strip())
+                elif "weaknesses:" in bullet_lower:
+                    quadrant_data["weaknesses"]["points"].append(bullet_txt.split(":", 1)[1].strip())
+                elif "opportunities:" in bullet_lower:
+                    quadrant_data["opportunities"]["points"].append(bullet_txt.split(":", 1)[1].strip())
+                elif "threats:" in bullet_lower:
+                    quadrant_data["threats"]["points"].append(bullet_txt.split(":", 1)[1].strip())
+
+            for key, data in quadrant_data.items():
+                sl["content"][key] = data
+
+        def _render_swot_banded(sl2) -> None:
+            content2 = _content(sl2)
+            title2 = content2.get("title", "SWOT Analysis")
+            s2 = prs.slides.add_slide(blank); apply_bg(s2)
+            _add_textbox(s2, 1.0, 0.9, 11.3, 0.9, title2, font_size_pt=32, bold=True, color=TITLE_COL)
+
+            margin_x = 1.0
+            top_y = 2.05
+            bottom_margin = 0.65
+            gap_x, gap_y = 0.55, 0.45
+            avail_w = max(6.0, SLIDE_W_IN - 2 * margin_x)
+            avail_h = max(3.6, SLIDE_H_IN - bottom_margin - top_y)
+            cell_w = max(3.0, (avail_w - gap_x) / 2.0)
+            cell_h = max(1.6, (avail_h - gap_y) / 2.0)
+            start_x, start_y = margin_x, top_y
+
+            quadrants2 = [
+                ("strengths", "Strengths", 0, 0),
+                ("weaknesses", "Weaknesses", 1, 0),
+                ("opportunities", "Opportunities", 0, 1),
+                ("threats", "Threats", 1, 1),
+            ]
+
+            for key2, label2, col_idx, row_idx in quadrants2:
+                x = start_x + col_idx * (cell_w + gap_x)
+                y = start_y + row_idx * (cell_h + gap_y)
+                quadrant_data2 = content2.get(key2, {})
+                points2 = quadrant_data2.get("points", [])
+
+                quad_box = s2.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(cell_w), Inches(cell_h))
+                quad_box.fill.solid(); quad_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+                quad_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+
+                band_h = 0.48
+                band = s2.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(cell_w), Inches(band_h))
+                band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+                band.line.fill.background()
+                _add_textbox(
+                    s2,
+                    x + 0.18,
+                    y + 0.08,
+                    cell_w - 0.36,
+                    band_h - 0.12,
+                    label2,
+                    font_size_pt=16,
+                    bold=True,
+                    color=(255, 255, 255),
+                    word_wrap=True,
+                    auto_fit=True,
+                )
+
+                if points2:
+                    bullet_text = "\n".join(f"• {str(p)[:70]}" for p in points2[:6])
+                    _add_textbox(
+                        s2,
+                        x + 0.18,
+                        y + band_h + 0.12,
+                        cell_w - 0.36,
+                        max(0.4, cell_h - band_h - 0.26),
+                        bullet_text,
+                        font_size_pt=13,
+                        color=pal["text"],
+                        word_wrap=True,
+                        auto_fit=True,
+                    )
+
+        variant_raw = str(content.get("swot_variant") or content.get("variant") or "").strip().lower()
+        variant_map = {
+            "classic": "classic",
+            "banded": "banded",
+            "header_bands": "banded",
+            "headers": "banded",
         }
+        forced = variant_map.get(variant_raw)
+        eligible = ["classic", "banded"]
+        chosen = choose_variant("swot", eligible, forced=forced)
+        _debug_variant(family="swot", chosen=chosen, eligible=eligible, forced=forced)
 
-        for bullet in bullets:
-            bullet_txt = str(bullet or "").strip()
-            if not bullet_txt:
-                continue
-            bullet_lower = bullet_txt.lower()
-            if "strengths:" in bullet_lower:
-                quadrant_data["strengths"]["points"].append(bullet_txt.split(":", 1)[1].strip())
-            elif "weaknesses:" in bullet_lower:
-                quadrant_data["weaknesses"]["points"].append(bullet_txt.split(":", 1)[1].strip())
-            elif "opportunities:" in bullet_lower:
-                quadrant_data["opportunities"]["points"].append(bullet_txt.split(":", 1)[1].strip())
-            elif "threats:" in bullet_lower:
-                quadrant_data["threats"]["points"].append(bullet_txt.split(":", 1)[1].strip())
-
-        for key, data in quadrant_data.items():
-            sl["content"][key] = data
-
-        _render_swot(sl)
+        if chosen == "banded":
+            _render_swot_banded(sl)
+        else:
+            _render_swot(sl)
     
     def _render_kpi_wrapper(sl):
-        # KPI bullets should work as-is, just call the function
-        _render_kpi(sl)
+        content = _content(sl)
+        variant_raw = str(content.get("kpi_variant") or content.get("variant") or "").strip().lower()
+        variant_map = {
+            "grid": "grid",
+            "2x2": "grid",
+            "grid_2x2": "grid",
+            "strip": "strip",
+            "horizontal": "strip",
+            "list": "list",
+            "stacked": "list",
+        }
+        forced = variant_map.get(variant_raw)
+
+        metrics = content.get("metrics") or []
+        n = len(metrics) if isinstance(metrics, list) else 0
+        eligible = ["grid", "strip", "list"]
+        if n < 4:
+            eligible = ["grid"]
+
+        chosen = choose_variant("kpi", eligible, forced=forced)
+        _debug_variant(family="kpi", chosen=chosen, eligible=eligible, forced=forced)
+
+        if chosen == "strip":
+            _render_kpi_strip(sl)
+        elif chosen == "list":
+            _render_kpi_list(sl)
+        else:
+            _render_kpi(sl)
+
+    def _render_kpi_strip(sl) -> None:
+        content = _content(sl)
+        title = content.get("title", "Key Metrics")
+        metrics = content.get("metrics") or []
+        if not isinstance(metrics, list):
+            metrics = []
+        metrics = metrics[:4]
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+
+        margin_x = 0.8
+        gap_x = 0.35
+        y = 2.3
+        h = 4.65
+        card_w = (SLIDE_W_IN - 2 * margin_x - 3 * gap_x) / 4.0
+        card_h = min(2.25, h)
+        val_fs = 30
+        for i, m in enumerate(metrics):
+            x = margin_x + i * (card_w + gap_x)
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(card_w), Inches(card_h))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            card.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+            try:
+                card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 8; card.shadow.distance = 2
+            except Exception:
+                pass
+
+            label = str((m or {}).get("label") or "")[:40]
+            value = str((m or {}).get("value") or "")[:25]
+            caption = str((m or {}).get("caption") or "")[:80]
+
+            _add_textbox(s, x + 0.18, y + 0.18, card_w - 0.36, 0.45, label, font_size_pt=12, bold=True, color=pal.get("text", (24, 24, 27)), word_wrap=True, auto_fit=True)
+            _add_textbox(s, x + 0.18, y + 0.68, card_w - 0.36, 0.70, value, font_size_pt=val_fs, bold=True, color=pal.get("primary", pal.get("text", (59, 130, 246))), word_wrap=True, auto_fit=True)
+            if caption:
+                _add_textbox(s, x + 0.18, y + 1.45, card_w - 0.36, card_h - 1.60, caption, font_size_pt=10, bold=False, color=pal.get("muted", pal.get("text", (71, 85, 105))), word_wrap=True, auto_fit=True)
+
+    def _render_kpi_list(sl) -> None:
+        content = _content(sl)
+        title = content.get("title", "Key Metrics")
+        metrics = content.get("metrics") or []
+        if not isinstance(metrics, list):
+            metrics = []
+        metrics = metrics[:6]
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+
+        x = 1.0
+        y = 2.2
+        w = SLIDE_W_IN - 2.0
+        row_h = 0.95
+        gap = 0.22
+        accent = pal.get("primary", (59, 130, 246))
+        for i, m in enumerate(metrics[:5]):
+            yy = y + i * (row_h + gap)
+            row = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(yy), Inches(w), Inches(row_h))
+            row.fill.solid(); row.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
+            row.line.color.rgb = RGBColor(*accent)
+            try:
+                row.shadow.inherit = False; row.shadow.visible = True; row.shadow.blur = 6; row.shadow.distance = 2
+            except Exception:
+                pass
+
+            label = str((m or {}).get("label") or "")[:60]
+            value = str((m or {}).get("value") or "")[:30]
+            caption = str((m or {}).get("caption") or "")[:120]
+
+            _add_textbox(s, x + 0.30, yy + 0.18, w * 0.55, 0.60, label, font_size_pt=16, bold=True, color=pal.get("text", (24, 24, 27)), word_wrap=True, auto_fit=True)
+            _add_textbox(s, x + w * 0.70, yy + 0.16, w * 0.28, 0.65, value, font_size_pt=24, bold=True, align="right", color=accent, word_wrap=True, auto_fit=True)
+            if caption:
+                _add_textbox(s, x + 0.30, yy + 0.58, w * 0.62, 0.35, caption, font_size_pt=10, bold=False, color=pal.get("muted", pal.get("text", (71, 85, 105))), word_wrap=True, auto_fit=True)
     
     def _render_pricing_wrapper(sl):
         # Pricing table structure should work as-is
@@ -5975,6 +6392,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
     for idx, sl in enumerate(slides_norm, start=1):
         t = _ctype(sl)
+        current_render_idx = idx
         title_dbg = ""
         try:
             title_dbg = str(sl.get("title") or "").strip()
@@ -6152,11 +6570,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     # cards/process types
                     c = _content(sl2)
                     stages = [str(x).strip() for x in (c.get("cards") or c.get("bullets") or []) if str(x).strip()]
+                    if len(stages) < 4:
+                        continue
                     render_process_variant((sl2.get("title") or "Process"), stages, topic_src=(sl2.get("title") or ""))
             # Otherwise: skip silently (prevents surprise plain bullet slides)
 
     # --- Smart Infographic Summary (rotate among 4 templates) ---
-    def _collect_summary_from_slides(sl_list: List[Dict[str, Any]]) -> List[str]:
+    def _collect_takeaways(sl_list: List[Dict[str, Any]]) -> List[str]:
         pts: List[str] = []
         # Prefer Key Takeaways / Infographic bullets
         for s in sl_list:
@@ -6185,12 +6605,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             lo = p.lower()
             if lo and lo not in seen:
                 seen.add(lo); uniq.append(p)
-        if len(uniq) < 3:
+        if len(uniq) < 4:
             # pad with topic-driven generics
             topic = (slides_norm[0].get("title") or "Key Insights").strip()
             base = [f"{topic}: summary", "Outcomes", "Next steps", "Owners", "Risks/Effort"]
             for b in base:
-                if len(uniq) >= 3:
+                if len(uniq) >= 4:
                     break
                 if b.lower() not in seen:
                     seen.add(b.lower()); uniq.append(b)
@@ -6278,7 +6698,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 if head:
                     r1 = p.add_run(); r1.text = head + (" " if tail else ""); r1.font.size = Pt(22); r1.font.bold = True; r1.font.color.rgb = RGBColor(*head_rgb)
                 if tail:
-                    r2 = p.add_run(); r2.text = tail; r2.font.size = Pt(13); r2.font.color.rgb = RGBColor(*tail_rgb)
+                    r2 = p.add_run(); r2.text = tail; r2.font.size = Pt(15); r2.font.color.rgb = RGBColor(*tail_rgb)
                 y += h + gap
             return
 
@@ -6374,7 +6794,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             if head:
                 r1 = p.add_run(); r1.text = head + (" " if tail else ""); r1.font.size = Pt(22); r1.font.bold = True; r1.font.color.rgb = RGBColor(*txt_rgb)
             if tail:
-                r2 = p.add_run(); r2.text = tail; r2.font.size = Pt(13); r2.font.color.rgb = RGBColor(235, 244, 255) if txt_rgb == (255, 255, 255) else RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+                if txt_rgb == (255, 255, 255):
+                    tail_rgb = (255, 255, 255)
+                else:
+                    tail_rgb = pal.get("text", (35, 35, 35))
+                r2 = p.add_run(); r2.text = tail; r2.font.size = Pt(15); r2.font.color.rgb = RGBColor(*tail_rgb)
             y += h + gap
 
     def _render_summary_cluster(slide, items: List[str], *, pal: Dict[str, Tuple[int, int, int]]):
@@ -6986,6 +7410,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 except Exception:
                     # Skip connection if it fails
                     continue
+
+    def _collect_summary_from_slides(sl_list: List[Dict[str, Any]]) -> List[str]:
+        # Reuse the existing takeaways heuristics (dedupe + pad to >=4).
+        # This avoids placeholder content and ensures the summary slide has enough items.
+        pts = _collect_takeaways(sl_list)
+        return pts[:4]
 
     def render_summary_slide(items: List[str]):
         s = prs.slides.add_slide(blank); apply_bg(s)

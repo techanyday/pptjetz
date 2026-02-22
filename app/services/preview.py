@@ -2,12 +2,15 @@ import glob
 import json
 import logging
 import os
+import pathlib
 import platform
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from typing import Any, Dict, List
 
@@ -71,8 +74,92 @@ def _soffice_diagnostics() -> Dict[str, Any]:
         "soffice_path": soffice,
         "SOFFICE_PATH": os.environ.get("SOFFICE_PATH"),
         "SOFFICE_TIMEOUT_SECONDS": os.environ.get("SOFFICE_TIMEOUT_SECONDS"),
+        "LIBREOFFICE_TIMEOUT": os.environ.get("LIBREOFFICE_TIMEOUT"),
     }
     return out
+
+
+def _file_uri(path: str) -> str:
+    try:
+        return pathlib.Path(path).resolve().as_uri()
+    except Exception:
+        p = str(path or "").replace("\\", "/")
+        if p.startswith("/"):
+            return "file://" + p
+        return "file:///" + p
+
+
+def _is_pdf_cache_valid(*, pptx_path: str, pdf_path: str) -> bool:
+    try:
+        if not (pptx_path and pdf_path):
+            return False
+        if not os.path.isfile(pdf_path):
+            return False
+        if not os.path.isfile(pptx_path):
+            return False
+        if os.path.getsize(pdf_path) <= 0:
+            return False
+        return os.path.getmtime(pdf_path) >= os.path.getmtime(pptx_path)
+    except Exception:
+        return False
+
+
+def _kill_soffice_process(proc: subprocess.Popen) -> None:
+    try:
+        if proc.poll() is not None:
+            return
+    except Exception:
+        return
+
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                capture_output=True,
+                text=True,
+            )
+            return
+        except Exception:
+            pass
+
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+def _run_soffice_convert(cmd: List[str], *, timeout_s: int, env: Dict[str, str] | None) -> tuple[int, str, str, int]:
+    t0 = time.perf_counter()
+    popen_kwargs: Dict[str, Any] = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "text": True,
+        "env": env,
+    }
+    if os.name == "nt":
+        try:
+            popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    else:
+        popen_kwargs["start_new_session"] = True
+
+    proc = subprocess.Popen(cmd, **popen_kwargs)
+    try:
+        stdout, stderr = proc.communicate(timeout=float(timeout_s))
+    except subprocess.TimeoutExpired:
+        _kill_soffice_process(proc)
+        try:
+            stdout, stderr = proc.communicate(timeout=5)
+        except Exception:
+            stdout, stderr = "", ""
+        dur_ms = int((time.perf_counter() - t0) * 1000)
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=timeout_s, output=stdout, stderr=stderr)
+    dur_ms = int((time.perf_counter() - t0) * 1000)
+    return int(proc.returncode or 0), (stdout or ""), (stderr or ""), dur_ms
 
 def export_slide_pngs(pptx_path: str, outdir: str, dpi: int = 150, expected_count: int | None = None) -> List[str]:
     """
@@ -674,11 +761,17 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
 
     # 1) PPTX -> PDF
     pdf_path = os.path.join(outdir, "deck.pdf")
-    try:
-        if os.path.exists(pdf_path):
-            os.remove(pdf_path)
-    except Exception:
-        pass
+    if _is_pdf_cache_valid(pptx_path=pptx_path, pdf_path=pdf_path):
+        try:
+            logger.info("preview:pptx_to_pdf cache_hit pptx=%s pdf=%s", pptx_path, pdf_path)
+        except Exception:
+            pass
+    else:
+        try:
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        except Exception:
+            pass
 
     pdf_tmp_dir = None
     try:
@@ -686,22 +779,11 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
     except Exception:
         pdf_tmp_dir = outdir
 
-    cmd_pdf = [
-        soffice,
-        "--headless",
-        "--norestore",
-        "--nolockcheck",
-        "--convert-to",
-        "pdf",
-        "--outdir",
-        pdf_tmp_dir,
-        pptx_path,
-    ]
-    timeout_s = 0
+    LIBREOFFICE_TIMEOUT = 0
     try:
-        timeout_s = int(os.environ.get("SOFFICE_TIMEOUT_SECONDS") or "60")
+        LIBREOFFICE_TIMEOUT = int(os.getenv("LIBREOFFICE_TIMEOUT", 180))
     except Exception:
-        timeout_s = 60
+        LIBREOFFICE_TIMEOUT = 180
     env = None
     try:
         env = dict(os.environ)
@@ -718,20 +800,153 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
     except Exception:
         env = None
 
-    try:
-        proc = subprocess.run(cmd_pdf, capture_output=True, text=True, timeout=timeout_s, env=env)
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(f"LibreOffice conversion timed out after {timeout_s}s: {exc}")
-    soffice_stdout = (proc.stdout or "").strip()
-    soffice_stderr = (proc.stderr or "").strip()
+    proc_code = 0
+    soffice_stdout = ""
+    soffice_stderr = ""
+    dur_ms = 0
+
+    if not _is_pdf_cache_valid(pptx_path=pptx_path, pdf_path=pdf_path):
+        last_cmd: List[str] = []
+        profile_dirs: List[str] = []
+        pptx_size = None
+        try:
+            pptx_size = os.path.getsize(pptx_path)
+        except Exception:
+            pptx_size = None
+        for attempt in (1, 2):
+            unique_id = f"{render_id}_{uuid.uuid4().hex[:8]}_a{attempt}"
+            profile_dir = os.path.join(tempfile.gettempdir(), f"libreoffice_profile_{unique_id}")
+            profile_dirs.append(profile_dir)
+            try:
+                os.makedirs(profile_dir, exist_ok=True)
+            except Exception:
+                pass
+
+            profile_arg = f"-env:UserInstallation={_file_uri(profile_dir)}"
+            cmd_pdf = [
+                soffice,
+                profile_arg,
+                "--headless",
+                "--norestore",
+                "--nolockcheck",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                pdf_tmp_dir,
+                pptx_path,
+            ]
+            last_cmd = cmd_pdf
+
+            try:
+                logger.info(
+                    "preview:pptx_to_pdf run attempt=%s timeout_s=%s pptx=%s pptx_bytes=%s outdir=%s tmpdir=%s profile=%s",
+                    attempt,
+                    LIBREOFFICE_TIMEOUT,
+                    pptx_path,
+                    pptx_size,
+                    outdir,
+                    pdf_tmp_dir,
+                    profile_dir,
+                )
+            except Exception:
+                pass
+
+            try:
+                proc_code, stdout, stderr, dur_ms = _run_soffice_convert(cmd_pdf, timeout_s=LIBREOFFICE_TIMEOUT, env=env)
+                soffice_stdout = (stdout or "").strip()
+                soffice_stderr = (stderr or "").strip()
+            except subprocess.TimeoutExpired as exc:
+                soffice_stdout = str(getattr(exc, "output", "") or "").strip()
+                soffice_stderr = str(getattr(exc, "stderr", "") or "").strip()
+                try:
+                    logger.error(
+                        "preview:pptx_to_pdf timeout attempt=%s timeout_s=%s cmd=%s stdout=%s stderr=%s",
+                        attempt,
+                        LIBREOFFICE_TIMEOUT,
+                        cmd_pdf,
+                        (soffice_stdout or "")[-2000:],
+                        (soffice_stderr or "")[-2000:],
+                    )
+                except Exception:
+                    pass
+                if attempt == 1:
+                    continue
+                raise RuntimeError(f"LibreOffice conversion timed out after {LIBREOFFICE_TIMEOUT}s: {exc}")
+            except Exception as exc:
+                try:
+                    logger.error(
+                        "preview:pptx_to_pdf failed attempt=%s timeout_s=%s cmd=%s dur_ms=%s stdout=%s stderr=%s",
+                        attempt,
+                        LIBREOFFICE_TIMEOUT,
+                        cmd_pdf,
+                        dur_ms,
+                        (soffice_stdout or "")[-2000:],
+                        (soffice_stderr or "")[-2000:],
+                    )
+                except Exception:
+                    pass
+                if attempt == 1:
+                    continue
+                raise
+
+            pdf_candidates = []
+            try:
+                pdf_candidates = [p for p in glob.glob(os.path.join(pdf_tmp_dir, "*")) if os.path.isfile(p) and p.lower().endswith(".pdf")]
+            except Exception:
+                pdf_candidates = []
+
+            if proc_code == 0 and pdf_candidates:
+                break
+            try:
+                logger.error(
+                    "preview:pptx_to_pdf nonzero attempt=%s returncode=%s cmd=%s dur_ms=%s stdout=%s stderr=%s candidates=%s",
+                    attempt,
+                    proc_code,
+                    cmd_pdf,
+                    dur_ms,
+                    (soffice_stdout or "")[-2000:],
+                    (soffice_stderr or "")[-2000:],
+                    len(pdf_candidates),
+                )
+            except Exception:
+                pass
+            if attempt == 1:
+                continue
+            raise RuntimeError(
+                "Failed to convert PPTX to PDF via LibreOffice. "
+                f"returncode={proc_code}. stdout={soffice_stdout[-2000:]} stderr={soffice_stderr[-2000:]}"
+            )
+
+        for d in profile_dirs:
+            try:
+                shutil.rmtree(d, ignore_errors=True)
+            except Exception:
+                pass
 
     pdf_candidates = []
-    try:
-        pdf_candidates = [p for p in glob.glob(os.path.join(pdf_tmp_dir, "*")) if os.path.isfile(p) and p.lower().endswith(".pdf")]
-    except Exception:
-        pdf_candidates = []
+    if _is_pdf_cache_valid(pptx_path=pptx_path, pdf_path=pdf_path):
+        pdf_candidates = [pdf_path]
+    else:
+        try:
+            pdf_candidates = [p for p in glob.glob(os.path.join(pdf_tmp_dir, "*")) if os.path.isfile(p) and p.lower().endswith(".pdf")]
+        except Exception:
+            pdf_candidates = []
 
-    if proc.returncode != 0 or not pdf_candidates:
+    if (not _is_pdf_cache_valid(pptx_path=pptx_path, pdf_path=pdf_path)) and (proc_code != 0 or not pdf_candidates):
+        try:
+            logger.error(
+                "preview:pptx_to_pdf final_fail timeout_s=%s dur_ms=%s pptx=%s pptx_bytes=%s pdf_path=%s tmpdir=%s outdir=%s cmd=%s",
+                LIBREOFFICE_TIMEOUT,
+                dur_ms,
+                pptx_path,
+                (pptx_size if 'pptx_size' in locals() else None),
+                pdf_path,
+                pdf_tmp_dir,
+                outdir,
+                (locals().get('last_cmd') or []),
+            )
+        except Exception:
+            pass
         # Optional last-resort on Windows: PowerPoint COM to PNG (if available)
         if os.name == "nt":
             ppt_paths = _export_pngs_via_powerpoint(pptx_path, outdir, dpi=dpi, expected_count=expected_count)
@@ -745,7 +960,7 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
                     "outdir": outdir,
                     "count": len(ppt_paths),
                     "expected_count": expected_count,
-                    "soffice_returncode": proc.returncode,
+                    "soffice_returncode": proc_code,
                     "soffice_stdout": soffice_stdout[-4000:],
                     "soffice_stderr": soffice_stderr[-4000:],
                 }
@@ -758,11 +973,11 @@ def export_all_previews(pptx_path: str, outdir: str, dpi: int = 170, expected_co
 
         raise RuntimeError(
             "Failed to convert PPTX to PDF via LibreOffice. "
-            f"returncode={proc.returncode}. stdout={soffice_stdout[-2000:]} stderr={soffice_stderr[-2000:]}"
+            f"returncode={proc_code}. stdout={soffice_stdout[-2000:]} stderr={soffice_stderr[-2000:]}"
         )
 
     try:
-        logger.info("preview:pptx_to_pdf done returncode=%s candidates=%s", proc.returncode, len(pdf_candidates))
+        logger.info("preview:pptx_to_pdf done returncode=%s candidates=%s dur_ms=%s", proc_code, len(pdf_candidates), dur_ms)
     except Exception:
         pass
 

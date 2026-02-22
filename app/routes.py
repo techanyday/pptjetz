@@ -590,10 +590,17 @@ def generate() -> Any:
     # New template-driven themes: SLEEK, PULSE, MINIMAL FLUX, BLUE HORIZON
     theme_name = (payload.get("theme") or payload.get("theme_name") or "SLEEK").strip()
     input_text = str(payload.get("input_text") or "").strip()
+    raw_num = payload.get("num_slides")
+    num_slides = 0
     try:
-        num_slides = int(payload.get("num_slides") or 6)
+        if raw_num is None or str(raw_num).strip() == "":
+            num_slides = 0
+        else:
+            num_slides = int(raw_num)
     except Exception:  # noqa: BLE001
-        num_slides = 6
+        num_slides = 0
+    if num_slides == 7:
+        num_slides = 0
 
     # Default presenter to logged-in user's Google profile name if absent
     if not presenter and getattr(current_user, "is_authenticated", False):
@@ -1549,10 +1556,10 @@ def _export_presentation_impl() -> Any:
             out.append(t)
         return out
 
-    def ensure_min(items, n, filler="(to be refined)"):
+    def ensure_min(items, n):
         items = list(items or [])
-        while len(items) < n:
-            items.append(filler)
+        if len(items) >= n:
+            return items
         return items
 
     def meaningful_headers(h1, h2, d1="Traditional", d2="AI-Driven"):
@@ -1772,8 +1779,8 @@ def _export_presentation_impl() -> Any:
                 if len(labels) >= 4:
                     break
         labels = ensure_min(labels[:5], 4)[:5]
-        labels = [re.sub(r"(?i)^step\s*\d+\s*$", "(to be refined)", x).strip() for x in labels]
-        return labels
+        labels = [re.sub(r"(?i)^step\s*\d+\s*$", "", x).strip() for x in labels]
+        return [x for x in labels if x]
 
     # Utilities over provided slides
     def _ctype(sl: Dict[str, Any]) -> str:
@@ -2654,32 +2661,35 @@ def _export_presentation_impl() -> Any:
                 continue
 
             if layout == "double_column":  # Double Column
-                # Ensure at least 3 per column; derive extras if needed
+                # Ensure at least 4 per column; derive extras if needed
                 pool = list(pts)
 
                 def split_lr(src):
-                    return src[::2][:6], src[1::2][:6]
+                    return src[::2][:8], src[1::2][:8]
 
                 left, right = split_lr(pool)
                 guard = 0
-                while (len(left) < 3 or len(right) < 3) and guard < 1 and ENABLE_EXPORT_BULLETS_AI:
-                    more = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=4) or []
+                while (len(left) < 4 or len(right) < 4) and guard < 2 and ENABLE_EXPORT_BULLETS_AI:
+                    more = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=6) or []
                     for m in clean_list(more):
                         if m not in pool:
                             pool.append(m)
                     left, right = split_lr(pool)
                     guard += 1
-                # Final padding with placeholders if AI could not add enough
-                while len(left) < 3:
-                    pool.append("(to be refined)"); left, right = split_lr(pool)
-                while len(right) < 3:
-                    pool.append("(to be refined)"); left, right = split_lr(pool)
-                topic_slides.append({
-                    "type": "double_column",
-                    "title": topic,
-                    "content": {"left_points": left, "right_points": right},
-                    "_render_exact": True,
-                })
+                if len(left) < 4 or len(right) < 4:
+                    topic_slides.append({
+                        "type": "infographic",
+                        "title": topic,
+                        "content": {"bullets": clean_list(pool)[:8]},
+                        "_render_exact": True,
+                    })
+                else:
+                    topic_slides.append({
+                        "type": "double_column",
+                        "title": topic,
+                        "content": {"left_points": left, "right_points": right},
+                        "_render_exact": True,
+                    })
             elif layout == "comparison":  # Table (comparison)
                 # Prefer an AI-structured comparison table when enabled
                 table_spec = None
@@ -2688,20 +2698,33 @@ def _export_presentation_impl() -> Any:
                 if table_spec:
                     left_pts = clean_list(table_spec.get("left_points") or [])[:6]
                     right_pts = clean_list(table_spec.get("right_points") or [])[:6]
-                    while len(left_pts) < 3:
-                        left_pts.append("(to be refined)")
-                    while len(right_pts) < 3:
-                        right_pts.append("(to be refined)")
+                    guard = 0
+                    while (len(left_pts) < 3 or len(right_pts) < 3) and guard < 1 and ENABLE_EXPORT_BULLETS_AI:
+                        more = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=6) or []
+                        for m in clean_list(more):
+                            if m not in left_pts and len(left_pts) < 6:
+                                left_pts.append(m)
+                            elif m not in right_pts and len(right_pts) < 6:
+                                right_pts.append(m)
+                        guard += 1
                     lh = (table_spec.get("left_heading") or "").strip()
                     rh = (table_spec.get("right_heading") or "").strip()
                     if not lh or not rh:
                         lh, rh = topic_comparison_headers(topic, deck_title)
-                    topic_slides.append({
-                        "type": "comparison",
-                        "title": topic,
-                        "content": {"table": {"left": {"heading": lh, "points": left_pts}, "right": {"heading": rh, "points": right_pts}}},
-                        "_render_exact": True,
-                    })
+                    if len(left_pts) < 3 or len(right_pts) < 3:
+                        topic_slides.append({
+                            "type": "infographic",
+                            "title": topic,
+                            "content": {"bullets": clean_list(left_pts + right_pts)[:8]},
+                            "_render_exact": True,
+                        })
+                    else:
+                        topic_slides.append({
+                            "type": "comparison",
+                            "title": topic,
+                            "content": {"table": {"left": {"heading": lh, "points": left_pts}, "right": {"heading": rh, "points": right_pts}}},
+                            "_render_exact": True,
+                        })
                     continue
                 # Ensure at least 3 per column
                 pool = list(pts)
@@ -2718,37 +2741,47 @@ def _export_presentation_impl() -> Any:
                     left_pts = pool[:mid][:6]
                     right_pts = pool[mid:][:6]
                     guard += 1
-                while len(left_pts) < 3:
-                    left_pts.append("(to be refined)")
-                while len(right_pts) < 3:
-                    right_pts.append("(to be refined)")
                 left_head, right_head = topic_comparison_headers(topic, deck_title)
-                topic_slides.append({
-                    "type": "comparison",
-                    "title": topic,
-                    "content": {"table": {"left": {"heading": left_head, "points": left_pts}, "right": {"heading": right_head, "points": right_pts}}},
-                    "_render_exact": True,
-                })
+                if len(left_pts) < 3 or len(right_pts) < 3:
+                    topic_slides.append({
+                        "type": "infographic",
+                        "title": topic,
+                        "content": {"bullets": clean_list(left_pts + right_pts)[:8]},
+                        "_render_exact": True,
+                    })
+                else:
+                    topic_slides.append({
+                        "type": "comparison",
+                        "title": topic,
+                        "content": {"table": {"left": {"heading": left_head, "points": left_pts}, "right": {"heading": right_head, "points": right_pts}}},
+                        "_render_exact": True,
+                    })
             elif layout == "cards":  # Cards / process steps
-                # Ensure at least 5 cards
+                # Ensure at least 4 cards
                 cards = list(clean_list(pts))
                 guard = 0
-                while len(cards) < 5 and guard < 1 and ENABLE_EXPORT_BULLETS_AI:
-                    more = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=5) or []
+                while len(cards) < 4 and guard < 2 and ENABLE_EXPORT_BULLETS_AI:
+                    more = derive_topic_bullets(deck_title=deck_title, topic=topic, input_text=input_text, n=6) or []
                     for m in clean_list(more):
                         if m not in cards:
                             cards.append(m)
-                        if len(cards) >= 5:
+                        if len(cards) >= 4:
                             break
                     guard += 1
-                while len(cards) < 5:
-                    cards.append("(to be refined)")
-                topic_slides.append({
-                    "type": "cards",
-                    "title": topic,
-                    "content": {"cards": cards[:6]},
-                    "_render_exact": True,
-                })
+                if len(cards) < 4:
+                    topic_slides.append({
+                        "type": "infographic",
+                        "title": topic,
+                        "content": {"bullets": clean_list(cards)[:8]},
+                        "_render_exact": True,
+                    })
+                else:
+                    topic_slides.append({
+                        "type": "cards",
+                        "title": topic,
+                        "content": {"cards": cards[:6]},
+                        "_render_exact": True,
+                    })
             else:  # Infographic / semantic visual summary
                 # Some structured infographics (e.g., Gantt/process/matrix/canvas)
                 # can use more than 5 items when available.

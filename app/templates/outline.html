@@ -115,28 +115,59 @@
     if (olTitle) olTitle.textContent = title;
     if (olTheme) olTheme.textContent = theme;
 
-    const slides = Array.isArray(deck.slides) ? deck.slides : [];
-    // Use agenda bullets if present, else use slide titles
-    let topics = [];
-    const agenda = slides.find(s => (s.type||'').toLowerCase() === 'agenda');
-    if (agenda && agenda.content && Array.isArray(agenda.content.bullets)) {
-      topics = agenda.content.bullets;
-    } else {
-      topics = slides
-        .filter(s => !['title','agenda','thank_you','cta'].includes((s.type||'').toLowerCase()))
-        .map(s => s.title).filter(Boolean);
+    const slidesAll = (Array.isArray(deck.slides_out) && deck.slides_out.length)
+      ? deck.slides_out
+      : (Array.isArray(deck.slides) ? deck.slides : []);
+
+    const slides = slidesAll.filter(s => String((s && s.type) || '').toLowerCase() !== 'thank_you');
+
+    function deriveTitle(slide){
+      const type = String((slide && slide.type) || '').toLowerCase();
+      const rawTitle = slide && slide.title ? String(slide.title).trim() : '';
+      if (rawTitle) return rawTitle;
+      if (type === 'title') return title;
+      if (type === 'thank_you') return 'Thank You';
+      if (type === 'key_takeaways') return 'Key Takeaways';
+      if (type === 'cta') return 'Call to Action';
+      if (type === 'kpi') return 'Key Metrics';
+      if (type === 'swot') return 'SWOT Analysis';
+      if (type === 'timeline') return 'Timeline';
+      if (type === 'roadmap') return 'Roadmap';
+      if (type === 'comparison' || type === 'table') return 'Comparison';
+      if (type === 'infographic') return 'Infographic';
+      if (type === 'agenda') return 'Agenda';
+      if (!type) return 'Slide';
+      return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
-    if (!topics.length) {
+
+    if (!slides.length) {
       topicsEl.innerHTML = '<div class="text-gray-500">No topics found.</div>';
       return;
     }
-    const list = topics.map((t,i)=>`
-      <div class="ol-item" role="listitem">
-        <span class="ol-num">${i+1}</span>
-        <div class="ol-title">${t}</div>
-      </div>
-    `).join('');
-    topicsEl.innerHTML = `<div role="list" aria-label="Outline topics">${list}</div>`;
+
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('role', 'list');
+    wrapper.setAttribute('aria-label', 'Outline topics');
+    slides.forEach((sl, i) => {
+      const item = document.createElement('div');
+      item.className = 'ol-item';
+      item.setAttribute('role', 'listitem');
+
+      const num = document.createElement('span');
+      num.className = 'ol-num';
+      num.textContent = String(i + 1);
+
+      const ttl = document.createElement('div');
+      ttl.className = 'ol-title';
+      ttl.textContent = deriveTitle(sl);
+
+      item.appendChild(num);
+      item.appendChild(ttl);
+      wrapper.appendChild(item);
+    });
+
+    topicsEl.innerHTML = '';
+    topicsEl.appendChild(wrapper);
   }
 
   async function loadDeck(){

@@ -46,7 +46,7 @@
         
         <form id="presentationForm" class="space-y-6">
             <!-- Number of Slides control hidden to preserve logic -->
-            <input type="hidden" id="num_slides" name="num_slides" value="7">
+            <input type="hidden" id="num_slides" name="num_slides" value="">
             <input type="hidden" id="intent_value" name="intent_value" value="">
             
             <div>
@@ -474,7 +474,11 @@ document.addEventListener('DOMContentLoaded', function() {
       presenter: '{{ user.name }}',
       date: '',
       input_text: document.getElementById('prompt').value,
-      num_slides: parseInt(document.getElementById('num_slides').value),
+      num_slides: (() => {
+        const raw = document.getElementById('num_slides').value;
+        const n = parseInt(raw, 10);
+        return Number.isFinite(n) ? n : null;
+      })(),
       theme_name: document.getElementById('theme').value,
       include_images: document.getElementById('include_images').checked
     };

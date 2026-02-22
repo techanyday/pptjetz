@@ -7,6 +7,7 @@ from datetime import datetime
 from app import db
 from app.models import LLMCall, Pricing
 import os
+import logging
 
 
 MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "800"))
@@ -25,6 +26,358 @@ ENABLE_EXPORT_ONE_IDEA_AI = os.getenv("ENABLE_EXPORT_ONE_IDEA_AI", "1") == "1"
 ENABLE_LLM_HARMONIZE = os.getenv("ENABLE_LLM_HARMONIZE", "1") == "1"
 ENABLE_LLM_QUALITY_ENHANCER = os.getenv("ENABLE_LLM_QUALITY_ENHANCER", "1") == "1"
 QUALITY_MAX_RETRIES = int(os.getenv("QUALITY_MAX_RETRIES", "2"))
+
+MIN_SLIDES = 10
+MAX_SLIDES = 15
+
+
+logger = logging.getLogger(__name__)
+
+
+def choose_slide_count(
+    topic: str,
+    user_requested_count: int | None = None,
+    content_signal: str | None = None,
+) -> int:
+    """Choose a safe slide count within [MIN_SLIDES..MAX_SLIDES].
+
+    - If user_requested_count provided: clamp it.
+    - Else: infer from topic/content length via simple heuristics.
+    """
+    try:
+        req = int(user_requested_count or 0)
+    except Exception:
+        req = 0
+
+    if req > 0:
+        return int(max(MIN_SLIDES, min(MAX_SLIDES, req)))
+
+    base = (content_signal or topic or "").strip()
+    # Word-count heuristic (no deps); maps to 10/12-13/14-15
+    words = [w for w in base.replace("\n", " ").split(" ") if w.strip()]
+    wc = len(words)
+    # Extra signal: how many line breaks / separators suggests multi-part request
+    lines = [ln.strip() for ln in (content_signal or "").splitlines() if ln.strip()]
+    lc = len(lines)
+    score = wc + (lc * 8)
+
+    if score <= 80:
+        return 10
+    if score <= 160:
+        return 12
+    if score <= 240:
+        return 13
+    if score <= 330:
+        return 14
+    return 15
+
+
+def quadrant_evidence_detector(text: str) -> tuple[bool, str]:
+    """Strictly detect when a 2x2 matrix is explicitly implied."""
+    import re
+
+    t = re.sub(r"\s+", " ", str(text or "").strip()).lower()
+    if not t:
+        return False, "empty"
+
+    # Explicit matrix language
+    explicit = [
+        "2x2",
+        "two by two",
+        "quadrant",
+        "top-left",
+        "top right",
+        "bottom-left",
+        "bottom right",
+        "high impact",
+        "low impact",
+        "high effort",
+        "low effort",
+        "high likelihood",
+        "low likelihood",
+        "risk vs",
+        "impact vs",
+        "effort vs",
+        "priority matrix",
+        "prioritization matrix",
+    ]
+    if any(k in t for k in explicit):
+        return True, "explicit_quadrant_language"
+
+    # Structured cues: mentions both axes high/low + axis names
+    has_high_low = ("high" in t and "low" in t)
+    axis_terms = ["impact", "effort", "ease", "likelihood", "risk", "reward", "urgency", "value"]
+    axis_n = sum(1 for a in axis_terms if a in t)
+    if has_high_low and axis_n >= 2:
+        return True, "axis_high_low_cues"
+
+    return False, "no_quadrant_evidence"
+
+
+def build_slide_type_plan(
+    *,
+    topic: str,
+    input_text: str,
+    slide_count: int,
+    theme_name: str,
+) -> tuple[List[str], Dict[str, Any]]:
+    """Create a deterministic slide-type plan with coverage + rotation.
+
+    Returns (plan, meta).
+    """
+    import hashlib
+
+    n = int(max(MIN_SLIDES, min(MAX_SLIDES, slide_count)))
+    allow_matrix, matrix_reason = quadrant_evidence_detector(input_text)
+
+    # Weekly rotation (deterministic for same topic+week)
+    try:
+        week_sig = datetime.utcnow().strftime("%G-W%V")
+    except Exception:
+        week_sig = ""
+    seed_src = f"{(topic or '').strip()}|{(theme_name or '').strip()}|{week_sig}".encode("utf-8")
+    seed_hex = hashlib.sha256(seed_src).hexdigest()
+    seed_int = int(seed_hex[:8], 16)
+
+    # Python's random is deterministic given a seed; safe for planning.
+    import random
+
+    rng = random.Random(seed_int)
+
+    # Required skeleton
+    plan: List[str] = ["title", "agenda"]
+
+    required_body: List[str] = []
+    if n >= 11:
+        required_body.append("one_idea")
+
+    # Ensure at least one timeline/process and one comparison in every deck
+    if rng.random() < 0.5:
+        required_body.append("timeline")
+    else:
+        required_body.append("roadmap")
+    required_body.append("comparison")
+    if allow_matrix:
+        required_body.append("impact_effort_matrix")
+    required_body.append("double_column")
+    required_body.append("infographic")
+    required_body.append("key_takeaways")
+
+    # Optional pool (rotated)
+    optional = [
+        "cards",
+        "swot",
+        "kpi",
+        "risk_matrix",
+        "before_after",
+        "architecture",
+        "pricing",
+    ]
+
+    rng.shuffle(optional)
+
+    body_slots = max(0, n - 3)  # excluding title/agenda/thank_you
+    body: List[str] = []
+    for t in required_body:
+        if len(body) < body_slots:
+            body.append(t)
+
+    for t in optional:
+        if len(body) >= body_slots:
+            break
+        if t not in body:
+            body.append(t)
+
+    # Fill any remaining slots by cycling optional types (still deterministic)
+    if len(body) < body_slots:
+        cycle = list(optional) if optional else ["double_column", "infographic", "cards"]
+        if cycle:
+            rng.shuffle(cycle)
+        i = 0
+        while len(body) < body_slots and i < 50:
+            cand = cycle[i % len(cycle)]
+            # avoid long runs
+            if len(body) >= 2 and body[-1] == cand and body[-2] == cand:
+                i += 1
+                continue
+            body.append(cand)
+            i += 1
+
+    # No long runs of same type
+    for i in range(1, len(body)):
+        if body[i] == body[i - 1]:
+            # find a later element to swap
+            for j in range(i + 1, len(body)):
+                if body[j] != body[i]:
+                    body[i], body[j] = body[j], body[i]
+                    break
+
+    # Closing
+    plan = plan + body + ["thank_you"]
+
+    # Distinct-type coverage guardrail
+    distinct = len({x for x in plan if x})
+    distinct_target = 7 if n <= 10 else (9 if n >= 15 else 8)
+    if distinct < distinct_target:
+        # Opportunistically replace some duplicates with unused optional types
+        unused = [t for t in (optional + ["swot", "kpi", "before_after", "cards"]) if t not in plan]
+        for k in range(2, len(plan) - 1):
+            if distinct >= distinct_target or not unused:
+                break
+            if plan[k] in {"double_column", "infographic"}:
+                plan[k] = unused.pop(0)
+                distinct = len({x for x in plan if x})
+
+    meta = {
+        "allow_matrix": bool(allow_matrix),
+        "matrix_reason": matrix_reason,
+        "seed": seed_hex[:12],
+        "distinct_types": len({x for x in plan if x}),
+    }
+    if len(plan) < n:
+        plan = (plan + ["double_column"] * (n - len(plan)))[:n]
+    return plan[:n], meta
+
+
+def enforce_slide_count_postprocess(
+    *,
+    client: Any,
+    system_msg: str,
+    deck_title: str,
+    input_text: str,
+    slides: List[Dict[str, Any]],
+    slide_type_plan: List[str],
+    chosen_n: int,
+    deck_id: str | None = None,
+    user_id: str | None = None,
+) -> List[Dict[str, Any]]:
+    """Safety net: ensure final deck length equals chosen_n.
+
+    - If too short: ask LLM to generate ONLY the missing slides for remaining plan types.
+    - If too long: trim extras safely (never drop title/agenda/thank_you).
+    """
+    want = int(max(MIN_SLIDES, min(MAX_SLIDES, chosen_n)))
+    arr = list(slides or [])
+    plan = list(slide_type_plan or [])[:want]
+
+    if len(arr) > want:
+        # Keep required anchors
+        title_sl = arr[0:1]
+        agenda_sl = arr[1:2] if len(arr) >= 2 else []
+        thanks = [s for s in arr if isinstance(s, dict) and str(s.get("type") or "").strip().lower() in {"thank_you", "cta"}]
+        thanks_sl = thanks[-1:] if thanks else []
+        body = [s for s in arr[2:] if s not in thanks_sl]
+
+        # Prefer keeping key_takeaways if present
+        keep: List[Dict[str, Any]] = []
+        used_types: set[str] = set()
+        for s in body:
+            if not isinstance(s, dict):
+                continue
+            t = str(s.get("type") or "").strip().lower()
+            if t and t not in used_types:
+                keep.append(s)
+                used_types.add(t)
+        # If still not enough, append remaining in order
+        for s in body:
+            if len(keep) >= max(0, want - len(title_sl) - len(agenda_sl) - len(thanks_sl)):
+                break
+            if isinstance(s, dict) and s not in keep:
+                keep.append(s)
+
+        trimmed = (title_sl + agenda_sl + keep)[: max(0, want - len(thanks_sl))] + thanks_sl
+        return trimmed[:want]
+
+    if len(arr) < want:
+        missing_k = want - len(arr)
+        # Remaining plan types for the missing indices
+        remaining_types = plan[len(arr) : len(arr) + missing_k]
+        if not remaining_types:
+            remaining_types = ["double_column"] * missing_k
+
+        payload = {
+            "task": "Generate additional slides to reach the required slide count.",
+            "deck_title": (deck_title or "").strip(),
+            "input_text": (input_text or "").strip(),
+            "existing_slides": arr,
+            "missing_slide_types": remaining_types,
+            "rules": [
+                "Return ONLY a JSON array of slide objects (no prose).",
+                "Generate exactly len(missing_slide_types) slides.",
+                "Slide types must follow missing_slide_types in order.",
+                "Do NOT repeat placeholder titles like 'Slide 1'.",
+                "Align to the agenda and deck topic; keep executive-ready density.",
+                "Do NOT output impact_effort_matrix unless explicitly implied by input_text.",
+            ],
+        }
+        try:
+            resp = client.chat.completions.create(
+                model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": _json_dump(payload)},
+                ],
+                temperature=0.2,
+                max_tokens=MAX_TOKENS_RETRY,
+            )
+            _log_llm_call(
+                resp=resp,
+                model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
+                route="slide_count_fill",
+                deck_id=deck_id,
+                export_id=deck_id,
+                user_id=user_id,
+            )
+            raw = (resp.choices[0].message.content or "").strip()
+            more, err = _parse_json_array(raw)
+            if not err and isinstance(more, list) and len(more) == missing_k:
+                arr2 = arr + more
+                return arr2[:want]
+        except Exception:
+            pass
+        return arr[:want]
+
+    return arr[:want]
+
+
+def _enforce_matrix_gating(slides: List[Dict[str, Any]], *, allow_matrix: bool, reason: str) -> List[Dict[str, Any]]:
+    """If matrix is disallowed, convert any impact_effort_matrix slides to infographic."""
+    import re
+
+    if allow_matrix:
+        return slides
+    out: List[Dict[str, Any]] = []
+    for s in slides or []:
+        if not isinstance(s, dict):
+            continue
+        t = str(s.get("type") or "").strip().lower()
+        if t != "impact_effort_matrix":
+            out.append(s)
+            continue
+        c = s.get("content")
+        content = c if isinstance(c, dict) else {}
+        # Flatten quadrants into bullets
+        bullets: List[str] = []
+        for k in ("quick_easy_wins", "major_projects", "fill_in", "thankless_tasks"):
+            v = content.get(k) or []
+            if isinstance(v, list):
+                for x in v[:3]:
+                    txt = re.sub(r"\s+", " ", str(x or "").strip())
+                    if txt:
+                        bullets.append(txt)
+        if len(bullets) < 3:
+            # Fallback to whatever bullets might exist
+            b2 = content.get("bullets")
+            if isinstance(b2, list):
+                bullets += [str(x).strip() for x in b2 if str(x).strip()]
+        out.append({
+            "type": "infographic",
+            "title": s.get("title") or "Priorities",
+            "content": {"bullets": bullets[:6]},
+            "_matrix_disallowed": True,
+            "_matrix_reason": reason,
+        })
+    return out
 
 
 def _themes_palette() -> dict[str, dict[str, str]]:
@@ -79,6 +432,13 @@ def build_prompt(
     num_slides: int,
 ) -> list[dict[str, str]]:
     """Return ChatGPT messages for strict JSON slide generation (no fallback)."""
+    chosen_n = choose_slide_count(title or input_text or "", user_requested_count=num_slides, content_signal=input_text)
+    slide_type_plan, plan_meta = build_slide_type_plan(
+        topic=title or "",
+        input_text=input_text or "",
+        slide_count=chosen_n,
+        theme_name=theme_name or "",
+    )
     theme = _themes_palette().get(theme_name) or _themes_palette()["Ocean Breeze"]
 
     system = (
@@ -105,13 +465,15 @@ def build_prompt(
                 "palette": theme,
             },
             "input_text": input_text or "",
-            "requested_slide_count": int(max(3, num_slides)),
+            "requested_slide_count": int(chosen_n),
+            "slide_type_plan": slide_type_plan,
+            "slide_type_plan_meta": plan_meta,
         },
         "structure_rules": {
             "adaptive_allocation": "Always allocate 3 core slides (Title, Agenda, Thank You). Use remaining (N - 3) for modules in priority order; avoid repetition; maintain narrative flow.",
             "core_slides": [
                 "Title Slide: includes title, optional subtitle, presenter, date",
-                "Agenda Slide: single-column bullets of main sections/topics (>=6 items if possible)",
+                "Agenda Slide: bullets must reflect the exact body slide plan (one bullet per body slide).",
                 "Thank You / Q&A Slide: closing message, optional contact/CTA",
             ],
             "modules_priority": [
@@ -138,6 +500,7 @@ def build_prompt(
                         "enum": [
                             "title",
                             "agenda",
+                            "one_idea",
                             "bullets",
                             "cards",
                             "double_column",
@@ -229,19 +592,24 @@ def build_prompt(
             }
         },
         "instructions": [
-            "Default: generate N slides as per requested_slide_count. If the agenda items cannot be covered coherently in N, you MAY add up to 5 additional slides (N+1..N+5). Do not add fluff; only add slides that improve clarity and alignment to the agenda.",
+            "Generate EXACTLY N slides where N == requested_slide_count. Do NOT add or remove slides.",
+            "You MUST follow presentation.slide_type_plan exactly: slide i must have type slide_type_plan[i] (0-indexed).",
             "Core slides must be positions 1 (title), 2 (agenda), and last (thank_you).",
             "Title must be concise, compelling, and derived from the input_text. Do NOT repeat the input verbatim; rewrite as a strong presentation title. NEVER use generic titles like 'Generated Presentation', 'Presentation', or 'Overview'.",
-            "Agenda: YOU must create the agenda (outline) from the topic/input_text; do NOT ask the user for an outline. It must reflect the main sections/topics you will cover and avoid generic labels like slide-type names.",
+            "Agenda: YOU must create the agenda (outline) from the topic/input_text; do NOT ask the user for an outline.",
+            "Agenda MUST have exactly (N - 3) bullets (one per body slide). Do NOT output fewer or more.",
+            "Use agenda bullet i (0-indexed) to map to body slide i+2 (since slides[0]=title, slides[1]=agenda). Use exactly one slide per agenda bullet.",
+            "Agenda bullets must be topic-specific and must NOT be generic labels like 'Overview', 'Discussion', or slide-type names.",
+            "Matrix gating: Only use type impact_effort_matrix if input_text explicitly implies a 2x2 quadrant prioritization matrix (impact vs effort). If slide_type_plan contains impact_effort_matrix, you must populate all four quadrants with 3-5 items each. If slide_type_plan does NOT contain impact_effort_matrix, you must NOT output it.",
             "Bullets must be non-duplicative, 4–14 words, informative, and TOPIC-SPECIFIC. Avoid generic boilerplate such as 'leveraging X to improve KPIs'.",
             "Write executive-ready content: specific mechanisms, impacts, and tradeoffs. Avoid vague claims (e.g., 'critical', 'accelerated', 'important') unless you add a short 'because/so-what' clause.",
             "For slides after the Agenda, prefer rich visual types (cards, comparison/table, infographic, timeline, roadmap, swot, kpi, risk_matrix, before_after, architecture, pricing) over plain bullets.",
             "Use type 'bullets' ONLY for the Agenda slide and as a last-resort fallback when no other slide type fits.",
-            "COHERENCE & ORDER: All slides after the agenda MUST map to the agenda bullets in sequence. Use contiguous blocks per agenda item (you may use 1+ slides per item, but do not reorder).",
+            "COHERENCE & ORDER: All slides after the agenda MUST map to the agenda bullets in sequence (1 slide per agenda bullet; do not group multiple slides under one bullet).",
             "TITLE PARAPHRASING: Each mapped slide's TITLE must closely paraphrase its agenda bullet (share key terms); do not use generic labels.",
             "CONTENT ALIGNMENT: Each mapped slide's CONTENT (bullets/points/table cells) must elaborate the mapped agenda bullet and share key terms.",
             "Do not produce slides that are not linked to an agenda item.",
-            "Ensure the Thank You slide is always the final slide, even if you add extra slides beyond N.",
+            "Ensure the Thank You slide is always the final slide.",
             "If N is small, prefer infographic/cards/comparison over multiple bullet variations.",
             "Double column slides should use left_points and right_points; 6+ items per column when possible.",
             "Tabular Comparison must be CONTEXTUAL to the topic in input_text. Headings should reflect the actual comparison dimension (e.g., 'Pre-COVID' vs 'During/After COVID', 'Developed Markets' vs 'Emerging Markets'). NEVER use 'Traditional vs AI-Driven' unless the topic is explicitly about AI approaches.",
@@ -370,6 +738,27 @@ def create_deck_slides(
         return [], ["CHATGPT_API_TOKEN / OPENAI_API_KEY is missing"]
 
     client = OpenAI(api_key=api_key)
+
+    chosen_n = choose_slide_count(title or input_text or "", user_requested_count=(num_slides if (num_slides or 0) > 0 else None), content_signal=input_text)
+    slide_type_plan, plan_meta = build_slide_type_plan(
+        topic=title or "",
+        input_text=input_text or "",
+        slide_count=chosen_n,
+        theme_name=theme_name or "",
+    )
+    if os.getenv("SLIDE_DEBUG", "0") == "1":
+        try:
+            logger.info(
+                "slide_debug:plan chosen_n=%s distinct=%s allow_matrix=%s reason=%s plan=%s",
+                chosen_n,
+                plan_meta.get("distinct_types"),
+                plan_meta.get("allow_matrix"),
+                plan_meta.get("matrix_reason"),
+                slide_type_plan,
+            )
+        except Exception:
+            pass
+
     messages = build_prompt(
         title=title,
         subtitle=subtitle,
@@ -377,7 +766,7 @@ def create_deck_slides(
         date=date,
         theme_name=theme_name,
         input_text=input_text,
-        num_slides=num_slides,
+        num_slides=chosen_n,
     )
 
     try:
@@ -457,6 +846,11 @@ def create_deck_slides(
         pass
 
     try:
+        slides = _sync_agenda_to_slide_titles(slides)
+    except Exception:
+        pass
+
+    try:
         q_issues = _content_quality_issues(slides)
     except Exception:
         q_issues = []
@@ -493,6 +887,44 @@ def create_deck_slides(
                     break
             except Exception:
                 break
+
+    # Safety net: enforce matrix gating and slide count before coherency retry.
+    try:
+        slides = _enforce_matrix_gating(
+            slides,
+            allow_matrix=bool(plan_meta.get("allow_matrix")),
+            reason=str(plan_meta.get("matrix_reason") or ""),
+        )
+    except Exception:
+        pass
+    try:
+        slides = enforce_slide_count_postprocess(
+            client=client,
+            system_msg=messages[0]["content"],
+            deck_title=title,
+            input_text=input_text,
+            slides=slides,
+            slide_type_plan=slide_type_plan,
+            chosen_n=chosen_n,
+            deck_id=deck_id,
+            user_id=user_id,
+        )
+    except Exception:
+        pass
+    try:
+        slides = _clamp_slide_content(slides)
+    except Exception:
+        pass
+
+    if os.getenv("SLIDE_DEBUG", "0") == "1":
+        try:
+            types = []
+            for s in (slides or [])[:32]:
+                if isinstance(s, dict):
+                    types.append(str(s.get("type") or "").strip().lower() or "(missing)")
+            logger.info("slide_debug:final chosen_n=%s final_n=%s types=%s", chosen_n, len(slides or []), types)
+        except Exception:
+            pass
 
     if os.getenv("SLIDE_DEBUG", "0") == "1":
         try:
@@ -546,11 +978,33 @@ def create_deck_slides(
                 date=date or "",
                 theme_name=theme_name,
                 input_text=input_text,
-                num_slides=num_slides,
+                num_slides=chosen_n,
                 agenda_bullets=agenda,
                 issues=issues,
             )
             if fixed:
+                try:
+                    fixed = _enforce_matrix_gating(
+                        fixed,
+                        allow_matrix=bool(plan_meta.get("allow_matrix")),
+                        reason=str(plan_meta.get("matrix_reason") or ""),
+                    )
+                except Exception:
+                    pass
+                try:
+                    fixed = enforce_slide_count_postprocess(
+                        client=client,
+                        system_msg=messages[0]["content"],
+                        deck_title=title,
+                        input_text=input_text,
+                        slides=fixed,
+                        slide_type_plan=slide_type_plan,
+                        chosen_n=chosen_n,
+                        deck_id=deck_id,
+                        user_id=user_id,
+                    )
+                except Exception:
+                    pass
                 return fixed, []
         except Exception as exc:  # noqa: BLE001
             return slides, [f"Retry warning: {exc}"]
@@ -650,6 +1104,49 @@ def _clamp_slide_content(slides: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         ss["content"] = c
         out_slides.append(ss)
     return out_slides
+
+
+def _sync_agenda_to_slide_titles(slides: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Ensure the Agenda reflects the final body slide titles.
+
+    The generator sometimes outputs an agenda that doesn't match the final deck length
+    after post-processing (slide count enforcement / gating / fallbacks). This pass
+    rewrites agenda bullets to equal the set of body slide titles in order.
+    """
+
+    def _ctype(sl: Dict[str, Any]) -> str:
+        return str(sl.get("type") or "").strip().lower()
+
+    arr = [s for s in (slides or []) if isinstance(s, dict)]
+    if len(arr) < 3:
+        return slides
+
+    agenda_idx = next((i for i, s in enumerate(arr) if _ctype(s) == "agenda"), None)
+    if agenda_idx is None:
+        return slides
+
+    def _is_skip(t: str) -> bool:
+        return t in {"title", "agenda", "thank_you"}
+
+    body_titles: List[str] = []
+    for s in arr:
+        t = _ctype(s)
+        if _is_skip(t):
+            continue
+        title = str(s.get("title") or "").strip()
+        if title:
+            body_titles.append(title)
+
+    if not body_titles:
+        return slides
+
+    ag = dict(arr[agenda_idx])
+    c = ag.get("content")
+    c2 = dict(c) if isinstance(c, dict) else {}
+    c2["bullets"] = body_titles
+    ag["content"] = c2
+    arr[agenda_idx] = ag
+    return arr
 
 
 def _content_quality_issues(slides: List[Dict[str, Any]]) -> List[str]:
@@ -752,8 +1249,8 @@ def _content_quality_issues(slides: List[Dict[str, Any]]) -> List[str]:
                 pts: List[str] = []
                 if isinstance(q, dict):
                     pts = _as_list(q.get("points"))
-                if len(pts) < 2:
-                    issues.append(f"Slide {idx}: swot quadrant '{k}' needs 2–4 bullets")
+                if len(pts) < 3:
+                    issues.append(f"Slide {idx}: swot quadrant '{k}' needs 3–6 bullets")
 
         if t in {"bullets", "infographic"}:
             bullets = _as_list(c.get("bullets"))
