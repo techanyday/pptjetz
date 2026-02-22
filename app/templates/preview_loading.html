@@ -196,6 +196,7 @@
       setStatus('Rendering slide images...');
       const q = new URLSearchParams();
       q.set('refresh', '1');
+      q.set('full', '1');
       if (theme) q.set('theme', theme);
       try {
         await getJson(`/api/previews/${deckId}?` + q.toString());
@@ -206,6 +207,7 @@
       }
 
       const q2 = new URLSearchParams();
+      q2.set('full', '1');
       if (theme) q2.set('theme', theme);
       let previews = null;
       for (let i = 0; i < 90; i++) {

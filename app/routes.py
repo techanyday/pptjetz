@@ -837,6 +837,7 @@ def set_deck_theme(deck_id: str) -> Any:
 @bp.get("/api/previews/<deck_id>")
 def api_previews(deck_id: str) -> Any:
     refresh = (request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+    full = (request.args.get("full") or "").strip().lower() in {"1", "true", "yes"}
 
     deck = DECK_STORE.get(deck_id)
     if not deck:
@@ -869,7 +870,7 @@ def api_previews(deck_id: str) -> Any:
     except Exception:
         preview_max = 20
     max_pages = None
-    if expected_count and expected_count > preview_max:
+    if (not full) and expected_count and expected_count > preview_max:
         max_pages = preview_max
         expected_count = preview_max
 
