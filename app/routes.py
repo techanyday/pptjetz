@@ -1332,6 +1332,7 @@ def _export_presentation_impl() -> Any:
             # Only trust cache if it looks like our rich routed slide objects.
             # Older/other flows may store plain LLM slide schema (e.g., type=text), which bypasses the rich router.
             rich_types = {
+                "one_idea",
                 "cards",
                 "double_column",
                 "comparison",
@@ -1345,16 +1346,12 @@ def _export_presentation_impl() -> Any:
                 "before_after",
                 "architecture",
                 "pricing",
-                "title",
-                "agenda",
-                "thank_you",
             }
             try:
                 has_rich = any(
                     isinstance(s, dict)
                     and (
-                        bool(s.get("_render_exact"))
-                        or str(s.get("type") or "").strip().lower() in rich_types
+                        str(s.get("type") or "").strip().lower() in rich_types
                     )
                     for s in cached
                 )
@@ -1444,6 +1441,7 @@ def _export_presentation_impl() -> Any:
             persisted = deck_obj.get("slides")
             if isinstance(persisted, list) and persisted:
                 rich_types = {
+                    "one_idea",
                     "cards",
                     "double_column",
                     "comparison",
@@ -1462,8 +1460,7 @@ def _export_presentation_impl() -> Any:
                     has_rich = any(
                         isinstance(s, dict)
                         and (
-                            bool(s.get("_render_exact"))
-                            or str(s.get("type") or "").strip().lower() in rich_types
+                            str(s.get("type") or "").strip().lower() in rich_types
                         )
                         for s in persisted
                     )
