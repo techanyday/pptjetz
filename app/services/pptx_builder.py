@@ -1629,6 +1629,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     reset_variant_rotation(seed=seed)
     global IMPACT_MAP_VARIANT_INDEX
     IMPACT_MAP_VARIANT_INDEX = 0
+    global TAKEAWAYS_RENDERED
+    TAKEAWAYS_RENDERED = False
 
     blank = prs.slide_layouts[6]
     pal = _theme(theme_name)
@@ -5644,6 +5646,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         title, bullets, content = _infographic_items(sl)
         intent = _infer_infographic_intent(title, content)
         count = len(bullets)
+
+        try:
+            if t == "key_takeaways" or ("key takeaways" in str(title or "").strip().lower()):
+                _mark_takeaways_rendered()
+        except Exception:
+            pass
 
         def _render_impact_map_rotated(*, allow_simple: bool) -> None:
             roles = _extract_swimlane_roles([str(x) for x in (bullets or [])])

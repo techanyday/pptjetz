@@ -709,5 +709,81 @@ def finalize_slides(slides: List[Dict[str, Any]] | None, *, stage: str = "final"
         norm["_render_exact"] = True
         out.append(norm)
 
+    def _is_key_takeaways_candidate(sl: Dict[str, Any]) -> bool:
+        try:
+            t = str(sl.get("type") or "").strip().lower()
+        except Exception:
+            t = ""
+        if t == "key_takeaways":
+            return True
+        try:
+            title_lc = str(sl.get("title") or "").strip().lower()
+        except Exception:
+            title_lc = ""
+        return "key takeaways" in title_lc
+
+    # Ensure singleton Key Takeaways and place it immediately before the final Thank You / CTA.
+    try:
+        kt_items: List[Tuple[int, Dict[str, Any]]] = [(i, s) for i, s in enumerate(out) if isinstance(s, dict) and _is_key_takeaways_candidate(s)]
+        if kt_items:
+            # Prefer an explicit key_takeaways typed slide as the base; otherwise keep the last candidate.
+            base_idx = None
+            for i, s in reversed(kt_items):
+                if str(s.get("type") or "").strip().lower() == "key_takeaways":
+                    base_idx = i
+                    break
+            if base_idx is None:
+                base_idx = kt_items[-1][0]
+
+            base = dict(out[base_idx])
+
+            merged: List[str] = []
+            seen = set()
+            for _, s in kt_items:
+                c = s.get("content")
+                if not isinstance(c, dict):
+                    continue
+                raw = c.get("bullets")
+                if not isinstance(raw, list):
+                    raw = c.get("takeaways")
+                if not isinstance(raw, list):
+                    continue
+                for x in raw:
+                    txt = str(x or "").strip()
+                    if not txt:
+                        continue
+                    lo = txt.lower()
+                    if lo in seen:
+                        continue
+                    seen.add(lo)
+                    merged.append(txt)
+
+            merged = _clean_list_text(merged, max_n=12)
+            base["type"] = "key_takeaways"
+            base["title"] = "Key Takeaways"
+            c2 = base.get("content")
+            if not isinstance(c2, dict):
+                c2 = {}
+            if merged:
+                c2["bullets"] = merged
+            base["content"] = c2
+            base = normalize_slide(base)
+            base = _ensure_nonempty_slide_content(base)
+            base["_render_exact"] = True
+
+            out_wo = [s for s in out if not (isinstance(s, dict) and _is_key_takeaways_candidate(s))]
+            insert_at = None
+            for i in range(len(out_wo) - 1, -1, -1):
+                t = str((out_wo[i] or {}).get("type") or "").strip().lower()
+                if t in {"thank_you", "cta"}:
+                    insert_at = i
+                    break
+            if insert_at is None:
+                insert_at = len(out_wo)
+            out_wo.insert(insert_at, base)
+            out = out_wo
+    except Exception:
+        pass
+
     debug_log_slides(stage, out)
     return out

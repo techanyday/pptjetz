@@ -220,6 +220,34 @@ def test_finalize_slides_converts_plain_bullets_slide_to_infographic():
     assert out[0].get("type") == "infographic"
 
 
+def test_finalize_slides_key_takeaways_is_singleton_and_last_before_thanks():
+    slides = [
+        {"type": "title", "title": "Deck", "subtitle": ""},
+        {"type": "agenda", "title": "Agenda", "content": {"bullets": ["A", "B", "C", "D"]}},
+        {"type": "key_takeaways", "title": "Key Takeaways", "content": {"bullets": ["One", "Two", "Three", "Four"]}},
+        {"type": "infographic", "title": "Key Takeaways", "content": {"bullets": ["Two", "Five", "Six"]}},
+        {"type": "cards", "title": "Steps", "content": {"cards": ["S1", "S2", "S3", "S4"]}},
+        {"type": "thank_you", "title": "Thank You", "cta": ""},
+    ]
+
+    out = finalize_slides(slides)
+    kt_idxs = [i for i, s in enumerate(out) if (s.get("type") == "key_takeaways")]
+    assert len(kt_idxs) == 1
+
+    kt_i = kt_idxs[0]
+    assert kt_i + 1 < len(out)
+    assert out[kt_i + 1].get("type") in {"thank_you", "cta"}
+
+    c = out[kt_i].get("content") or {}
+    bullets = c.get("bullets") or []
+    assert isinstance(bullets, list)
+    # Merged and deduped
+    low = {str(x).strip().lower() for x in bullets}
+    assert "one" in low
+    assert "two" in low
+    assert "five" in low
+
+
 def test_finalize_slides_tops_up_scanty_cards_to_min_4_without_placeholders():
     slides = [
         {"type": "cards", "title": "Rollout Plan", "content": {"cards": ["Pilot", "Scale"]}},
