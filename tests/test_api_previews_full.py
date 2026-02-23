@@ -18,3 +18,9 @@ def test_preview_loading_requests_full_previews() -> None:
     # preview_loading should request full previews (not limited by PREVIEW_MAX_SLIDES)
     assert "q.set('full', '1')" in tpl
     assert "q2.set('full', '1')" in tpl
+
+
+def test_loading_polls_generate_status() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    tpl = (repo_root / "app" / "templates" / "loading.html").read_text(encoding="utf-8")
+    assert "/api/generate/" in tpl

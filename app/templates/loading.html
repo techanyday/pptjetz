@@ -82,30 +82,57 @@ let i = 0; setInterval(() => { document.getElementById('tip').textContent = tips
     if (!raw) { window.location.replace('/generate'); return; }
     const payload = JSON.parse(raw);
     const minDelay = new Promise(res => setTimeout(res, 3000)); // ensure some dwell for ad fill
-    const apiPromise = fetch('/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) })
-      .then(async (r) => {
-        const ct = (r.headers.get('content-type') || '').toLowerCase();
-        const traceId = r.headers.get('x-trace-id') || '';
-        const rawText = await r.text();
-        const snippet = (rawText || '').slice(0, 800);
+    async function fetchJson(url, init){
+      const r = await fetch(url, init);
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      const traceId = r.headers.get('x-trace-id') || '';
+      const rawText = await r.text();
+      const snippet = (rawText || '').slice(0, 800);
 
-        if (ct.includes('application/json')) {
-          try {
-            const data = rawText ? JSON.parse(rawText) : {};
-            if (!r.ok || !data || data.ok === false) {
-              const msg = (data && (data.error || data.details)) || `Request failed (${r.status} ${r.statusText || ''})`;
-              const tid = (data && data.trace_id) ? String(data.trace_id) : (traceId || 'unknown');
-              throw new Error(`${msg} (trace_id ${tid})`);
-            }
-            return data;
-          } catch (e) {
-            throw new Error(`Invalid JSON response (${r.status} ${r.statusText || ''}). trace_id ${traceId || 'unknown'}. Body: ${snippet}`);
-          }
-        }
-
+      if (!ct.includes('application/json')) {
         throw new Error(`Server returned non-JSON response (${r.status} ${r.statusText || ''}). content-type ${ct || 'unknown'}. trace_id ${traceId || 'unknown'}. Body: ${snippet}`);
-      });
-    const data = await Promise.all([apiPromise, minDelay]).then(([d]) => d);
+      }
+
+      let data = {};
+      try { data = rawText ? JSON.parse(rawText) : {}; } catch(e) { data = {}; }
+      if (!r.ok || !data || data.ok === false) {
+        const msg = (data && (data.error || data.details)) || `Request failed (${r.status} ${r.statusText || ''})`;
+        const tid = (data && data.trace_id) ? String(data.trace_id) : (traceId || 'unknown');
+        throw new Error(`${msg} (trace_id ${tid})`);
+      }
+      return data;
+    }
+
+    async function pollGenerateStatus(pollUrl, traceId){
+      const maxTries = 240;
+      for (let i = 0; i < maxTries; i++) {
+        const st = await fetchJson(pollUrl, { headers: { 'Accept': 'application/json' } });
+        const status = String(st.status || '').toLowerCase();
+        if (status === 'done') return st;
+        if (status === 'error') {
+          const msg = (st && (st.error || st.details)) || 'Generation failed';
+          const tid = (st && st.trace_id) ? String(st.trace_id) : (traceId || 'unknown');
+          throw new Error(`${msg} (trace_id ${tid})`);
+        }
+        if (status === 'not_found') {
+          throw new Error(`Generation job not found (trace_id ${traceId || 'unknown'})`);
+        }
+        await new Promise(res => setTimeout(res, 1500));
+      }
+      throw new Error(`Generation timed out (trace_id ${traceId || 'unknown'})`);
+    }
+
+    const apiPromise = fetchJson('/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) });
+    let data = await Promise.all([apiPromise, minDelay]).then(([d]) => d);
+
+    const status = String((data && data.status) || '').toLowerCase();
+    if (status === 'processing') {
+      const deckId = data.deck_id;
+      const pollUrl = data.poll_url || (deckId ? (`/api/generate/${deckId}`) : null);
+      const tid = data.trace_id || '';
+      if (!pollUrl) throw new Error(`Missing poll_url for processing job (trace_id ${tid || 'unknown'})`);
+      data = await pollGenerateStatus(pollUrl, tid);
+    }
     if (data && data.redirect_url) { window.location.assign(data.redirect_url); return; }
     // Fallback: render inline results like before if slides returned
     if (data && Array.isArray(data.slides) && data.slides.length) {
@@ -130,13 +157,14 @@ let i = 0; setInterval(() => { document.getElementById('tip').textContent = tips
     window.location.replace('/generate');
   }
 })();
-// Trigger AdSense on all slots if enabled
+</script>
 {% if ADS_ENABLED and ADSENSE_ENABLED %}
+<script>
 try {
   const push = () => { try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch(e) { console.warn('adsbygoogle push failed', e); } };
   if (document.readyState === 'complete') { setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150); }
   else { window.addEventListener('load', () => setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150), { once: true }); }
 } catch (e) { console.warn(e); }
-{% endif %}
 </script>
+{% endif %}
 {% endblock %}

@@ -121,6 +121,11 @@ PREVIEW_JOBS: Dict[str, Dict[str, Any]] = {}
 PREVIEW_JOBS_LOCK = threading.Lock()
 
 
+GENERATE_JOBS: Dict[str, Dict[str, Any]] = {}
+
+GENERATE_JOBS_LOCK = threading.Lock()
+
+
 
 
 
@@ -1234,60 +1239,262 @@ def generate() -> Any:
     except Exception:
         trace_id = None
 
+    user_id = (getattr(current_user, "id", None) or None)
+    app_obj = None
     try:
-        slides, errors = create_deck_slides(
-            title=title,
-            subtitle=subtitle,
-            presenter=presenter,
-            date=date,
-            theme_name=theme_name,
-            input_text=input_text,
-            num_slides=num_slides,
-            deck_id=deck_id,
-            user_id=(getattr(current_user, "id", None) or None),
-        )
+        app_obj = current_app._get_current_object()
+    except Exception:
+        app_obj = None
+
+    # Start async job to avoid request timeouts (platform may return 502 for long sync requests).
+    def _set_job_state(deck_id_in: str, state: dict) -> None:
+        with GENERATE_JOBS_LOCK:
+            GENERATE_JOBS[deck_id_in] = dict(state)
+
+    _set_job_state(deck_id, {"status": "running", "deck_id": deck_id, "trace_id": trace_id, "started_at": time.time()})
+
+    def _run_generation_job() -> None:
+        def _fail(msg: str, errs: List[str] | None = None) -> None:
+            st = {
+                "status": "error",
+                "deck_id": deck_id,
+                "trace_id": trace_id,
+                "error": msg,
+                "errors": (errs or [msg]),
+                "ended_at": time.time(),
+            }
+            _set_job_state(deck_id, st)
+
+        try:
+            if app_obj is not None:
+                ctx = app_obj.app_context()
+            else:
+                ctx = None
+
+            if ctx is not None:
+                ctx.push()
+
+            try:
+                slides, errors = create_deck_slides(
+                    title=title,
+                    subtitle=subtitle,
+                    presenter=presenter,
+                    date=date,
+                    theme_name=theme_name,
+                    input_text=input_text,
+                    num_slides=num_slides,
+                    deck_id=deck_id,
+                    user_id=user_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                try:
+                    current_app.logger.exception("generate_job:unhandled trace_id=%s deck_id=%s", trace_id, deck_id)
+                except Exception:
+                    pass
+                _fail(f"Generation failed: {exc}", [f"Generation failed: {exc}"])
+                return
+
+            if errors or not slides:
+                errs = errors or ["No slides generated"]
+                msg0 = None
+                try:
+                    msg0 = str(errs[0]) if errs else None
+                except Exception:
+                    msg0 = None
+                _fail(msg0 or "Generation failed", [str(x) for x in (errs or [])])
+                return
+
+            debug_log_slides("ai_raw", slides)
+
+            # Derive a better deck title
+            def _smart_title_from_prompt(prompt_text: str) -> str | None:
+                t = (prompt_text or "").strip()
+                if not t:
+                    return None
+                lo = t.lower()
+
+                name = None
+                full_name = None
+                acronym = None
+
+                m = re.search(r"\b([A-Z]{2,})\s*,\s*or\s+([^.,\n]+)", t, flags=re.I)
+                if m:
+                    acronym = m.group(1).strip()
+                    full_name = m.group(2).strip()
+                    name = f"{full_name} ({acronym})"
+                if not name:
+                    m2 = re.search(r"\b([^\(\)\n]{4,}?)\s*\(([A-Z]{2,})\)", t)
+                    if m2:
+                        full_name = m2.group(1).strip()
+                        acronym = m2.group(2).strip()
+                        name = f"{full_name} ({acronym})"
+                if not name:
+                    first_clause = re.split(r"[\.!?\n]\s*", t, maxsplit=1)[0]
+                    first_clause = re.sub(r"^(about|on|regarding|please|kindly|create|write|make|generate|i need|we need)\s+", "", first_clause, flags=re.I)
+                    first_clause = re.sub(r"^(an|a)\s+(overview|introduction)\s+of\s+", "", first_clause, flags=re.I)
+                    first_clause = first_clause.split(":", 1)[0].strip()
+                    name = first_clause
+
+                name_words = name.split()
+                if len(name_words) > 10:
+                    name = " ".join(name_words[:10])
+
+                THEMES = [
+                    (r"bank communication", "Bank Communications"),
+                    (r"payment approval|approval workflow", "Payment Approvals"),
+                    (r"status monitoring|payment status", "Status Monitoring"),
+                    (r"straight[- ]through processing|stp", "Straight‑Through Processing"),
+                    (r"automated processing|automation", "Automation"),
+                    (r"compliance|audit trail", "Compliance"),
+                    (r"visibility|end-to-end visibility|cash flow", "Visibility"),
+                    (r"cost savings|fees|per-transaction", "Cost Savings"),
+                    (r"workflow", "Workflow"),
+                ]
+                picks = []
+                for pat, label in THEMES:
+                    try:
+                        if re.search(pat, lo):
+                            picks.append(label)
+                    except Exception:
+                        continue
+                picks = picks[:2]
+
+                LIM = 48
+
+                candidates: list[str] = []
+                if picks:
+                    for k in [2, 1]:
+                        if len(picks) >= k:
+                            tail = ", ".join(picks[:k]) if k > 1 else picks[0]
+                            candidates.append(f"{name}: {tail}")
+                else:
+                    candidates.append(name)
+                if acronym:
+                    short_name = f"{acronym}" if not full_name else f"{acronym}: {picks[0]}" if picks else acronym
+                    candidates.append(short_name)
+                if full_name and acronym:
+                    candidates.append(f"{full_name} ({acronym})")
+
+                for c in candidates:
+                    if len(c) <= LIM:
+                        base = c
+                        break
+                else:
+                    base = (candidates[0])[:LIM]
+
+                small = {"and", "or", "the", "of", "in", "on", "for", "to", "a", "an", "with", "at", "by"}
+
+                def smart_tc(s: str) -> str:
+                    parts = s.split()
+                    out_parts = []
+                    for i2, w in enumerate(parts):
+                        if i2 > 0 and w.lower() in small:
+                            out_parts.append(w.lower())
+                        else:
+                            out_parts.append(w[:1].upper() + w[1:])
+                    return " ".join(out_parts)
+
+                return smart_tc(base)
+
+            def derive_deck_title(slides_list: List[Dict[str, Any]]) -> str | None:
+                try:
+                    for sl in slides_list or []:
+                        if isinstance(sl, dict) and (str(sl.get("type") or "").lower() == "title"):
+                            t0 = (sl.get("title") or "").strip()
+                            if t0:
+                                return t0
+                except Exception:
+                    pass
+                if title and len(title.split()) <= 12:
+                    return title
+                smart = _smart_title_from_prompt(input_text)
+                if smart:
+                    return smart
+                return None
+
+            deck_title = derive_deck_title(slides) or "Generated Presentation"
+
+            deck_obj = {
+                "deck_id": deck_id,
+                "slides": slides,
+                "slides_out": finalize_slides(slides, stage="post_generate"),
+                "theme_name": theme_name,
+                "deck_title": deck_title,
+                "input_text": input_text,
+            }
+
+            DECK_STORE[deck_id] = deck_obj
+
+            out_dir = os.path.join(PREVIEW_ROOT, deck_id)
+            try:
+                os.makedirs(out_dir, exist_ok=True)
+                with open(os.path.join(out_dir, "deck.json"), "w", encoding="utf-8") as f:
+                    json.dump(deck_obj, f, ensure_ascii=False)
+            except Exception:
+                pass
+
+            redirect_url = url_for("main.outline_page", deck_id=deck_id, _external=True)
+            _set_job_state(deck_id, {
+                "status": "done",
+                "deck_id": deck_id,
+                "trace_id": trace_id,
+                "redirect_url": redirect_url,
+                "ended_at": time.time(),
+            })
+        except Exception as exc:  # noqa: BLE001
+            try:
+                current_app.logger.exception("generate_job:crash trace_id=%s deck_id=%s", trace_id, deck_id)
+            except Exception:
+                pass
+            _fail(f"Generation failed: {exc}", [f"Generation failed: {exc}"])
+        finally:
+            try:
+                if "ctx" in locals() and ctx is not None:
+                    ctx.pop()
+            except Exception:
+                pass
+
+    try:
+        th = threading.Thread(target=_run_generation_job, daemon=True)
+        th.start()
     except Exception as exc:  # noqa: BLE001
-        try:
-            current_app.logger.exception("generate:unhandled trace_id=%s deck_id=%s", trace_id, deck_id)
-        except Exception:
-            pass
-        return jsonify({
-            "ok": False,
-            "error": f"Generation failed: {exc}",
-            "errors": [f"Generation failed: {exc}"],
-            "trace_id": trace_id,
-            "deck_id": deck_id,
-        }), 500
+        _set_job_state(deck_id, {"status": "error", "deck_id": deck_id, "trace_id": trace_id, "error": f"Failed to start generation: {exc}", "errors": [f"Failed to start generation: {exc}"], "ended_at": time.time()})
+        return jsonify({"ok": False, "error": f"Failed to start generation: {exc}", "trace_id": trace_id, "deck_id": deck_id}), 500
 
-    if errors or not slides:
-        errs = errors or ["No slides generated"]
-        msg = None
-        try:
-            msg = str(errs[0]) if errs else None
-        except Exception:
-            msg = None
-
-        return jsonify({
-            "ok": False,
-            "error": msg or "Generation failed",
-            "errors": errs,
-            "trace_id": trace_id,
-            "deck_id": deck_id,
-        }), 422
+    poll_url = url_for("main.api_generate_status", deck_id=deck_id, _external=True)
+    return jsonify({"ok": True, "deck_id": deck_id, "status": "processing", "trace_id": trace_id, "poll_url": poll_url})
 
 
 
-    debug_log_slides("ai_raw", slides)
+@bp.get("/api/generate/<deck_id>")
+def api_generate_status(deck_id: str) -> Any:
+    """Return async generation job status.
 
+    This endpoint always responds quickly to support polling from the loading screen.
+    """
+    with GENERATE_JOBS_LOCK:
+        st = dict(GENERATE_JOBS.get(deck_id) or {})
 
+    if st:
+        st.setdefault("ok", True)
+        return jsonify(st)
 
-    # Multi-page change: persist slides and return deck_id + redirect URL
+    # Fallback: if the deck exists, consider it done.
+    try:
+        if deck_id in DECK_STORE:
+            redirect_url = url_for("main.outline_page", deck_id=deck_id, _external=True)
+            return jsonify({"ok": True, "status": "done", "deck_id": deck_id, "redirect_url": redirect_url})
+    except Exception:
+        pass
 
-    # deck_id already created earlier for logging
+    try:
+        if os.path.isfile(os.path.join(PREVIEW_ROOT, deck_id, "deck.json")):
+            redirect_url = url_for("main.outline_page", deck_id=deck_id, _external=True)
+            return jsonify({"ok": True, "status": "done", "deck_id": deck_id, "redirect_url": redirect_url})
+    except Exception:
+        pass
 
-    
-
-    # Derive a better deck title
+    return jsonify({"ok": False, "status": "not_found", "deck_id": deck_id, "error": "Job not found"}), 404
 
     def _smart_title_from_prompt(prompt_text: str) -> str | None:
 
