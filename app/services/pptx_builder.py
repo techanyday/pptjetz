@@ -4361,6 +4361,82 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             except Exception:
                 pass
 
+    def _wrap_text_no_midword(text: str, *, max_chars_per_line: int, max_lines: int) -> List[str]:
+        t = str(text or "").strip()
+        if not t:
+            return []
+        words = [w for w in t.split() if w]
+        if not words:
+            return []
+
+        lines: List[str] = []
+        cur: List[str] = []
+        for w in words:
+            candidate = (" ".join(cur + [w])).strip()
+            if cur and len(candidate) > max_chars_per_line:
+                lines.append(" ".join(cur).strip())
+                cur = [w]
+                continue
+            cur.append(w)
+        if cur:
+            lines.append(" ".join(cur).strip())
+
+        if max_lines > 0 and len(lines) > max_lines:
+            # Keep full words; truncate extra lines into the last allowed line.
+            keep = lines[: max_lines - 1]
+            rest_words = " ".join(lines[max_lines - 1 :]).split()
+            last: List[str] = []
+            for w in rest_words:
+                cand = (" ".join(last + [w])).strip()
+                if last and len(cand) > max_chars_per_line:
+                    break
+                last.append(w)
+            keep.append(" ".join(last).strip())
+            lines = keep
+        return [ln for ln in lines if ln]
+
+    def _fit_text_no_midword(
+        text: str,
+        *,
+        box_w_in: float,
+        box_h_in: float,
+        base_font_pt: int,
+        min_font_pt: int,
+        max_lines: int,
+        width_factor: float = 1.0,
+        height_factor: float = 1.0,
+    ) -> tuple[str, int]:
+        t = str(text or "").strip()
+        if not t:
+            return "", base_font_pt
+
+        # Heuristic: average character width ~0.55em.
+        def _max_chars(font_pt: int) -> int:
+            eff_w = max(0.6, float(box_w_in) * float(width_factor))
+            return max(6, int((eff_w * 144.0) / max(8.0, float(font_pt))))
+
+        def _max_lines(font_pt: int) -> int:
+            eff_h = max(0.4, float(box_h_in) * float(height_factor))
+            line_h_in = (float(font_pt) / 72.0) * 1.15
+            return max(1, int(eff_h / max(0.18, line_h_in)))
+
+        fs = int(base_font_pt)
+        while fs >= int(min_font_pt):
+            maxc = _max_chars(fs)
+            lines = _wrap_text_no_midword(t, max_chars_per_line=maxc, max_lines=max_lines)
+            if not lines:
+                return "", fs
+            # Single long word: keep it intact and rely on shrinking.
+            if any(len(w) > maxc for w in t.split()):
+                pass
+
+            if len(lines) <= max(1, max_lines) and len(lines) <= _max_lines(fs):
+                return "\n".join(lines), fs
+            fs -= 1
+
+        lines = _wrap_text_no_midword(t, max_chars_per_line=_max_chars(min_font_pt), max_lines=max_lines)
+        return "\n".join(lines[:max_lines] if max_lines else lines), int(min_font_pt)
+
     def _render_impact_map(simple: bool, sl) -> None:
         title, bullets, content = _infographic_items(sl)
         if not bullets:
@@ -4379,12 +4455,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         if n >= 5:
             band_h = max(band_h, (bot_y + node_h + 0.35) - band_y)
         band = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(band_x), Inches(band_y), Inches(band_w), Inches(band_h))
-        band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
-        band.line.fill.background()
+        band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*(pal.get("bg", (255, 255, 255))))
         try:
-            band.shadow.inherit = False; band.shadow.visible = True; band.shadow.blur = 18; band.shadow.distance = 3
+            band.line.color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
+            band.line.width = Pt(0.75)
         except Exception:
-            pass
+            band.line.fill.background()
 
         # Central node (hexagon-style impact core)
         hex_w, hex_h = 3.4, 2.0
@@ -4400,9 +4476,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             pass
         center_label = (content.get("center_label") or sl.get("center_label") or sl.get("title") or "Impact").strip()
         tfc = core.text_frame; tfc.clear()
+        tfc.word_wrap = False
+        tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
         pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
-        rc = pc.add_run(); rc.text = center_label or "Impact"
-        rc.font.size = Pt(20); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
+        wrapped, fs = _fit_text_no_midword(center_label or "Impact", box_w_in=hex_w * 0.70, box_h_in=hex_h * 0.70, base_font_pt=20, min_font_pt=14, max_lines=3, width_factor=1.0)
+        rc = pc.add_run(); rc.text = wrapped
+        rc.font.size = Pt(fs); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
 
         # Positions for surrounding nodes: tuned for up to 5, fully inside the band
         left_x = 1.1
@@ -4531,25 +4610,33 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
     def _render_impact_map_radial(sl) -> None:
         title, items, content = _impact_map_norm_items(sl)
-        n = max(3, min(6, len(items)))
-        items = items[:n]
+        target_n = 6
+        items = list(items or [])
+        if len(items) < target_n:
+            synth = [str(x).strip() for x in (_synthesize_topic_bullets(title) or []) if str(x).strip()]
+            for s2 in synth:
+                if len(items) >= target_n:
+                    break
+                items.append(s2)
+        items = items[:target_n]
+        n = target_n
 
         s = prs.slides.add_slide(blank); apply_bg(s)
 
-        band_x, band_y, band_w, band_h = 0.9, 1.25, SLIDE_W_IN - 1.8, 6.05
+        band_x, band_y, band_w, band_h = 1.0, 1.35, SLIDE_W_IN - 2.0, 6.00
         band = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(band_x), Inches(band_y), Inches(band_w), Inches(band_h))
-        band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
-        band.line.fill.background()
+        band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*(pal.get("bg", (255, 255, 255))))
         try:
-            band.shadow.inherit = False; band.shadow.visible = True; band.shadow.blur = 18; band.shadow.distance = 3
+            band.line.color.rgb = RGBColor(*(pal.get("secondary", pal.get("bg", (240, 245, 255)))))
+            band.line.width = Pt(0.75)
         except Exception:
-            pass
+            band.line.fill.background()
 
         _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
 
         center_label = (content.get("center_label") or sl.get("center_label") or sl.get("title") or "Goal").strip() or "Goal"
-        cx, cy = SLIDE_W_IN / 2.0, 4.15
-        core_d = 2.05
+        cx, cy = band_x + band_w / 2.0, band_y + band_h / 2.0
+        core_d = 2.25
         core = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - core_d / 2), Inches(cy - core_d / 2), Inches(core_d), Inches(core_d))
         core_rgb = pal.get("primary", (59, 130, 246))
         core.fill.solid(); core.fill.fore_color.rgb = RGBColor(*core_rgb)
@@ -4558,52 +4645,55 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             core.shadow.inherit = False; core.shadow.visible = True; core.shadow.blur = 14; core.shadow.distance = 3
         except Exception:
             pass
-        tfc = core.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        tfc = core.text_frame; tfc.clear(); tfc.word_wrap = False; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
         pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
-        rc = pc.add_run(); rc.text = center_label
-        rc.font.size = Pt(18); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
+        wrapped_c, fs_c = _fit_text_no_midword(center_label, box_w_in=core_d, box_h_in=core_d, base_font_pt=20, min_font_pt=14, max_lines=3, width_factor=0.68, height_factor=0.72)
+        rc = pc.add_run(); rc.text = wrapped_c
+        rc.font.size = Pt(fs_c); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
 
         step_cols = _step_colors()
-        node_w, node_h = 2.70, 1.10
+        node_w, node_h = 2.85, 0.95
+        edge_pad = 0.12
         pts: List[tuple[float, float]] = []
-        if n == 5:
-            gap = 1.25
-            top_y = cy - (core_d / 2.0 + node_h / 2.0 + gap)
-            side_x_off = (core_d / 2.0 + node_w / 2.0 + 1.25)
-            side_y = cy - 0.95
-            bot_y = cy + (core_d / 2.0 + node_h / 2.0 + 1.05)
-            pts = [
-                (cx, top_y),
-                (cx - side_x_off, side_y),
-                (cx + side_x_off, side_y),
-                (cx - (node_w / 2.0 + 0.55), bot_y),
-                (cx + (node_w / 2.0 + 0.55), bot_y),
-            ]
-        else:
-            desired_r = max(2.55, (core_d / 2.0) + (max(node_w, node_h) / 2.0) + 1.05)
-            edge_pad = 0.15
-            avail_top = (cy - (band_y + edge_pad)) - (node_h / 2.0)
-            avail_bot = ((band_y + band_h - edge_pad) - cy) - (node_h / 2.0)
-            r = max(1.6, min(desired_r, avail_top, avail_bot))
-            for i in range(n):
-                ang = (-math.pi / 2.0) + (2.0 * math.pi * i / float(n))
-                x = cx + r * math.cos(ang)
-                y = cy + r * math.sin(ang)
-                pts.append((x, y))
+        # Use an elliptical layout (wider than tall) so nodes can sit farther away
+        # horizontally without exceeding the slide's limited vertical real estate.
+        # This matches the "premium" look in the reference screenshot.
+        limit_x = max(0.4, (band_w / 2.0) - (node_w / 2.0) - edge_pad)
+        limit_y = max(0.4, (band_h / 2.0) - (node_h / 2.0) - edge_pad)
+        r_x = max(2.2, min(limit_x, limit_x * 0.98))
+        r_y = max(1.6, min(limit_y, limit_y * 0.95))
+
+        # 6 evenly spaced nodes with top/bottom + 4 diagonals.
+        angles: List[float] = [
+            -math.pi / 2.0,
+            -math.pi / 6.0,
+            math.pi / 6.0,
+            math.pi / 2.0,
+            5.0 * math.pi / 6.0,
+            -5.0 * math.pi / 6.0,
+        ]
+
+        for ang in angles:
+            pts.append((cx + r_x * math.cos(ang), cy + r_y * math.sin(ang)))
 
         targets: List[tuple[float, float]] = []
+        node_rects: List[tuple[float, float, float, float]] = []
         for i, raw in enumerate(items):
             x, y = pts[i]
-            nx = max(band_x + 0.25, min(band_x + band_w - node_w - 0.25, x - node_w / 2.0))
-            ny = max(band_y + 0.25, min(band_y + band_h - node_h - 0.25, y - node_h / 2.0))
-            head, _ = _split_head_tail(raw)
-            head_txt = (head or raw or "").strip() or ""
-            hw = head_txt.split()
-            if len(hw) > 5:
-                head_txt = " ".join(hw[:5])
-            if len(head_txt) > 32:
-                cut = head_txt[:32]
-                head_txt = cut.rsplit(" ", 1)[0] if " " in cut else cut
+            nx = x - node_w / 2.0
+            ny = y - node_h / 2.0
+            # Clamp into the band to avoid accidental overflow.
+            nx = max(band_x + edge_pad, min(band_x + band_w - node_w - edge_pad, nx))
+            ny = max(band_y + edge_pad, min(band_y + band_h - node_h - edge_pad, ny))
+            node_rects.append((nx, ny, node_w, node_h))
+
+            head, tail = _split_head_tail(str(raw or ""))
+            head_txt = (head or str(raw or "")).strip()
+            body_txt = (tail or "").strip()
+            # Keep a premium, airy look: prioritise the headline, de-emphasise long tails.
+            if len(body_txt.split()) > 8:
+                body_txt = ""
+
             node = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(nx), Inches(ny), Inches(node_w), Inches(node_h))
             bg_rgb = pal.get("bg", (255, 255, 255))
             node.fill.solid(); node.fill.fore_color.rgb = RGBColor(*bg_rgb)
@@ -4612,15 +4702,25 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 node.shadow.inherit = False; node.shadow.visible = True; node.shadow.blur = 6; node.shadow.distance = 2
             except Exception:
                 pass
-            ico = s.shapes.add_shape(MsoShape.OVAL, Inches(nx + 0.16), Inches(ny + 0.22), Inches(0.28), Inches(0.28))
+            ico = s.shapes.add_shape(MsoShape.OVAL, Inches(nx + 0.16), Inches(ny + 0.24), Inches(0.28), Inches(0.28))
             ico.fill.solid(); ico.fill.fore_color.rgb = RGBColor(*step_cols[i % len(step_cols)])
             ico.line.fill.background()
-            tb = s.shapes.add_textbox(Inches(nx + 0.52), Inches(ny + 0.14), Inches(node_w - 0.68), Inches(node_h - 0.24)).text_frame
-            tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+
+            inner_w = max(0.6, node_w - 0.72)
+            inner_h = max(0.4, node_h - 0.26)
+            tb = s.shapes.add_textbox(Inches(nx + 0.52), Inches(ny + 0.12), Inches(inner_w), Inches(inner_h)).text_frame
+            tb.clear(); tb.word_wrap = False; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
             tb.margin_top = Pt(0); tb.margin_bottom = Pt(0)
             p = tb.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
-            p.line_spacing = 1.0
-            r1 = p.add_run(); r1.text = head_txt; r1.font.size = Pt(14); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+            p.line_spacing = 1.05
+
+            wrapped_h, fs_h = _fit_text_no_midword(head_txt, box_w_in=inner_w, box_h_in=inner_h * (0.60 if body_txt else 1.0), base_font_pt=14, min_font_pt=11, max_lines=2)
+            r1 = p.add_run(); r1.text = wrapped_h; r1.font.size = Pt(fs_h); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+            if body_txt:
+                p2 = tb.add_paragraph(); p2.clear(); p2.alignment = PP_ALIGN.LEFT
+                p2.line_spacing = 1.05
+                wrapped_b, fs_b = _fit_text_no_midword(body_txt, box_w_in=inner_w, box_h_in=inner_h * 0.40, base_font_pt=10, min_font_pt=9, max_lines=2)
+                r2 = p2.add_run(); r2.text = wrapped_b; r2.font.size = Pt(fs_b); r2.font.bold = False; r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
 
             targets.append((nx + node_w / 2.0, ny + node_h / 2.0))
 
@@ -4631,13 +4731,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             vy = ty - cy
             d = (vx * vx + vy * vy) ** 0.5 or 1.0
             ux, uy = vx / d, vy / d
+            # Center node is an oval: shrink start distance a bit to avoid touching text region.
             sx = cx + ux * (core_d / 2.0)
             sy = cy + uy * (core_d / 2.0)
+
+            # Outer nodes are rectangles: compute intersection with their bounding box.
             denom_x = abs(ux) if abs(ux) > 1e-6 else 1e-6
             denom_y = abs(uy) if abs(uy) > 1e-6 else 1e-6
             t_edge = min((node_w / 2.0) / denom_x, (node_h / 2.0) / denom_y)
             ex = tx - ux * t_edge
             ey = ty - uy * t_edge
+
             conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(sx), Inches(sy), Inches(ex), Inches(ey))
             conn.line.color.rgb = RGBColor(*line_rgb)
             conn.line.width = Pt(1.75)
