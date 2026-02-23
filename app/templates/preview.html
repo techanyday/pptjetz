@@ -25,11 +25,14 @@
         <div class="flex items-center justify-between mb-4">
           <h1 class="text-2xl font-bold">Presentation Preview</h1>
           <div class="flex items-center gap-2">
-            <select id="themeSelect" class="px-3 py-2 rounded border bg-white" aria-label="Theme">
-              {% for t in themes %}
-              <option value="{{ t }}">{{ 'PRIME MERIDIAN' if t == 'prime_meridian' else t }}</option>
-              {% endfor %}
-            </select>
+            <div class="flex flex-col items-start">
+              <label for="themeSelect" class="text-xs font-semibold text-gray-900 tracking-wide">CHANGE THEME</label>
+              <select id="themeSelect" class="mt-1 px-3 py-2 rounded border bg-white" aria-label="Theme">
+                {% for t in themes %}
+                <option value="{{ t }}">{{ 'PRIME MERIDIAN' if t == 'prime_meridian' else t }}</option>
+                {% endfor %}
+              </select>
+            </div>
             <a id="downloadLink" href="#" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Export PPTX</a>
             <a href="{{ url_for('main.generate_page') }}" class="px-4 py-2 rounded border hover:bg-gray-50">Back</a>
           </div>

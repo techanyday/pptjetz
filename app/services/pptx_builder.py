@@ -6,6 +6,7 @@ import json
 import os
 import random
 import re
+import ast
 import math
 import colorsys
 import hashlib
@@ -633,15 +634,15 @@ def _timeline_render_row(slide, items: List[str], y_in: float, circle_d_in: floa
         dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(255, 255, 255); dot.line.color.rgb = RGBColor(209, 213, 219)
     return x_right_center + d / 2
 
-def _render_background_timeline_autofit(prs: Presentation, slide, stages: List[str], *, pal: Dict[str, Tuple[int, int, int]], title: str = "Background — Evolution", is_cont: bool = False) -> List[str]:
+def _render_background_timeline_autofit(prs: Presentation, slide, stages: List[str], *, pal: Dict[str, Tuple[int, int, int]], title: str = "Background — Evolution", is_cont: bool = False, subtitle_override: str | None = None) -> List[str]:
     items = _clean_agenda_items(stages, limit=20)
     if len(items) < 3:
         items += ["Foundational Phase", "Tools Adoption", "Scaled Analytics"][: 3 - len(items)]
 
     th = _timeline_title(slide, title, pal=pal)
-    # Subtitle for context
-    sub = _timeline_subtitle(title, items, None)
-    _add_textbox(slide, 1.0, 0.9 + th, 10.5, 0.50, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center")
+    sub = str(subtitle_override or "").strip()
+    if sub:
+        _add_textbox(slide, 1.0, 0.9 + th, 10.5, 0.50, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center")
     base_top = 0.9 + th + 0.25 + 0.45
     bottom = SLIDE_H_IN - 0.8
     max_block_h = bottom - base_top
@@ -2890,14 +2891,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     )
                     arrow.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
                     arrow.line.width = Pt(2)
-                    
-                    # Connection label
-                    conn_label = str(conn.get("label", ""))[:30]
-                    if conn_label:
-                        label_x = (start_x_conn + end_x_conn) / 2
-                        label_y = (start_y_conn + end_y_conn) / 2
-                        _add_textbox(s, label_x - 0.5, label_y - 0.2, 1.0, 0.4, conn_label,
-                                    font_size_pt=8, color=pal["text"])
                 except Exception:
                     # Skip connection if it fails
                     continue
@@ -3455,8 +3448,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=42, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
         # Subtitle
-        sub = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "linear"))
-        _add_textbox(s, 1.0, 1.8, 10.8, 0.6, sub, font_size_pt=19, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
+        sub = str(subtitle_override or "").strip()
+        if sub:
+            _add_textbox(s, 1.0, 1.8, 10.8, 0.6, sub, font_size_pt=19, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
 
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
@@ -3515,9 +3509,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         s = prs.slides.add_slide(blank); apply_bg(s)
         dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=40, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
-        sub_raw = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "horizontal"))
-        # Full subtitle, wrapped and auto-fit to stay within the presentation area
-        _add_textbox(s, 1.0, 1.8, 10.8, 0.8, sub_raw, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
+        sub_raw = str(subtitle_override or "").strip()
+        if sub_raw:
+            _add_textbox(s, 1.0, 1.8, 10.8, 0.8, sub_raw, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
             items = ["Step 1", "Step 2", "Step 3", "Step 4"]
@@ -3624,8 +3618,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         s = prs.slides.add_slide(blank); apply_bg(s)
         dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Process", font_size_pt=40, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
-        sub = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "process-alt"))
-        _add_textbox(s, 1.0, 1.8, 10.8, 0.8, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
+        sub = str(subtitle_override or "").strip()
+        if sub:
+            _add_textbox(s, 1.0, 1.8, 10.8, 0.8, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
 
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
@@ -3727,8 +3722,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         s = prs.slides.add_slide(blank); apply_bg(s)
         dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=40, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
-        sub = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "v-chevrons"))
-        _add_textbox(s, 1.0, 1.8, 10.8, 0.7, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
+        sub = str(subtitle_override or "").strip()
+        if sub:
+            _add_textbox(s, 1.0, 1.8, 10.8, 0.7, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
 
         items = [str(x).strip() for x in (points or []) if str(x).strip()] or ["Step 1", "Step 2", "Step 3", "Step 4"]
         n = min(6, max(4, len(items)))
@@ -3833,8 +3829,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
         # Title
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=42, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
-        sub = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "vertical"))
-        _add_textbox(s, 1.0, 1.8, 10.8, 0.5, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
+        sub = str(subtitle_override or "").strip()
+        if sub:
+            _add_textbox(s, 1.0, 1.8, 10.8, 0.5, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
         # Items and layout metrics with fit-to-available-height
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
@@ -3903,8 +3900,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         """Roadmap path with colored location pins along a meandering soft path."""
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Roadmap", font_size_pt=42, bold=True, color=pal["primary"], word_wrap=True, auto_fit=True)
-        sub = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "roadmap"))
-        _add_textbox(s, 1.0, 1.8, 10.8, 0.5, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
+        sub = str(subtitle_override or "").strip()
+        if sub:
+            _add_textbox(s, 1.0, 1.8, 10.8, 0.5, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
             items = ["Step 1", "Step 2", "Step 3", "Step 4"]
@@ -5240,6 +5238,74 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
             p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
             r1 = p.add_run(); r1.text = head_txt; r1.font.size = Pt(14); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+            if tail_txt:
+                p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.LEFT
+                r2 = p2.add_run(); r2.text = tail_txt; r2.font.size = Pt(11); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+
+    def _render_cards_grid(title_txt: str, items: List[str]) -> None:
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title_txt or "Highlights", font_size_pt=32, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
+
+        arr = [str(x).strip() for x in (items or []) if str(x).strip()]
+        if not arr:
+            arr = ["Example 1", "Example 2", "Example 3", "Example 4"]
+
+        n = min(6, max(3, len(arr)))
+        arr = arr[:n]
+        cols = 3 if n >= 5 else (2 if n >= 4 else 3)
+        rows = 2 if n >= 4 else 1
+
+        cont_x = 0.7
+        cont_w = SLIDE_W_IN - 1.4
+        gap_x = 0.40
+        gap_y = 0.40
+        card_h = 1.70
+        total_h = rows * card_h + (rows - 1) * gap_y
+        cont_y = 2.10
+        cont_h = total_h + 0.65
+        cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cont_x), Inches(cont_y), Inches(cont_w), Inches(cont_h))
+        cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240, 245, 255))))
+        cont.line.color.rgb = RGBColor(229, 231, 235)
+        try:
+            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 14; cont.shadow.distance = 3
+        except Exception:
+            pass
+
+        inner_x = cont_x + 0.35
+        inner_y = cont_y + 0.30
+        card_w = (cont_w - (cols - 1) * gap_x - 0.70) / cols
+        STEP_COLS = _step_colors()
+
+        for idx, raw in enumerate(arr):
+            rr = idx // cols
+            cc = idx % cols
+            x = inner_x + cc * (card_w + gap_x)
+            y = inner_y + rr * (card_h + gap_y)
+            accent = STEP_COLS[idx % len(STEP_COLS)]
+
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(card_w), Inches(card_h))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
+            card.line.color.rgb = RGBColor(*accent)
+            try:
+                card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 6; card.shadow.distance = 2
+            except Exception:
+                pass
+
+            head, tail = _split_head_tail(str(raw))
+            head_txt = (head or str(raw)).strip()
+            tail_txt = (tail or "").strip()
+
+            tf = s.shapes.add_textbox(Inches(x + 0.28), Inches(y + 0.22), Inches(card_w - 0.56), Inches(card_h - 0.44)).text_frame
+            tf.word_wrap = True
+            tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                tf.margin_left = Inches(0.01); tf.margin_right = Inches(0.01); tf.margin_top = Inches(0.01); tf.margin_bottom = Inches(0.01)
+            except Exception:
+                pass
+
+            p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.LEFT
+            r1 = p.add_run(); r1.text = head_txt; r1.font.size = Pt(15); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
             if tail_txt:
                 p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.LEFT
                 r2 = p2.add_run(); r2.text = tail_txt; r2.font.size = Pt(11); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
@@ -6786,6 +6852,20 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             if ds:
                 return ds
             return ""
+        if isinstance(x, str):
+            s = x.strip()
+            if s.startswith("{") and s.endswith("}") and ("title" in s or "heading" in s or "description" in s):
+                parsed: Any = None
+                try:
+                    parsed = json.loads(s)
+                except Exception:
+                    try:
+                        parsed = ast.literal_eval(s)
+                    except Exception:
+                        parsed = None
+                if isinstance(parsed, dict):
+                    return _card_item_to_text(parsed)
+            return s
         return str(x or "").strip()
 
     for idx, sl in enumerate(slides_norm, start=1):
@@ -6806,7 +6886,25 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 )
             except Exception:
                 pass
-        # Force replacement: any slide carrying a 'cards' array should render as a horizontal process timeline
+        def _looks_like_case_studies_cards(title_txt: str, stages: List[str]) -> bool:
+            blob = ((title_txt or "") + " " + " ".join(stages or [])).lower()
+            if any(k in blob for k in ["case stud", "case-study", "case study", "success stor", "success story", "use case", "use-case", "examples", "customer story"]):
+                return True
+            colonish = 0
+            numericish = 0
+            for s0 in (stages or []):
+                s = str(s0 or "")
+                if ":" in s and 2 <= len(s.split(":", 1)[0].strip()) <= 20:
+                    colonish += 1
+                if re.search(r"\b\d{1,3}%\b|\$\s*\d|\broi\b|\bmetrics?\b", s.lower()):
+                    numericish += 1
+            if colonish >= max(2, (len(stages or []) + 1) // 2):
+                return True
+            if numericish >= 2:
+                return True
+            return False
+
+        # Force replacement: slides with a 'cards' array should render as process only when they represent steps.
         try:
             cards_arr = _content(sl).get("cards")
             if t in {"cards", "card", "card_style", "process_timeline_alt"} and isinstance(cards_arr, list) and any(_card_item_to_text(x) for x in cards_arr):
@@ -6815,12 +6913,16 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     kind = str(sl.get("_semantic_cards_kind") or "").strip()
                     if kind == "benefits_stack":
                         _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+                    elif _looks_like_case_studies_cards((sl.get("title") or ""), stages):
+                        _render_cards_grid((sl.get("title") or "Highlights"), stages)
                     else:
                         render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
                 else:
                     blob = ((sl.get("title") or "") + " " + " ".join(stages)).lower()
                     if any(k in blob for k in ["benefit", "benefits", "value", "advantages", "advantage", "gains", "gain"]):
                         _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+                    elif _looks_like_case_studies_cards((sl.get("title") or ""), stages):
+                        _render_cards_grid((sl.get("title") or "Highlights"), stages)
                     else:
                         render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
                 continue
@@ -6891,12 +6993,16 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 kind = str(sl.get("_semantic_cards_kind") or "").strip()
                 if kind == "benefits_stack":
                     _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+                elif _looks_like_case_studies_cards((sl.get("title") or ""), stages):
+                    _render_cards_grid((sl.get("title") or "Highlights"), stages)
                 else:
                     render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""), subtitle_override=subtitle_override)
             else:
                 blob = ((sl.get("title") or "") + " " + " ".join(stages)).lower()
                 if any(k in blob for k in ["benefit", "benefits", "value", "advantages", "advantage", "gains", "gain"]):
                     _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
+                elif _looks_like_case_studies_cards((sl.get("title") or ""), stages):
+                    _render_cards_grid((sl.get("title") or "Highlights"), stages)
                 else:
                     render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""), subtitle_override=subtitle_override)
         elif t == "timeline":
@@ -7953,14 +8059,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     )
                     arrow.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
                     arrow.line.width = Pt(2)
-                    
-                    # Connection label
-                    conn_label = str(conn.get("label", ""))[:30]
-                    if conn_label:
-                        label_x = (start_x_conn + end_x_conn) / 2
-                        label_y = (start_y_conn + end_y_conn) / 2
-                        _add_textbox(s, label_x - 0.7, label_y - 0.25, 1.4, 0.4, conn_label,
-                                    font_size_pt=8, color=pal["text"], word_wrap=True)
                 except Exception:
                     # Skip connection if it fails
                     continue

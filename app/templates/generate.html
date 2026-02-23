@@ -90,18 +90,7 @@
                         <img src="{{ url_for('static', filename='img/templates/Clean and Neat.png') }}" alt="Clean and Neat template" class="w-full h-32 object-cover rounded-lg" />
                         <p class="text-center mt-2">Neat and Clean</p>
                     </div>
-<div>
-                <label for="theme" class="block text-sm font-medium text-gray-700 mb-2">Choose Theme</label>
-                <select id="theme" name="theme" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                    <option value="" selected disabled hidden>Select a theme…</option>
-                    <option value="SLEEK">SLEEK</option>
-                    <option value="PULSE">PULSE</option>
-                    <option value="MINIMAL FLUX">MINIMAL FLUX</option>
-                    <option value="BLUE HORIZON">BLUE HORIZON</option>
-                    <option value="prime_meridian">PRIME MERIDIAN</option>
-                </select>
-                <p id="themeError" class="mt-1 text-sm text-red-600 hidden">Please select a theme to continue.</p>
-            </div>
+            
             
             <!-- Include Images control visually hidden to preserve logic (JS reads .checked) -->
             <div class="hidden">
@@ -110,8 +99,8 @@
             </div>
             
             <div class="text-center">
-                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                    Generate Presentation
+                <button id="selectThemeBtn" type="button" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Continue to theme selection
                 </button>
             </div>
         </form>
@@ -221,27 +210,6 @@
 </div>
 {% endif %}
 
-<!-- Confirm & Continue Modal -->
-<div id="confirmModal" class="fixed inset-0 z-40 hidden">
-  <div class="absolute inset-0 bg-black/50" aria-hidden="true"></div>
-  <div class="absolute inset-0 flex items-center justify-center p-4">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[85vh] flex flex-col">
-      <h3 class="text-xl font-semibold mb-3">Review before generating</h3>
-      <div class="overflow-y-auto pr-1 -mr-1 flex-1">
-        <ul class="text-gray-700 space-y-1">
-          <li><span class="font-semibold">Topic:</span> <span id="confTopic"></span></li>
-          <li><span class="font-semibold">Theme:</span> <span id="confTheme"></span></li>
-          <li class="text-sm text-gray-500"><span class="font-semibold">Type:</span> <span id="confIntent">—</span></li>
-        </ul>
-      </div>
-      <div class="flex justify-end gap-3 pt-4">
-        <button id="confBack" class="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200">Back</button>
-        <button id="confGo" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Generate Now</button>
-      </div>
-    </div>
-  </div>
-  </div>
-
 <!-- Loading overlay removed: now using dedicated /loading page -->
 
 <script>
@@ -254,6 +222,38 @@ let selectedIntent = '';
 
 // Micro-step: intent buttons
 document.addEventListener('DOMContentLoaded', () => {
+  // Restore draft if user came back from theme selection.
+  try {
+    const raw = sessionStorage.getItem('pptjet_draft_payload');
+    if (raw) {
+      const d = JSON.parse(raw);
+      const promptEl = document.getElementById('prompt');
+      if (promptEl && d && d.input_text && !String(promptEl.value || '').trim()) {
+        promptEl.value = String(d.input_text);
+      }
+      const intent = (d && (d.intent || d.intent_value)) ? String(d.intent || d.intent_value) : '';
+      if (intent) {
+        selectedIntent = intent;
+        const hv = document.getElementById('intent_value');
+        if (hv) hv.value = intent;
+        document.querySelectorAll('.intent-btn').forEach(b => {
+          const isSel = (b.getAttribute('data-intent') || '') === intent;
+          b.classList.toggle('ring-2', isSel);
+          b.classList.toggle('ring-blue-500', isSel);
+          b.classList.toggle('bg-blue-50', isSel);
+        });
+      }
+      const ns = (d && (d.num_slides !== null) && (typeof d.num_slides !== 'undefined')) ? String(d.num_slides) : '';
+      const nsEl = document.getElementById('num_slides');
+      if (nsEl && ns) nsEl.value = ns;
+      const inc = !!(d && d.include_images);
+      const incEl = document.getElementById('include_images');
+      if (incEl) incEl.checked = inc;
+    }
+  } catch (e) {
+    console.warn('Could not restore draft payload', e);
+  }
+
   document.querySelectorAll('.intent-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       selectedIntent = btn.getAttribute('data-intent') || '';
@@ -393,7 +393,7 @@ document.getElementById('exportBtn').addEventListener('click', async function() 
         const resp = await fetch('/export', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ deck_title: lastTitle, slides: lastSlides, theme_name: lastThemeName || document.getElementById('theme').value })
+            body: JSON.stringify({ deck_title: lastTitle, slides: lastSlides, theme_name: lastThemeName || '' })
         });
         const data = await resp.json();
         if (data && data.ok) {
@@ -427,68 +427,32 @@ document.getElementById('exportBtn').addEventListener('click', async function() 
 });
 
 
-// Confirm + Loading + Generate flow (front-end only)
 document.addEventListener('DOMContentLoaded', function() {
-  const formEl = document.getElementById('presentationForm');
-  const modal = document.getElementById('confirmModal');
-  const confBack = document.getElementById('confBack');
-  const confGo = document.getElementById('confGo');
-  // Loading overlay and rotating tips removed (now handled by /loading page)
-
-  formEl.addEventListener('submit', function(e) {
-    e.preventDefault();
-    // Validate theme selection (no default)
-    const themeSel = document.getElementById('theme');
-    const themeVal = themeSel.value || '';
-    const themeErr = document.getElementById('themeError');
-    if (!themeVal) {
-      themeErr.classList.remove('hidden');
-      themeSel.classList.add('ring-2','ring-red-500');
-      themeSel.focus();
+  const btn = document.getElementById('selectThemeBtn');
+  btn.addEventListener('click', () => {
+    const prompt = document.getElementById('prompt').value || '';
+    if (!prompt.trim()) {
+      document.getElementById('prompt').focus();
       return;
-    } else {
-      themeErr.classList.add('hidden');
-      themeSel.classList.remove('ring-2','ring-red-500');
     }
-    // Fill modal with current values
-    document.getElementById('confTopic').textContent = document.getElementById('prompt').value || '(none)';
-    document.getElementById('confTheme').textContent = document.getElementById('theme').value;
-    document.getElementById('confIntent').textContent = selectedIntent || '—';
-    modal.classList.remove('hidden');
-  });
-
-  confBack.addEventListener('click', () => modal.classList.add('hidden'));
-
-  confGo.addEventListener('click', async () => {
-    modal.classList.add('hidden');
-    const submitButton = formEl.querySelector('button[type="submit"]');
-    submitButton.disabled = true;
-
-    // Analytics: generate form submitted
-    if (typeof gtag === 'function') {
-      gtag('event', 'generate_submit', { event_category: 'engagement', event_label: 'generate_form' });
-    }
-
-    const formData = {
+    const draft = {
       title: '',
       subtitle: '',
       presenter: '{{ user.name }}',
       date: '',
-      input_text: document.getElementById('prompt').value,
+      input_text: prompt,
+      intent: selectedIntent || document.getElementById('intent_value').value || '',
       num_slides: (() => {
         const raw = document.getElementById('num_slides').value;
         const n = parseInt(raw, 10);
         return Number.isFinite(n) ? n : null;
       })(),
-      theme_name: document.getElementById('theme').value,
       include_images: document.getElementById('include_images').checked
     };
-
-    // Store payload and navigate to dedicated loading page
     try {
-      sessionStorage.setItem('pptjet_generate_payload', JSON.stringify(formData));
-    } catch (e) { console.warn('Could not store payload', e); }
-    window.location.assign('/loading');
+      sessionStorage.setItem('pptjet_draft_payload', JSON.stringify(draft));
+    } catch (e) { console.warn('Could not store draft payload', e); }
+    window.location.assign('/select-theme');
   });
 });
 </script>

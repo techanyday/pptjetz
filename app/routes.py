@@ -856,6 +856,17 @@ def generate_page() -> Any:
     )
 
 
+@bp.get("/select-theme")
+def select_theme_page() -> Any:
+    from app.services.pptx_builder import THEME_PALETTES
+    return render_template(
+        "select_theme.html",
+        themes=THEME_OPTIONS,
+        palettes=THEME_PALETTES,
+        user=current_user,
+    )
+
+
 
 @bp.get("/login")
 

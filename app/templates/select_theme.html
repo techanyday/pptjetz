@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+  <div class="bg-white shadow-xl rounded-lg p-6">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <h1 class="text-3xl font-bold">Select a theme</h1>
+        <p class="text-gray-600 mt-1">Choose a look for your deck, then generate your outline preview.</p>
+      </div>
+      <div class="flex gap-2">
+        <a href="{{ url_for('main.generate_page') }}" class="px-4 py-2 rounded border bg-white hover:bg-gray-50">Back</a>
+        <button id="generateBtn" class="px-5 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>Generate Presentation</button>
+      </div>
+    </div>
+
+    <div class="mt-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" id="themeGrid">
+        {% for t in themes %}
+          {% set key = (t or '').strip().upper() %}
+          {% set pal = (palettes.get(key) or palettes.get(key.replace(' ', '_')) or {}) %}
+          {% set bg = pal.get('bg', (255,255,255)) %}
+          {% set primary = pal.get('primary', (41,98,255)) %}
+          {% set secondary = pal.get('secondary', (235,242,255)) %}
+          {% set text = pal.get('text', (31,41,55)) %}
+          {% set muted = pal.get('muted', (71,85,105)) %}
+          {% set display_name = 'PRIME MERIDIAN' if t == 'prime_meridian' else key %}
+
+          <button
+            type="button"
+            class="theme-card text-left rounded-xl border hover:shadow-md transition p-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            data-theme="{{ t }}"
+            aria-label="Select theme {{ t }}"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div class="font-semibold text-gray-900">{{ display_name }}</div>
+              <div class="w-4 h-4 rounded-full border" data-rgb="{{ primary[0] }},{{ primary[1] }},{{ primary[2] }}"></div>
+            </div>
+
+            <div class="mt-3 rounded-lg border overflow-hidden" data-rgb="{{ bg[0] }},{{ bg[1] }},{{ bg[2] }}">
+              <div class="px-4 pt-4 pb-3">
+                <div class="h-3 w-2/3 rounded" data-rgb="{{ primary[0] }},{{ primary[1] }},{{ primary[2] }}"></div>
+                <div class="mt-2 h-2 w-1/2 rounded" data-rgb="{{ muted[0] }},{{ muted[1] }},{{ muted[2] }}" data-alpha="0.6"></div>
+              </div>
+              <div class="px-4 pb-4">
+                <div class="rounded-lg p-3" data-rgb="{{ secondary[0] }},{{ secondary[1] }},{{ secondary[2] }}">
+                  <div class="space-y-2">
+                    <div class="h-2 w-11/12 rounded" data-rgb="{{ text[0] }},{{ text[1] }},{{ text[2] }}" data-alpha="0.35"></div>
+                    <div class="h-2 w-10/12 rounded" data-rgb="{{ text[0] }},{{ text[1] }},{{ text[2] }}" data-alpha="0.28"></div>
+                    <div class="h-2 w-9/12 rounded" data-rgb="{{ text[0] }},{{ text[1] }},{{ text[2] }}" data-alpha="0.22"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 flex items-center gap-2 text-sm text-gray-600">
+              <span class="inline-flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full" data-rgb="{{ primary[0] }},{{ primary[1] }},{{ primary[2] }}"></span>
+                Accent
+              </span>
+              <span class="text-gray-300">|</span>
+              <span>Clean, modern layout</span>
+            </div>
+          </button>
+        {% endfor %}
+      </div>
+
+      <p id="themeError" class="mt-4 text-sm text-red-600 hidden">Please select a theme to continue.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function parseJsonSafe(raw) {
+    try { return raw ? JSON.parse(raw) : null; } catch(e) { return null; }
+  }
+
+  const draftRaw = sessionStorage.getItem('pptjet_draft_payload');
+  const draft = parseJsonSafe(draftRaw);
+  if (!draft || !draft.input_text) {
+    window.location.replace('/generate');
+    return;
+  }
+
+  document.querySelectorAll('[data-rgb]').forEach(el => {
+    const rgb = el.getAttribute('data-rgb') || '';
+    const alpha = el.getAttribute('data-alpha');
+    if (!rgb) return;
+    el.style.backgroundColor = (alpha !== null && alpha !== '') ? `rgba(${rgb}, ${alpha})` : `rgb(${rgb})`;
+  });
+
+  let selectedTheme = null;
+  const cards = Array.from(document.querySelectorAll('.theme-card'));
+  const generateBtn = document.getElementById('generateBtn');
+  const themeError = document.getElementById('themeError');
+
+  function setSelected(themeName) {
+    selectedTheme = themeName;
+    cards.forEach(c => {
+      const isSel = c.getAttribute('data-theme') === themeName;
+      c.classList.toggle('ring-2', isSel);
+      c.classList.toggle('ring-blue-500', isSel);
+      c.classList.toggle('border-blue-300', isSel);
+    });
+    generateBtn.disabled = !selectedTheme;
+    themeError.classList.add('hidden');
+  }
+
+  cards.forEach(card => {
+    card.addEventListener('click', () => setSelected(card.getAttribute('data-theme')));
+  });
+
+  generateBtn.addEventListener('click', () => {
+    if (!selectedTheme) {
+      themeError.classList.remove('hidden');
+      return;
+    }
+
+    const payload = {
+      title: draft.title || '',
+      subtitle: draft.subtitle || '',
+      presenter: draft.presenter || '',
+      date: draft.date || '',
+      input_text: draft.input_text || '',
+      num_slides: (draft.num_slides === null || typeof draft.num_slides === 'undefined') ? null : draft.num_slides,
+      theme_name: selectedTheme,
+      include_images: !!draft.include_images,
+      intent: draft.intent || ''
+    };
+
+    try {
+      sessionStorage.setItem('pptjet_generate_payload', JSON.stringify(payload));
+    } catch (e) {
+      console.warn('Could not store payload', e);
+    }
+
+    window.location.assign('/loading');
+  });
+})();
+</script>
+{% endblock %}
