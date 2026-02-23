@@ -1433,7 +1433,7 @@ def generate() -> Any:
             except Exception:
                 pass
 
-            redirect_url = url_for("main.outline_page", deck_id=deck_id, _external=True)
+            redirect_url = f"/outline/{deck_id}"
             _set_job_state(deck_id, {
                 "status": "done",
                 "deck_id": deck_id,
@@ -1461,7 +1461,7 @@ def generate() -> Any:
         _set_job_state(deck_id, {"status": "error", "deck_id": deck_id, "trace_id": trace_id, "error": f"Failed to start generation: {exc}", "errors": [f"Failed to start generation: {exc}"], "ended_at": time.time()})
         return jsonify({"ok": False, "error": f"Failed to start generation: {exc}", "trace_id": trace_id, "deck_id": deck_id}), 500
 
-    poll_url = url_for("main.api_generate_status", deck_id=deck_id, _external=True)
+    poll_url = f"/api/generate/{deck_id}"
     return jsonify({"ok": True, "deck_id": deck_id, "status": "processing", "trace_id": trace_id, "poll_url": poll_url})
 
 
@@ -1482,14 +1482,14 @@ def api_generate_status(deck_id: str) -> Any:
     # Fallback: if the deck exists, consider it done.
     try:
         if deck_id in DECK_STORE:
-            redirect_url = url_for("main.outline_page", deck_id=deck_id, _external=True)
+            redirect_url = f"/outline/{deck_id}"
             return jsonify({"ok": True, "status": "done", "deck_id": deck_id, "redirect_url": redirect_url})
     except Exception:
         pass
 
     try:
         if os.path.isfile(os.path.join(PREVIEW_ROOT, deck_id, "deck.json")):
-            redirect_url = url_for("main.outline_page", deck_id=deck_id, _external=True)
+            redirect_url = f"/outline/{deck_id}"
             return jsonify({"ok": True, "status": "done", "deck_id": deck_id, "redirect_url": redirect_url})
     except Exception:
         pass
@@ -1792,11 +1792,9 @@ def api_generate_status(deck_id: str) -> Any:
 
 
 
-    redirect_url = url_for("main.outline_page", deck_id=deck_id, _external=True)
+    redirect_url = f"/outline/{deck_id}"
 
     return jsonify({"ok": True, "deck_id": deck_id, "redirect_url": redirect_url})
-
-
 
 
 
