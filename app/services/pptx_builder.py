@@ -1932,6 +1932,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def _render_timeline(sl) -> None:
         content = _content(sl)
         title_txt = (sl.get("title") or content.get("title") or "Timeline").strip() or "Timeline"
+        subtitle_override = (
+            str(sl.get("subtitle") or "").strip()
+            or str(content.get("subtitle") or "").strip()
+            or None
+        )
         raw = content.get("timeline")
         items: List[str] = []
         if isinstance(raw, list):
@@ -1987,15 +1992,15 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         _debug_variant(family="timeline", chosen=chosen, eligible=eligible, forced=forced)
 
         if chosen == "linear":
-            render_timeline_linear(title_txt, pts, title_txt)
+            render_timeline_linear(title_txt, pts, title_txt, subtitle_override)
         elif chosen == "vertical":
-            render_timeline_vertical(title_txt, pts, title_txt)
+            render_timeline_vertical(title_txt, pts, title_txt, subtitle_override)
         elif chosen == "roadmap":
-            render_timeline_roadmap(title_txt, pts, title_txt)
+            render_timeline_roadmap(title_txt, pts, title_txt, subtitle_override)
         elif chosen == "vchevrons":
-            render_timeline_vchevrons(title_txt, pts, title_txt)
+            render_timeline_vchevrons(title_txt, pts, title_txt, subtitle_override)
         else:
-            render_timeline_horizontal(title_txt, pts, title_txt)
+            render_timeline_horizontal(title_txt, pts, title_txt, subtitle_override)
 
     def _render_roadmap(sl) -> None:
         """Render phase-based roadmap with title, date range, and description per phase."""
@@ -2788,7 +2793,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def _render_architecture(sl) -> None:
         """Render architecture diagram with boxes and directional arrows."""
         content = _content(sl)
-        title = content.get("title", "Architecture Diagram")
+        title = (str(sl.get("title") or "").strip() or str(content.get("title") or "").strip() or "Architecture Diagram")
         boxes = content.get("boxes", [])
         connections = content.get("connections", [])
         
@@ -2824,30 +2829,18 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         total_h = rows * box_h + (rows - 1) * gap_y
         start_y = top_y + max(0.0, (avail_h - total_h) / 2.0)
 
+        draw_boxes: List[tuple[float, float, float, float, str, str]] = []
         for i, box in enumerate(box_list[:8]):  # Max 8 boxes
             row, col = i // cols, i % cols
             x = start_x + col * (box_w + gap_x)
             y = start_y + row * (box_h + gap_y)
-            
+
             box_label = str(box.get("label", ""))[:30]
-            box_positions[box_label] = (x, y, box_w, box_h)
-            
-            # Box shape
-            box_shape = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(box_w), Inches(box_h))
-            box_shape.fill.solid(); box_shape.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
-            box_shape.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
-            
-            # Box label
-            _add_textbox(s, x + 0.1, y + 0.1, box_w - 0.2, 0.4, box_label,
-                        font_size_pt=12, bold=True, color=pal["text"])
-            
-            # Box description
             desc = str(box.get("description", ""))[:60]
-            if desc:
-                _add_textbox(s, x + 0.1, y + 0.5, box_w - 0.2, box_h - 0.6, desc,
-                            font_size_pt=9, color=pal.get("muted", pal["text"]))
+            box_positions[box_label] = (x, y, box_w, box_h)
+            draw_boxes.append((x, y, box_w, box_h, box_label, desc))
         
-        # Draw connections
+        # Draw connections first so they sit behind the boxes.
         for conn in connections:
             from_label = str(conn.get("from_box", ""))[:30]
             to_label = str(conn.get("to_box", ""))[:30]
@@ -2863,7 +2856,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 ty = to_y + to_h / 2
                 dx = tx - fx
                 dy = ty - fy
-                pad = 0.08
+                pad = 0.02
 
                 if abs(dx) >= abs(dy):
                     # Horizontal connection
@@ -2887,9 +2880,14 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     end_x_conn = tx
                 
                 try:
-                    arrow = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, 
-                                                  Inches(start_x_conn), Inches(start_y_conn),
-                                                  Inches(end_x_conn), Inches(end_y_conn))
+                    conn_type = MSO_CONNECTOR_TYPE.ELBOW if abs(dx) >= 0.35 and abs(dy) >= 0.35 else MSO_CONNECTOR_TYPE.STRAIGHT
+                    arrow = s.shapes.add_connector(
+                        conn_type,
+                        Inches(start_x_conn),
+                        Inches(start_y_conn),
+                        Inches(end_x_conn),
+                        Inches(end_y_conn),
+                    )
                     arrow.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
                     arrow.line.width = Pt(2)
                     
@@ -2903,6 +2901,72 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 except Exception:
                     # Skip connection if it fails
                     continue
+
+        for x, y, w, h, box_label, desc in draw_boxes:
+            box_shape = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+            box_shape.fill.solid(); box_shape.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            box_shape.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+
+            _add_textbox(
+                s,
+                x + 0.12,
+                y + 0.10,
+                w - 0.24,
+                0.38,
+                box_label,
+                font_size_pt=12,
+                bold=True,
+                color=pal["text"],
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+            if desc:
+                _add_textbox(
+                    s,
+                    x + 0.12,
+                    y + 0.48,
+                    w - 0.24,
+                    max(0.3, h - 0.58),
+                    desc,
+                    font_size_pt=9,
+                    color=pal.get("muted", pal["text"]),
+                    word_wrap=True,
+                    auto_fit=True,
+                )
+
+        for x, y, w, h, box_label, desc in draw_boxes:
+            box_shape = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+            box_shape.fill.solid(); box_shape.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
+            box_shape.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
+
+            _add_textbox(
+                s,
+                x + 0.12,
+                y + 0.10,
+                w - 0.24,
+                0.38,
+                box_label,
+                font_size_pt=12,
+                bold=True,
+                color=pal["text"],
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+            if desc:
+                _add_textbox(
+                    s,
+                    x + 0.12,
+                    y + 0.48,
+                    w - 0.24,
+                    max(0.3, h - 0.58),
+                    desc,
+                    font_size_pt=9,
+                    color=pal.get("muted", pal["text"]),
+                    word_wrap=True,
+                    auto_fit=True,
+                )
 
     # --- Render in order ---
     def render_title(sl):
@@ -3147,10 +3211,18 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 return f"Key phases to deliver {subj}".strip() if subj else "Key phases and milestones at a glance"
             if any(k in lo_topic for k in ["process", "workflow", "steps", "step"]):
                 return f"A clear sequence to deliver {subj}".strip() if subj else "A clear sequence to guide execution"
-            return f"A structured path to deliver {subj}".strip() if subj else "A structured path to guide execution"
+            return f"Key steps to deliver {subj}".strip() if subj else "Key steps to guide execution"
 
         uses_process_layout = layout in {"horizontal", "v-chevrons", "process-alt", "vertical", "linear", "roadmap"}
         if uses_process_layout:
+            if len(labs) >= 2:
+                a, b = labs[0], labs[-1]
+                def _ok2(s: str) -> bool:
+                    return bool(s) and len(s) <= 26 and not any(ch in s for ch in ["—", ":", "/"])
+                if _ok2(a) and _ok2(b) and a.lower() != b.lower():
+                    return f"From {a} to {b}"
+            if len(labs) == 1 and len(labs[0]) <= 28:
+                return f"Focus: {labs[0]}"
             return _title_derived_one_liner()
 
         if len(labs) >= 2:
@@ -3376,14 +3448,14 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         run.font.bold = True
         run.font.color.rgb = RGBColor(255, 255, 255)
 
-    def render_timeline_linear(title_txt: str, points: List[str], topic_src: str):
+    def render_timeline_linear(title_txt: str, points: List[str], topic_src: str, subtitle_override: str | None = None):
         """Colorful linear timeline: chips on a soft baseline with captions."""
         s = prs.slides.add_slide(blank); apply_bg(s)
         # Title
         dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=42, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
         # Subtitle
-        sub = _timeline_subtitle(topic_src, points, "linear")
+        sub = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "linear"))
         _add_textbox(s, 1.0, 1.8, 10.8, 0.6, sub, font_size_pt=19, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
 
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
@@ -3438,12 +3510,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             rn.font.color.rgb = RGBColor(*STEP_COLS[(i - 1) % len(STEP_COLS)])
             # caption under
 
-    def render_timeline_horizontal(title_txt: str, points: List[str], topic_src: str):
+    def render_timeline_horizontal(title_txt: str, points: List[str], topic_src: str, subtitle_override: str | None = None):
         """Colorful horizontal chevrons timeline (steps as colored arrows)."""
         s = prs.slides.add_slide(blank); apply_bg(s)
         dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=40, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
-        sub_raw = _timeline_subtitle(topic_src, points, "horizontal")
+        sub_raw = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "horizontal"))
         # Full subtitle, wrapped and auto-fit to stay within the presentation area
         _add_textbox(s, 1.0, 1.8, 10.8, 0.8, sub_raw, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
@@ -3548,11 +3620,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             y += band_h + 0.48
 
     # --- Alternate non-sequential friendly process layout (colored blocks with icons) ---
-    def render_process_timeline_alt(title_txt: str, points: List[str], topic_src: str):
+    def render_process_timeline_alt(title_txt: str, points: List[str], topic_src: str, subtitle_override: str | None = None):
         s = prs.slides.add_slide(blank); apply_bg(s)
         dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Process", font_size_pt=40, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
-        sub = _timeline_subtitle(topic_src, points, "process-alt")
+        sub = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "process-alt"))
         _add_textbox(s, 1.0, 1.8, 10.8, 0.8, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
 
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
@@ -3650,12 +3722,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             for j, lab in enumerate(arr[split:]):
                 _block(split + j, lab, 1, j % cols, off_bot)
 
-    def render_timeline_vchevrons(title_txt: str, points: List[str], topic_src: str):
+    def render_timeline_vchevrons(title_txt: str, points: List[str], topic_src: str, subtitle_override: str | None = None):
         """Vertical chevron stack: left icon bar + right chevron rows (like provided sample)."""
         s = prs.slides.add_slide(blank); apply_bg(s)
         dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=40, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
-        sub = _timeline_subtitle(topic_src, points, "v-chevrons")
+        sub = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "v-chevrons"))
         _add_textbox(s, 1.0, 1.8, 10.8, 0.7, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
 
         items = [str(x).strip() for x in (points or []) if str(x).strip()] or ["Step 1", "Step 2", "Step 3", "Step 4"]
@@ -3745,23 +3817,23 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     tail_rgb = base_tail if not _is_dark_rgb(base_tail) else pal.get("text", (24, 24, 27))
                 r2.font.color.rgb = RGBColor(*tail_rgb)
 
-    def render_process_variant(title_txt: str, points: List[str], topic_src: str):
+    def render_process_variant(title_txt: str, points: List[str], topic_src: str, subtitle_override: str | None = None):
         chosen = choose_variant("process_cards", ["horizontal", "alt", "vchevrons"], forced=None)
         _debug_variant(family="process_cards", chosen=chosen, eligible=["horizontal", "alt", "vchevrons"], forced=None)
         if chosen == "alt":
-            render_process_timeline_alt(title_txt, points, topic_src)
+            render_process_timeline_alt(title_txt, points, topic_src, subtitle_override)
         elif chosen == "vchevrons":
-            render_timeline_vchevrons(title_txt, points, topic_src)
+            render_timeline_vchevrons(title_txt, points, topic_src, subtitle_override)
         else:
-            render_timeline_horizontal(title_txt, points, topic_src)
+            render_timeline_horizontal(title_txt, points, topic_src, subtitle_override)
 
-    def render_timeline_vertical(title_txt: str, points: List[str], topic_src: str):
+    def render_timeline_vertical(title_txt: str, points: List[str], topic_src: str, subtitle_override: str | None = None):
         """Colorful vertical timeline with soft spine and numbered bubbles."""
         s = prs.slides.add_slide(blank); apply_bg(s)
         dark_bg = _is_dark_rgb(pal.get("bg", (255,255,255)))
         # Title
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Timeline", font_size_pt=42, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
-        sub = _timeline_subtitle(topic_src, points, "vertical")
+        sub = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "vertical"))
         _add_textbox(s, 1.0, 1.8, 10.8, 0.5, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
         # Items and layout metrics with fit-to-available-height
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
@@ -3827,11 +3899,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             dot = s.shapes.add_shape(MsoShape.OVAL, Inches(x + 0.40 - sep_d/2), Inches(midy - sep_d/2), Inches(sep_d), Inches(sep_d))
             dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(255,255,255); dot.line.color.rgb = RGBColor(209,213,219)
 
-    def render_timeline_roadmap(title_txt: str, points: List[str], topic_src: str):
+    def render_timeline_roadmap(title_txt: str, points: List[str], topic_src: str, subtitle_override: str | None = None):
         """Roadmap path with colored location pins along a meandering soft path."""
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 10.8, 0.95, title_txt or "Roadmap", font_size_pt=42, bold=True, color=pal["primary"], word_wrap=True, auto_fit=True)
-        sub = _timeline_subtitle(topic_src, points, "roadmap")
+        sub = (str(subtitle_override or "").strip() or _timeline_subtitle(topic_src, points, "roadmap"))
         _add_textbox(s, 1.0, 1.8, 10.8, 0.5, sub, font_size_pt=18, color=pal.get("muted", (71,85,105)), align="center", word_wrap=True, auto_fit=True)
         items = [str(x).strip() for x in (points or []) if str(x).strip()]
         if not items:
@@ -6806,6 +6878,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 print(f"slide_debug:renderer idx={idx} type={t} renderer=render_process_variant")
             # Use the rotation for all process-like slide requests so all styles, including bubbles, appear
             c = _content(sl)
+            subtitle_override = (
+                str(sl.get("subtitle") or "").strip()
+                or str(c.get("subtitle") or "").strip()
+                or None
+            )
             raw_items = (c.get("cards") or c.get("bullets") or [])
             if not isinstance(raw_items, list):
                 raw_items = []
@@ -6815,13 +6892,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 if kind == "benefits_stack":
                     _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
                 else:
-                    render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
+                    render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""), subtitle_override=subtitle_override)
             else:
                 blob = ((sl.get("title") or "") + " " + " ".join(stages)).lower()
                 if any(k in blob for k in ["benefit", "benefits", "value", "advantages", "advantage", "gains", "gain"]):
                     _render_layered_benefits_stack({"title": (sl.get("title") or "Benefits"), "content": {"bullets": stages}})
                 else:
-                    render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""))
+                    render_process_variant((sl.get("title") or "Process"), stages, topic_src=(sl.get("title") or ""), subtitle_override=subtitle_override)
         elif t == "timeline":
             if SLIDE_DEBUG:
                 print(f"slide_debug:renderer idx={idx} type={t} renderer=_render_timeline")
@@ -7776,7 +7853,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def _render_architecture(sl) -> None:
         """Render architecture diagram with boxes and directional arrows."""
         content = _content(sl)
-        title = content.get("title", "Architecture Diagram")
+        title = (str(sl.get("title") or "").strip() or str(content.get("title") or "").strip() or "Architecture Diagram")
         boxes = content.get("boxes", [])
         connections = content.get("connections", [])
         
@@ -7813,51 +7890,18 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         total_h = rows * box_h + (rows - 1) * gap_y
         start_y = top_y + max(0.0, (avail_h - total_h) / 2.0)
 
+        draw_boxes: List[tuple[float, float, float, float, str, str]] = []
         for i, box in enumerate(box_list[:8]):  # Max 8 boxes
             row, col = i // cols, i % cols
             x = start_x + col * (box_w + gap_x)
             y = start_y + row * (box_h + gap_y)
-            
+
             box_label = str(box.get("label", ""))[:30]
-            box_positions[box_label] = (x, y, box_w, box_h)
-            
-            # Box shape
-            box_shape = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(box_w), Inches(box_h))
-            box_shape.fill.solid(); box_shape.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
-            box_shape.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
-            
-            # Box label
-            _add_textbox(
-                s,
-                x + 0.12,
-                y + 0.10,
-                box_w - 0.24,
-                0.38,
-                box_label,
-                font_size_pt=12,
-                bold=True,
-                color=pal["text"],
-                word_wrap=True,
-                auto_fit=True,
-            )
-            
-            # Box description
             desc = str(box.get("description", ""))[:60]
-            if desc:
-                _add_textbox(
-                    s,
-                    x + 0.12,
-                    y + 0.48,
-                    box_w - 0.24,
-                    max(0.3, box_h - 0.58),
-                    desc,
-                    font_size_pt=9,
-                    color=pal.get("muted", pal["text"]),
-                    word_wrap=True,
-                    auto_fit=True,
-                )
+            box_positions[box_label] = (x, y, box_w, box_h)
+            draw_boxes.append((x, y, box_w, box_h, box_label, desc))
         
-        # Draw connections
+        # Draw connections first so they sit behind the boxes.
         for conn in connections:
             from_label = str(conn.get("from_box", ""))[:30]
             to_label = str(conn.get("to_box", ""))[:30]
@@ -7873,7 +7917,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 ty = to_y + to_h / 2
                 dx = tx - fx
                 dy = ty - fy
-                pad = 0.08
+                pad = 0.03
+
+                mid_y = (fy + ty) / 2.0
+                mid_x = (fx + tx) / 2.0
 
                 if abs(dx) >= abs(dy):
                     # Horizontal connection
@@ -7883,8 +7930,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     else:
                         start_x_conn = from_x - pad
                         end_x_conn = to_x + to_w + pad
-                    start_y_conn = fy
-                    end_y_conn = ty
+                    start_y_conn = mid_y
+                    end_y_conn = mid_y
                 else:
                     # Vertical connection
                     if dy >= 0:
@@ -7893,13 +7940,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     else:
                         start_y_conn = from_y - pad
                         end_y_conn = to_y + to_h + pad
-                    start_x_conn = fx
-                    end_x_conn = tx
+                    start_x_conn = mid_x
+                    end_x_conn = mid_x
                 
                 try:
-                    arrow = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, 
-                                                  Inches(start_x_conn), Inches(start_y_conn),
-                                                  Inches(end_x_conn), Inches(end_y_conn))
+                    arrow = s.shapes.add_connector(
+                        MSO_CONNECTOR_TYPE.STRAIGHT,
+                        Inches(start_x_conn),
+                        Inches(start_y_conn),
+                        Inches(end_x_conn),
+                        Inches(end_y_conn),
+                    )
                     arrow.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
                     arrow.line.width = Pt(2)
                     

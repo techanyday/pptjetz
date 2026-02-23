@@ -637,6 +637,8 @@ def build_prompt(
             "COHERENCE & ORDER: All slides after the agenda MUST map to the agenda bullets in sequence (1 slide per agenda bullet; do not group multiple slides under one bullet).",
             "TITLE PARAPHRASING: Each mapped slide's TITLE must closely paraphrase its agenda bullet (share key terms); do not use generic labels.",
             "CONTENT ALIGNMENT: Each mapped slide's CONTENT (bullets/points/table cells) must elaborate the mapped agenda bullet and share key terms.",
+            "Architecture slides: the slide.title MUST be topic-specific and derived from the boxes/flow (3–7 words). Do NOT use generic titles like 'Architecture Diagram' or 'System Architecture' without a qualifier.",
+            "Timeline/Process/Roadmap slides: you MUST include a NON-EMPTY slide.subtitle as a one-line, topic-specific summary derived from the steps/phases (8–14 words). Prefer phrasing like 'From <first step> to <last step>' or a concise outcome-oriented summary; do NOT use generic placeholders like 'A structured path to...' or 'Step-by-step journey'.",
             "Do not produce slides that are not linked to an agenda item.",
             "Ensure the Thank You slide is always the final slide.",
             "If N is small, prefer infographic/cards/comparison over multiple bullet variations.",
