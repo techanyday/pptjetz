@@ -113,7 +113,7 @@
     const olTitle = document.getElementById('olTitle');
     const olTheme = document.getElementById('olTheme');
     if (olTitle) olTitle.textContent = title;
-    if (olTheme) olTheme.textContent = theme;
+    if (olTheme) olTheme.textContent = (theme === 'prime_meridian') ? 'PRIME MERIDIAN' : theme;
 
     const slidesAll = (Array.isArray(deck.slides_out) && deck.slides_out.length)
       ? deck.slides_out

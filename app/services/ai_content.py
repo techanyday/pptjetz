@@ -114,6 +114,30 @@ def quadrant_evidence_detector(text: str) -> tuple[bool, str]:
     return False, "no_quadrant_evidence"
 
 
+def swot_evidence_detector(text: str) -> tuple[bool, str]:
+    """Detect when a SWOT slide is explicitly relevant."""
+    import re
+
+    t = re.sub(r"\s+", " ", str(text or "").strip()).lower()
+    if not t:
+        return False, "empty"
+
+    if "swot" in t or "swot analysis" in t:
+        return True, "explicit_swot"
+
+    # If the user mentions the quadrants explicitly, allow SWOT.
+    keys = ["strength", "weakness", "opportunit", "threat"]
+    hits = sum(1 for k in keys if k in t)
+    if hits >= 3:
+        return True, "quadrant_terms"
+
+    # Common phrasing: strengths + weaknesses together.
+    if ("strength" in t and "weakness" in t) and ("analysis" in t or "assessment" in t or "matrix" in t):
+        return True, "strengths_weaknesses_analysis"
+
+    return False, "no_swot_evidence"
+
+
 def build_slide_type_plan(
     *,
     topic: str,
@@ -129,6 +153,7 @@ def build_slide_type_plan(
 
     n = int(max(MIN_SLIDES, min(MAX_SLIDES, slide_count)))
     allow_matrix, matrix_reason = quadrant_evidence_detector(input_text)
+    allow_swot, swot_reason = swot_evidence_detector(f"{topic}\n{input_text}")
 
     # Weekly rotation (deterministic for same topic+week)
     try:
@@ -166,13 +191,14 @@ def build_slide_type_plan(
     # Optional pool (rotated)
     optional = [
         "cards",
-        "swot",
         "kpi",
         "risk_matrix",
         "before_after",
         "architecture",
         "pricing",
     ]
+    if allow_swot:
+        optional.append("swot")
 
     rng.shuffle(optional)
 
@@ -220,7 +246,8 @@ def build_slide_type_plan(
     distinct_target = 7 if n <= 10 else (9 if n >= 15 else 8)
     if distinct < distinct_target:
         # Opportunistically replace some duplicates with unused optional types
-        unused = [t for t in (optional + ["swot", "kpi", "before_after", "cards"]) if t not in plan]
+        extra = ["kpi", "before_after", "cards"] + (["swot"] if allow_swot else [])
+        unused = [t for t in (optional + extra) if t not in plan]
         for k in range(2, len(plan) - 1):
             if distinct >= distinct_target or not unused:
                 break
@@ -231,6 +258,8 @@ def build_slide_type_plan(
     meta = {
         "allow_matrix": bool(allow_matrix),
         "matrix_reason": matrix_reason,
+        "allow_swot": bool(allow_swot),
+        "swot_reason": swot_reason,
         "seed": seed_hex[:12],
         "distinct_types": len({x for x in plan if x}),
     }

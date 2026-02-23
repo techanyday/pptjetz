@@ -112,6 +112,14 @@ THEME_PALETTES: Dict[str, Dict[str, Tuple[int, int, int]]] = {
         "secondary": (219, 234, 254),
         "muted": (71, 85, 105),
     },
+
+    "PRIME_MERIDIAN": {
+        "bg": (248, 245, 239),
+        "text": (28, 28, 28),
+        "primary": (46, 58, 89),
+        "secondary": (234, 228, 217),
+        "muted": (107, 100, 92),
+    },
 }
 
 # Global rotating index for summary template selection (round-robin)
@@ -125,6 +133,8 @@ DOUBLE_SCHEME_INDEX: int = 0
 BULLET_COLOR_GEN_INDEX: int = 0
 # Track if any "takeaways" slide (including at-a-glance) has already been rendered
 TAKEAWAYS_RENDERED: bool = False
+TAKEAWAYS_STYLE_GEN_INDEX: int = 0
+COMPARISON_STYLE_GEN_INDEX: int = 0
 IMPACT_MAP_VARIANT_INDEX: int = 0
 
 
@@ -1631,6 +1641,20 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     IMPACT_MAP_VARIANT_INDEX = 0
     global TAKEAWAYS_RENDERED
     TAKEAWAYS_RENDERED = False
+    global TAKEAWAYS_STYLE_GEN_INDEX
+    takeaways_style_idx = TAKEAWAYS_STYLE_GEN_INDEX % 3
+    TAKEAWAYS_STYLE_GEN_INDEX += 1
+
+    global COMPARISON_STYLE_GEN_INDEX
+    comparison_style_idx = COMPARISON_STYLE_GEN_INDEX % 2
+    COMPARISON_STYLE_GEN_INDEX += 1
+
+    # Seed comparison variant family index so consecutive exports start with a
+    # different comparison style, while still alternating within the deck.
+    try:
+        VARIANT_ROTATOR._family_idx["comparison"] = int(comparison_style_idx)
+    except Exception:
+        pass
 
     blank = prs.slide_layouts[6]
     pal = _theme(theme_name)
@@ -2771,14 +2795,36 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
         
-        # Create box positions in a grid layout
+        # Create box positions in a centered grid layout (no overflow)
         box_positions = {}
-        start_x, start_y = 1.0, 2.0
-        box_w, box_h = 2.5, 1.2
-        gap_x, gap_y = 0.8, 0.6
-        cols = 4
-        
-        for i, box in enumerate(boxes[:8]):  # Max 8 boxes
+        box_list = boxes if isinstance(boxes, list) else []
+        n_boxes = min(8, len(box_list))
+        if n_boxes <= 0:
+            return
+
+        cols = min(4, n_boxes)
+        rows = int(math.ceil(n_boxes / max(1, cols)))
+
+        margin_x = 0.8
+        top_y = 2.05
+        bottom_margin = 0.75
+        gap_x = 0.60
+        gap_y = 0.55
+
+        avail_w = max(7.0, SLIDE_W_IN - 2 * margin_x)
+        avail_h = max(2.0, SLIDE_H_IN - bottom_margin - top_y)
+
+        box_w = (avail_w - (cols - 1) * gap_x) / max(1, cols)
+        box_w = max(2.2, min(3.1, box_w))
+        box_h = 1.25 if rows == 1 else 1.20
+
+        total_w = cols * box_w + (cols - 1) * gap_x
+        start_x = max(margin_x, (SLIDE_W_IN - total_w) / 2.0)
+
+        total_h = rows * box_h + (rows - 1) * gap_y
+        start_y = top_y + max(0.0, (avail_h - total_h) / 2.0)
+
+        for i, box in enumerate(box_list[:8]):  # Max 8 boxes
             row, col = i // cols, i % cols
             x = start_x + col * (box_w + gap_x)
             y = start_y + row * (box_h + gap_y)
@@ -2810,11 +2856,35 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 from_x, from_y, from_w, from_h = box_positions[from_label]
                 to_x, to_y, to_w, to_h = box_positions[to_label]
                 
-                # Connection from center of from-box to center of to-box
-                start_x_conn = from_x + from_w / 2
-                start_y_conn = from_y + from_h / 2
-                end_x_conn = to_x + to_w / 2
-                end_y_conn = to_y + to_h / 2
+                # Connect between box edges (not centers) so lines don't cross the boxes/text.
+                fx = from_x + from_w / 2
+                fy = from_y + from_h / 2
+                tx = to_x + to_w / 2
+                ty = to_y + to_h / 2
+                dx = tx - fx
+                dy = ty - fy
+                pad = 0.08
+
+                if abs(dx) >= abs(dy):
+                    # Horizontal connection
+                    if dx >= 0:
+                        start_x_conn = from_x + from_w + pad
+                        end_x_conn = to_x - pad
+                    else:
+                        start_x_conn = from_x - pad
+                        end_x_conn = to_x + to_w + pad
+                    start_y_conn = fy
+                    end_y_conn = ty
+                else:
+                    # Vertical connection
+                    if dy >= 0:
+                        start_y_conn = from_y + from_h + pad
+                        end_y_conn = to_y - pad
+                    else:
+                        start_y_conn = from_y - pad
+                        end_y_conn = to_y + to_h + pad
+                    start_x_conn = fx
+                    end_x_conn = tx
                 
                 try:
                     arrow = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, 
@@ -5641,6 +5711,90 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             if tail:
                 p2 = tb.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(tail_fs); r2.font.color.rgb = RGBColor(235, 244, 255) if fg == (255, 255, 255) else RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
 
+    def _render_takeaways_steps(slide, items: List[str], *, pal: Dict[str, Tuple[int, int, int]]):
+        _add_textbox(slide, 1.2, 0.9, 10.8, 0.9, "Key Takeaways", font_size_pt=36, bold=True, color=pal["primary"])
+        start_y = 1.75
+        row_h = 1.08
+        gap = 0.16
+        num_rgb = pal.get("primary", pal.get("text", (59, 130, 246)))
+        for i, raw in enumerate((items or [])[:5], start=1):
+            nb = slide.shapes.add_textbox(Inches(1.2), Inches(start_y - 0.10), Inches(0.9), Inches(row_h)).text_frame
+            nb.clear(); pnum = nb.paragraphs[0]; pnum.alignment = PP_ALIGN.LEFT
+            rnum = pnum.add_run(); rnum.text = f"{i}."; rnum.font.size = Pt(44); rnum.font.bold = True; rnum.font.color.rgb = RGBColor(*num_rgb)
+
+            head, tail = _split_head_tail(str(raw))
+            tb = slide.shapes.add_textbox(Inches(2.3), Inches(start_y), Inches(9.7), Inches(row_h - 0.20)).text_frame
+            tb.word_wrap = True
+            p1 = tb.paragraphs[0]; p1.clear()
+            if head:
+                r1 = p1.add_run(); r1.text = head; r1.font.size = Pt(22); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal["text"])
+            if tail:
+                p2 = tb.add_paragraph(); p2.clear()
+                r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(14); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+
+            if i < min(5, len(items or [])):
+                line_y = start_y + row_h - 0.10
+                line = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(1.2), Inches(line_y), Inches(10.8), Inches(0.02))
+                line.fill.solid(); line.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal.get("text", (229, 231, 235))))
+                line.line.fill.background()
+
+            start_y += row_h + gap
+
+    def _render_takeaways_banner(slide, items: List[str], *, pal: Dict[str, Tuple[int, int, int]]):
+        _add_textbox(slide, 1.0, 0.9, 11.3, 0.9, "Key Takeaways", font_size_pt=44, bold=True, color=pal["primary"])
+        y = 2.35
+        h = 0.86
+        gap = 0.32
+        base_primary = pal.get("primary", (59, 130, 246))
+        light_bg = pal.get("secondary", (238, 244, 255))
+        dark_text = pal.get("text", (15, 23, 42))
+        for i, raw in enumerate((items or [])[:4]):
+            row_idx = i + 1
+            odd_row = (row_idx % 2 == 1)
+            bg_rgb = base_primary if odd_row else light_bg
+
+            pill_x = 1.55
+            pill_w = 10.6
+            pill = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(pill_x), Inches(y), Inches(pill_w), Inches(h))
+            pill.fill.solid(); pill.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            pill.line.fill.background()
+            try:
+                pill.shadow.inherit = False; pill.shadow.visible = True; pill.shadow.blur = 6; pill.shadow.distance = 2
+            except Exception:
+                pass
+
+            ico_d = 0.86
+            ico_x = pill_x - 0.45
+            ico_y = y + (h - ico_d) / 2
+            ico = slide.shapes.add_shape(MsoShape.OVAL, Inches(ico_x), Inches(ico_y), Inches(ico_d), Inches(ico_d))
+            ico.fill.solid()
+            if odd_row:
+                ico.fill.fore_color.rgb = RGBColor(255, 255, 255)
+                ico.line.color.rgb = RGBColor(*base_primary)
+                glyph_rgb = base_primary
+                head_rgb = (255, 255, 255)
+                tail_rgb = (235, 244, 255)
+            else:
+                ico.fill.fore_color.rgb = RGBColor(*base_primary)
+                ico.line.color.rgb = RGBColor(*base_primary)
+                glyph_rgb = (255, 255, 255)
+                head_rgb = dark_text
+                tail_rgb = pal.get("muted", dark_text)
+            itf = ico.text_frame; itf.clear(); ip = itf.paragraphs[0]; ip.alignment = PP_ALIGN.CENTER
+            ir = ip.add_run(); ir.text = str(row_idx); ir.font.size = Pt(20); ir.font.bold = True; ir.font.color.rgb = RGBColor(*glyph_rgb)
+
+            head, tail = _split_head_tail(str(raw))
+            tb = slide.shapes.add_textbox(Inches(pill_x + 0.65), Inches(y + 0.14), Inches(pill_w - 0.90), Inches(h - 0.28)).text_frame
+            tb.word_wrap = True
+            tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p = tb.paragraphs[0]
+            p.clear()
+            if head:
+                r1 = p.add_run(); r1.text = head + (" " if tail else ""); r1.font.size = Pt(22); r1.font.bold = True; r1.font.color.rgb = RGBColor(*head_rgb)
+            if tail:
+                r2 = p.add_run(); r2.text = tail; r2.font.size = Pt(15); r2.font.color.rgb = RGBColor(*tail_rgb)
+            y += h + gap
+
     def render_infographic(sl):
         t = _ctype(sl)
         title, bullets, content = _infographic_items(sl)
@@ -5652,6 +5806,46 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 _mark_takeaways_rendered()
         except Exception:
             pass
+
+        def _render_takeaways_rotated() -> None:
+            items = [str(x).strip() for x in (bullets or []) if str(x).strip()]
+            if len(items) < 3:
+                items = (_synthesize_topic_bullets(title) or [])[:6]
+            items = items[:8]
+
+            raw = str((content or {}).get("takeaways_variant") or (content or {}).get("variant") or "").strip().lower()
+            forced_map = {
+                "stack": "stack",
+                "layered": "stack",
+                "layered_stack": "stack",
+                "steps": "steps",
+                "numbered": "steps",
+                "list": "steps",
+                "banner": "banner",
+                "pill": "banner",
+                "pills": "banner",
+                "bar": "banner",
+                "bars": "banner",
+            }
+            forced = forced_map.get(raw)
+
+            eligible = ["stack", "steps", "banner"]
+            chosen = forced if forced in eligible else eligible[int(takeaways_style_idx) % len(eligible)]
+            _debug_variant(family="takeaways", chosen=chosen, eligible=eligible, forced=forced)
+
+            if chosen == "steps":
+                s = prs.slides.add_slide(blank)
+                apply_bg(s)
+                _render_takeaways_steps(s, items, pal=pal)
+                return
+
+            if chosen == "banner":
+                s = prs.slides.add_slide(blank)
+                apply_bg(s)
+                _render_takeaways_banner(s, items, pal=pal)
+                return
+
+            _render_layered_benefits_stack(sl)
 
         def _render_impact_map_rotated(*, allow_simple: bool) -> None:
             roles = _extract_swimlane_roles([str(x) for x in (bullets or [])])
@@ -5695,6 +5889,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 _render_impact_map(True if allow_simple else False, sl)
 
         # Deterministic selection rules based on intent and density
+        if t == "key_takeaways" or ("key takeaways" in str(title or "").strip().lower()):
+            _render_takeaways_rotated()
+            return
+
         if intent == "GANTT" and count >= 4:
             _render_gantt_chart(sl)
             return
@@ -6399,6 +6597,21 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     except Exception:
         pass
 
+    def _card_item_to_text(x: Any) -> str:
+        if isinstance(x, dict):
+            h = x.get("heading") or x.get("title") or x.get("label") or x.get("name") or x.get("step")
+            d = x.get("description") or x.get("desc") or x.get("details") or x.get("detail") or x.get("body") or x.get("text")
+            hs = str(h or "").strip()
+            ds = str(d or "").strip()
+            if hs and ds:
+                return f"{hs} — {ds}"
+            if hs:
+                return hs
+            if ds:
+                return ds
+            return ""
+        return str(x or "").strip()
+
     for idx, sl in enumerate(slides_norm, start=1):
         t = _ctype(sl)
         current_render_idx = idx
@@ -6420,8 +6633,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         # Force replacement: any slide carrying a 'cards' array should render as a horizontal process timeline
         try:
             cards_arr = _content(sl).get("cards")
-            if t in {"cards", "card", "card_style", "process_timeline_alt"} and isinstance(cards_arr, list) and any(str(x).strip() for x in cards_arr):
-                stages = [str(x).strip() for x in cards_arr if str(x).strip()]
+            if t in {"cards", "card", "card_style", "process_timeline_alt"} and isinstance(cards_arr, list) and any(_card_item_to_text(x) for x in cards_arr):
+                stages = [_card_item_to_text(x) for x in cards_arr if _card_item_to_text(x)]
                 if ENABLE_SEMANTIC_CARDS_ROUTER:
                     kind = str(sl.get("_semantic_cards_kind") or "").strip()
                     if kind == "benefits_stack":
@@ -6489,7 +6702,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 print(f"slide_debug:renderer idx={idx} type={t} renderer=render_process_variant")
             # Use the rotation for all process-like slide requests so all styles, including bubbles, appear
             c = _content(sl)
-            stages = [str(x).strip() for x in (c.get("cards") or c.get("bullets") or []) if str(x).strip()]
+            raw_items = (c.get("cards") or c.get("bullets") or [])
+            if not isinstance(raw_items, list):
+                raw_items = []
+            stages = [_card_item_to_text(x) for x in raw_items if _card_item_to_text(x)]
             if ENABLE_SEMANTIC_CARDS_ROUTER:
                 kind = str(sl.get("_semantic_cards_kind") or "").strip()
                 if kind == "benefits_stack":
@@ -7315,6 +7531,112 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+
+        def _render_before_after_chevrons(slide, content2: Dict[str, Any]) -> None:
+            before = content2.get("before") if isinstance(content2.get("before"), dict) else {}
+            after = content2.get("after") if isinstance(content2.get("after"), dict) else {}
+
+            left_heading = str((before or {}).get("heading") or "Before")[:50]
+            right_heading = str((after or {}).get("heading") or "After")[:50]
+            left_pts = [str(x).strip() for x in ((before or {}).get("points") or []) if str(x).strip()][:4]
+            right_pts = [str(x).strip() for x in ((after or {}).get("points") or []) if str(x).strip()][:4]
+
+            n = max(2, min(4, max(len(left_pts), len(right_pts), 2)))
+
+            dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
+            text_rgb = (255, 255, 255) if dark_bg else pal.get("text", (24, 24, 27))
+            muted_rgb = pal.get("muted", text_rgb)
+            accent_left = pal.get("primary", text_rgb)
+            accent_right = pal.get("secondary", accent_left)
+
+            margin_x = 0.95
+            top_y = 2.15
+            bottom_margin = 0.85
+            gap = 0.40
+            chev_w = 0.35
+            avail_w = max(7.0, SLIDE_W_IN - 2 * margin_x)
+
+            card_w = (avail_w - chev_w - 2 * gap) / 2.0
+            card_w = max(4.4, min(5.35, card_w))
+            total_w = card_w * 2 + chev_w + 2 * gap
+            start_x = max(margin_x, (SLIDE_W_IN - total_w) / 2.0)
+
+            avail_h = max(2.8, SLIDE_H_IN - top_y - bottom_margin)
+            card_h = max(2.85, min(3.75, avail_h))
+            start_y = top_y + max(0.0, (avail_h - card_h) / 2.0)
+
+            left_x = start_x
+            chev_x = left_x + card_w + gap
+            right_x = chev_x + chev_w + gap
+
+            header_h = 0.58
+            pad = 0.18
+            row_area_h = max(1.0, card_h - header_h - 2 * pad)
+            row_h = max(0.55, row_area_h / max(1, n))
+
+            def _card(x0: float, hdr: str, pts: List[str], accent: Tuple[int, int, int]) -> None:
+                card = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(start_y), Inches(card_w), Inches(card_h))
+                card_fill = pal.get("secondary", pal.get("bg", (255, 255, 255))) if dark_bg else pal.get("bg", (255, 255, 255))
+                card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*card_fill)
+                card.line.color.rgb = RGBColor(*accent)
+                try:
+                    card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 10; card.shadow.distance = 2
+                except Exception:
+                    pass
+
+                band_fill = pal.get("secondary", (241, 245, 249)) if not dark_bg else accent
+                band = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(start_y), Inches(card_w), Inches(header_h))
+                band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*band_fill)
+                band.line.fill.background()
+
+                _add_textbox(slide, x0 + 0.22, start_y + 0.14, card_w - 0.44, 0.40, hdr, font_size_pt=16, bold=True, color=_contrast_text(band_fill), word_wrap=True, auto_fit=True)
+
+                pts2 = (pts or [])[:n]
+                while len(pts2) < n:
+                    pts2.append("")
+
+                y0 = start_y + header_h + pad
+                for i in range(n):
+                    yy = y0 + i * row_h
+                    txt = pts2[i]
+                    t = f"• {txt}" if txt else ""
+                    _add_textbox(slide, x0 + 0.22, yy, card_w - 0.44, row_h, t, font_size_pt=12, color=(text_rgb if txt else muted_rgb), word_wrap=True, auto_fit=True)
+                    if i < n - 1:
+                        sep = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(x0 + 0.20), Inches(yy + row_h - 0.06), Inches(card_w - 0.40), Inches(0.02))
+                        sep.fill.solid(); sep.fill.fore_color.rgb = RGBColor(*pal.get("muted", (203, 213, 225)))
+                        sep.line.fill.background()
+
+            _card(left_x, left_heading, left_pts, accent_left)
+            _card(right_x, right_heading, right_pts, accent_right)
+
+            y0 = start_y + header_h + pad
+            for i in range(n):
+                yy = y0 + i * row_h
+                cy = yy + row_h / 2.0 - 0.18
+                tb = slide.shapes.add_textbox(Inches(chev_x), Inches(cy), Inches(chev_w), Inches(0.36)).text_frame
+                tb.clear()
+                p = tb.paragraphs[0]
+                p.text = "›"
+                p.alignment = PP_ALIGN.CENTER
+                p.font.size = Pt(22)
+                p.font.bold = True
+                p.font.color.rgb = RGBColor(*pal.get("muted", text_rgb))
+
+        variant_raw = str(content.get("before_after_variant") or content.get("variant") or "").strip().lower()
+        variant_map = {
+            "columns": "columns",
+            "two_columns": "columns",
+            "two-column": "columns",
+            "chevrons": "chevrons",
+            "arrows": "chevrons",
+            "connector": "chevrons",
+        }
+        forced = variant_map.get(variant_raw)
+        chosen = choose_variant("before_after", ["columns", "chevrons"], forced=forced)
+        _debug_variant(family="before_after", chosen=chosen, eligible=["columns", "chevrons"], forced=forced)
+        if chosen == "chevrons":
+            _render_before_after_chevrons(s, content)
+            return
         
         # Two-column layout
         start_x, start_y = 1.0, 2.2
@@ -7359,12 +7681,35 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         
         # Create box positions in a grid layout
         box_positions = {}
-        start_x, start_y = 1.0, 2.0
-        box_w, box_h = 2.5, 1.2
-        gap_x, gap_y = 0.8, 0.6
-        cols = 4
-        
-        for i, box in enumerate(boxes[:8]):  # Max 8 boxes
+
+        box_list = boxes if isinstance(boxes, list) else []
+        n_boxes = min(8, len(box_list))
+        if n_boxes <= 0:
+            return
+
+        cols = min(4, n_boxes)
+        rows = int(math.ceil(n_boxes / max(1, cols)))
+
+        margin_x = 0.8
+        top_y = 2.05
+        bottom_margin = 0.75
+        gap_x = 0.60
+        gap_y = 0.55
+
+        avail_w = max(7.0, SLIDE_W_IN - 2 * margin_x)
+        avail_h = max(2.0, SLIDE_H_IN - bottom_margin - top_y)
+
+        box_w = (avail_w - (cols - 1) * gap_x) / max(1, cols)
+        box_w = max(2.2, min(3.1, box_w))
+        box_h = 1.25 if rows == 1 else 1.20
+
+        total_w = cols * box_w + (cols - 1) * gap_x
+        start_x = max(margin_x, (SLIDE_W_IN - total_w) / 2.0)
+
+        total_h = rows * box_h + (rows - 1) * gap_y
+        start_y = top_y + max(0.0, (avail_h - total_h) / 2.0)
+
+        for i, box in enumerate(box_list[:8]):  # Max 8 boxes
             row, col = i // cols, i % cols
             x = start_x + col * (box_w + gap_x)
             y = start_y + row * (box_h + gap_y)
@@ -7378,14 +7723,35 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             box_shape.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
             
             # Box label
-            _add_textbox(s, x + 0.1, y + 0.1, box_w - 0.2, 0.4, box_label,
-                        font_size_pt=12, bold=True, color=pal["text"], word_wrap=True)
+            _add_textbox(
+                s,
+                x + 0.12,
+                y + 0.10,
+                box_w - 0.24,
+                0.38,
+                box_label,
+                font_size_pt=12,
+                bold=True,
+                color=pal["text"],
+                word_wrap=True,
+                auto_fit=True,
+            )
             
             # Box description
             desc = str(box.get("description", ""))[:60]
             if desc:
-                _add_textbox(s, x + 0.1, y + 0.5, box_w - 0.2, box_h - 0.6, desc,
-                            font_size_pt=9, color=pal.get("muted", pal["text"]), word_wrap=True, auto_fit=True)
+                _add_textbox(
+                    s,
+                    x + 0.12,
+                    y + 0.48,
+                    box_w - 0.24,
+                    max(0.3, box_h - 0.58),
+                    desc,
+                    font_size_pt=9,
+                    color=pal.get("muted", pal["text"]),
+                    word_wrap=True,
+                    auto_fit=True,
+                )
         
         # Draw connections
         for conn in connections:
@@ -7396,11 +7762,35 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 from_x, from_y, from_w, from_h = box_positions[from_label]
                 to_x, to_y, to_w, to_h = box_positions[to_label]
                 
-                # Connection from center of from-box to center of to-box
-                start_x_conn = from_x + from_w / 2
-                start_y_conn = from_y + from_h / 2
-                end_x_conn = to_x + to_w / 2
-                end_y_conn = to_y + to_h / 2
+                # Connect between box edges (not centers) so lines don't cross the boxes/text.
+                fx = from_x + from_w / 2
+                fy = from_y + from_h / 2
+                tx = to_x + to_w / 2
+                ty = to_y + to_h / 2
+                dx = tx - fx
+                dy = ty - fy
+                pad = 0.08
+
+                if abs(dx) >= abs(dy):
+                    # Horizontal connection
+                    if dx >= 0:
+                        start_x_conn = from_x + from_w + pad
+                        end_x_conn = to_x - pad
+                    else:
+                        start_x_conn = from_x - pad
+                        end_x_conn = to_x + to_w + pad
+                    start_y_conn = fy
+                    end_y_conn = ty
+                else:
+                    # Vertical connection
+                    if dy >= 0:
+                        start_y_conn = from_y + from_h + pad
+                        end_y_conn = to_y - pad
+                    else:
+                        start_y_conn = from_y - pad
+                        end_y_conn = to_y + to_h + pad
+                    start_x_conn = fx
+                    end_x_conn = tx
                 
                 try:
                     arrow = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, 
@@ -7414,7 +7804,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     if conn_label:
                         label_x = (start_x_conn + end_x_conn) / 2
                         label_y = (start_y_conn + end_y_conn) / 2
-                        _add_textbox(s, label_x - 0.5, label_y - 0.2, 1.0, 0.4, conn_label,
+                        _add_textbox(s, label_x - 0.7, label_y - 0.25, 1.4, 0.4, conn_label,
                                     font_size_pt=8, color=pal["text"], word_wrap=True)
                 except Exception:
                     # Skip connection if it fails

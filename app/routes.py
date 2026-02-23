@@ -139,6 +139,8 @@ THEME_OPTIONS = [
 
     "BLUE HORIZON",
 
+    "prime_meridian",
+
 ]
 
 

@@ -27,7 +27,7 @@
           <div class="flex items-center gap-2">
             <select id="themeSelect" class="px-3 py-2 rounded border bg-white" aria-label="Theme">
               {% for t in themes %}
-              <option value="{{ t }}">{{ t }}</option>
+              <option value="{{ t }}">{{ 'PRIME MERIDIAN' if t == 'prime_meridian' else t }}</option>
               {% endfor %}
             </select>
             <a id="downloadLink" href="#" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Export PPTX</a>
