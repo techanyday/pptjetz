@@ -1,21 +1,56 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-  <div class="bg-white shadow-xl rounded-lg p-6">
-    <div class="flex items-start justify-between gap-4 flex-wrap">
-      <div>
-        <h1 class="text-3xl font-bold">Select a theme</h1>
-        <p class="text-gray-600 mt-1">Choose a look for your deck, then generate your outline preview.</p>
+<div class="min-h-[75vh] py-8">
+  <div class="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_300px] gap-6 px-4">
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Select theme left ad slot">
+          {% if ADS_ENABLED and ADSENSE_ENABLED %}
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="6319439915"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          {% else %}
+          <div class="text-gray-300 text-sm">Ads disabled</div>
+          {% endif %}
+        </div>
       </div>
-      <div class="flex gap-2">
-        <a href="{{ url_for('main.generate_page') }}" class="px-4 py-2 rounded border bg-white hover:bg-gray-50">Back</a>
-        <button id="generateBtn" class="px-5 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>Generate Presentation</button>
-      </div>
-    </div>
+    </aside>
 
-    <div class="mt-6">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" id="themeGrid">
+    <main>
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div class="bg-white shadow-xl rounded-lg p-6">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h1 class="text-3xl font-bold">Select a theme</h1>
+              <p class="text-gray-600 mt-1">Choose a look for your deck, then generate your outline preview.</p>
+            </div>
+            <div class="flex gap-2">
+              <a href="{{ url_for('main.generate_page') }}" class="px-4 py-2 rounded border bg-white hover:bg-gray-50">Back</a>
+              <button id="generateBtn" class="px-5 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>Generate Presentation</button>
+            </div>
+          </div>
+
+          <div class="mt-4 w-full flex justify-center">
+            <div class="bg-gray-50 rounded border p-4 w-full max-w-3xl min-h-[300px]" aria-label="Select theme center ad container">
+              {% if ADS_ENABLED and ADSENSE_ENABLED %}
+              <ins class="adsbygoogle"
+                   style="display:block; width:100%; min-height:280px;"
+                   data-ad-client="{{ ADSENSE_CLIENT }}"
+                   data-ad-slot="7907957016"
+                   data-ad-format="auto"
+                   data-full-width-responsive="true"></ins>
+              {% else %}
+              <div class="text-gray-300">Ads disabled</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="mt-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" id="themeGrid">
         {% for t in themes %}
           {% set key = (t or '').strip().upper() %}
           {% set pal = (palettes.get(key) or palettes.get(key.replace(' ', '_')) or {}) %}
@@ -63,10 +98,30 @@
             </div>
           </button>
         {% endfor %}
-      </div>
+            </div>
 
-      <p id="themeError" class="mt-4 text-sm text-red-600 hidden">Please select a theme to continue.</p>
-    </div>
+            <p id="themeError" class="mt-4 text-sm text-red-600 hidden">Please select a theme to continue.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="hidden xl:block">
+      <div class="sticky top-24">
+        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Select theme right ad slot">
+          {% if ADS_ENABLED and ADSENSE_ENABLED %}
+          <ins class="adsbygoogle"
+               style="display:block; width:100%; min-height:600px;"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="5229719529"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+          {% else %}
+          <div class="text-gray-300 text-sm">Ads disabled</div>
+          {% endif %}
+        </div>
+      </div>
+    </aside>
   </div>
 </div>
 
@@ -139,4 +194,13 @@
   });
 })();
 </script>
+{% if ADS_ENABLED and ADSENSE_ENABLED %}
+<script>
+try {
+  const push = () => { try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch(e) { console.warn('adsbygoogle push failed', e); } };
+  if (document.readyState === 'complete') { setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150); }
+  else { window.addEventListener('load', () => setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150), { once: true }); }
+} catch (e) { console.warn(e); }
+</script>
+{% endif %}
 {% endblock %}
