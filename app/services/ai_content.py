@@ -8,6 +8,7 @@ from app import db
 from app.models import LLMCall, Pricing
 import os
 import logging
+import uuid
 
 
 MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "800"))
@@ -27,11 +28,22 @@ ENABLE_LLM_HARMONIZE = os.getenv("ENABLE_LLM_HARMONIZE", "1") == "1"
 ENABLE_LLM_QUALITY_ENHANCER = os.getenv("ENABLE_LLM_QUALITY_ENHANCER", "1") == "1"
 QUALITY_MAX_RETRIES = int(os.getenv("QUALITY_MAX_RETRIES", "2"))
 
-MIN_SLIDES = 10
+MIN_SLIDES = 11
 MAX_SLIDES = 15
 
 
 logger = logging.getLogger(__name__)
+
+
+def _attach_deck_id(slides: List[Dict[str, Any]], *, deck_id: str | None) -> List[Dict[str, Any]]:
+    try:
+        if isinstance(slides, list) and slides and isinstance(slides[0], dict):
+            did = str(deck_id or "").strip() or uuid.uuid4().hex
+            if did:
+                slides[0]["_deck_id"] = did
+    except Exception:
+        pass
+    return slides
 
 
 def choose_slide_count(
@@ -62,14 +74,14 @@ def choose_slide_count(
     score = wc + (lc * 8)
 
     if score <= 80:
-        return 10
+        return int(MIN_SLIDES)
     if score <= 160:
-        return 12
+        return int(max(MIN_SLIDES, 12))
     if score <= 240:
-        return 13
+        return int(max(MIN_SLIDES, 13))
     if score <= 330:
-        return 14
-    return 15
+        return int(max(MIN_SLIDES, 14))
+    return int(MAX_SLIDES)
 
 
 def quadrant_evidence_detector(text: str) -> tuple[bool, str]:
@@ -172,15 +184,10 @@ def build_slide_type_plan(
     # Required skeleton
     plan: List[str] = ["title", "agenda"]
 
-    required_body: List[str] = []
-    if n >= 11:
-        required_body.append("one_idea")
+    required_body: List[str] = ["one_idea"]
 
     # Ensure at least one timeline/process and one comparison in every deck
-    if rng.random() < 0.5:
-        required_body.append("timeline")
-    else:
-        required_body.append("roadmap")
+    required_body.append("timeline")
     required_body.append("comparison")
     if allow_matrix:
         required_body.append("impact_effort_matrix")
@@ -196,6 +203,7 @@ def build_slide_type_plan(
         "before_after",
         "architecture",
         "pricing",
+        "roadmap",
     ]
     if allow_swot:
         optional.append("swot")
@@ -293,9 +301,14 @@ def enforce_slide_count_postprocess(
         # Keep required anchors
         title_sl = arr[0:1]
         agenda_sl = arr[1:2] if len(arr) >= 2 else []
+        one_idea_sl: List[Dict[str, Any]] = []
+        body_start = 2
+        if len(arr) >= 3 and isinstance(arr[2], dict) and str(arr[2].get("type") or "").strip().lower() == "one_idea":
+            one_idea_sl = arr[2:3]
+            body_start = 3
         thanks = [s for s in arr if isinstance(s, dict) and str(s.get("type") or "").strip().lower() in {"thank_you", "cta"}]
         thanks_sl = thanks[-1:] if thanks else []
-        body = [s for s in arr[2:] if s not in thanks_sl]
+        body = [s for s in arr[body_start:] if s not in thanks_sl]
 
         # Prefer keeping key_takeaways if present
         keep: List[Dict[str, Any]] = []
@@ -314,7 +327,8 @@ def enforce_slide_count_postprocess(
             if isinstance(s, dict) and s not in keep:
                 keep.append(s)
 
-        trimmed = (title_sl + agenda_sl + keep)[: max(0, want - len(thanks_sl))] + thanks_sl
+        prefix = title_sl + agenda_sl + one_idea_sl
+        trimmed = (prefix + keep)[: max(0, want - len(thanks_sl))] + thanks_sl
         return trimmed[:want]
 
     if len(arr) < want:
@@ -364,8 +378,6 @@ def enforce_slide_count_postprocess(
                 return arr2[:want]
         except Exception:
             pass
-        return arr[:want]
-
     return arr[:want]
 
 
@@ -637,8 +649,12 @@ def build_prompt(
             "COHERENCE & ORDER: All slides after the agenda MUST map to the agenda bullets in sequence (1 slide per agenda bullet; do not group multiple slides under one bullet).",
             "TITLE PARAPHRASING: Each mapped slide's TITLE must closely paraphrase its agenda bullet (share key terms); do not use generic labels.",
             "CONTENT ALIGNMENT: Each mapped slide's CONTENT (bullets/points/table cells) must elaborate the mapped agenda bullet and share key terms.",
+            "NO PLACEHOLDERS: Slide titles and subtitles MUST NOT be placeholders or defaults (e.g., 'Timeline', 'Roadmap', 'Process', 'Overview', 'Write your subtitle here', 'Click to add...').",
+            "CONTENT-DERIVED TITLES: For every non-core slide (not title/agenda/thank_you), write the slide.title using concrete terms taken from that slide's content fields (e.g., timeline labels, card headings, table headers, architecture box labels).",
+            "CONTENT-DERIVED SUBTITLES: If you provide slide.subtitle, it must be a single-line summary derived from that slide's content fields (not generic marketing language).",
             "Architecture slides: the slide.title MUST be topic-specific and derived from the boxes/flow (3–7 words). Do NOT use generic titles like 'Architecture Diagram' or 'System Architecture' without a qualifier.",
-            "Timeline/Process/Roadmap slides: you MUST include a NON-EMPTY slide.subtitle as a one-line, topic-specific summary derived from the steps/phases (8–14 words). Prefer phrasing like 'From <first step> to <last step>' or a concise outcome-oriented summary; do NOT use generic placeholders like 'A structured path to...' or 'Step-by-step journey'.",
+            "Timeline/Process/Roadmap slides: you MUST include a NON-EMPTY slide.subtitle as a one-line, topic-specific summary derived from the steps/phases (8–14 words). Prefer phrasing like 'From <first label> to <last label>' or an outcome-oriented summary that includes at least ONE step/phase label.",
+            "BAN: Do NOT use marketing filler subtitles such as 'Make a big impact...', 'professional slides', 'our templates', 'best practices', or anything about slides/charts. Subtitles must describe the CONTENT of the slide.",
             "Do not produce slides that are not linked to an agenda item.",
             "Ensure the Thank You slide is always the final slide.",
             "If N is small, prefer infographic/cards/comparison over multiple bullet variations.",
@@ -1036,9 +1052,11 @@ def create_deck_slides(
                     )
                 except Exception:
                     pass
+                fixed = _attach_deck_id(fixed, deck_id=deck_id)
                 return fixed, []
         except Exception as exc:  # noqa: BLE001
             return slides, [f"Retry warning: {exc}"]
+    slides = _attach_deck_id(slides, deck_id=deck_id)
     return slides, []
 
 
@@ -1911,13 +1929,37 @@ def _harmonize_titles_to_agenda(slides: List[Dict[str, Any]]) -> List[Dict[str, 
         return slides
 
     import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", str(s or "").strip())
+
     def _overlap(a: str, b: str) -> int:
         stop = {"the","of","and","to","a","in","on","for","vs","vs.","an"}
         aw = [w.lower() for w in re.findall(r"[a-zA-Z]+", a) if w.lower() not in stop]
         bw = [w.lower() for w in re.findall(r"[a-zA-Z]+", b) if w.lower() not in stop]
         return len(set(aw) & set(bw))
 
-    generic_titles = {"overview","key concepts","concepts","a vs b","comparison","generated presentation"}
+    generic_titles = {
+        "overview",
+        "key concepts",
+        "concepts",
+        "a vs b",
+        "comparison",
+        "generated presentation",
+        "timeline",
+        "timeline infographic",
+        "timeline overview",
+        "roadmap",
+        "roadmap overview",
+        "process",
+        "steps",
+        "phases",
+        "architecture diagram",
+        "system architecture",
+        "kpis",
+        "kpi",
+        "metrics",
+    }
     template_substrings = [
         "brief explanation to frame relevance",
         "with measurable kpis and owners",
@@ -1927,6 +1969,134 @@ def _harmonize_titles_to_agenda(slides: List[Dict[str, Any]]) -> List[Dict[str, 
         "placeholder",
         "generic outline",
     ]
+
+    subtitle_placeholders = [
+        "write your subtitle here",
+        "click to add",
+        "subtitle",
+        "(to be refined)",
+        "placeholder",
+    ]
+
+    subtitle_banned_substrings = [
+        "make a big impact",
+        "professional slides",
+        "slides and charts",
+        "slides & charts",
+        "our templates",
+        "presentation templates",
+    ]
+
+    def _is_bad_title(title: str) -> bool:
+        low = _norm(title).lower()
+        if not low:
+            return True
+        if low in generic_titles:
+            return True
+        if re.fullmatch(r"(timeline|roadmap|process|steps|phases?)", low):
+            return True
+        if "write your" in low or "click to add" in low:
+            return True
+        if re.fullmatch(r"(slide|slide \d+)", low):
+            return True
+        return False
+
+    def _is_bad_subtitle(sub: str) -> bool:
+        low = _norm(sub).lower()
+        if not low:
+            return True
+        if any(p in low for p in subtitle_placeholders):
+            return True
+        if any(p in low for p in subtitle_banned_substrings):
+            return True
+        if len(re.findall(r"[a-zA-Z]+", low)) < 4:
+            return True
+        return False
+
+    def _pick_labels(sl: Dict[str, Any]) -> List[str]:
+        c = sl.get("content") if isinstance(sl.get("content"), dict) else {}
+        st = str(sl.get("type") or "").strip().lower()
+        labs: List[str] = []
+        if st in {"timeline", "roadmap"}:
+            raw = c.get("timeline") or c.get("phases")
+            if isinstance(raw, list):
+                for it in raw[:8]:
+                    if isinstance(it, dict):
+                        lab = _norm(it.get("label") or it.get("title") or "")
+                        if lab:
+                            labs.append(lab)
+                    else:
+                        s0 = _norm(it)
+                        if s0:
+                            labs.append(s0)
+        elif st in {"cards", "card", "card_style", "process_timeline_alt"}:
+            raw = c.get("cards")
+            if isinstance(raw, list):
+                for it in raw[:8]:
+                    if isinstance(it, dict):
+                        lab = _norm(it.get("heading") or it.get("label") or it.get("title") or it.get("name") or it.get("step") or "")
+                        if lab:
+                            labs.append(lab)
+                            continue
+                        desc = _norm(it.get("description") or it.get("desc") or it.get("details") or it.get("text") or "")
+                        if desc:
+                            labs.append(desc)
+                            continue
+                    s0 = _norm(it)
+                    if s0:
+                        labs.append(s0)
+        elif st in {"comparison", "table"}:
+            tbl = c.get("table") if isinstance(c.get("table"), dict) else {}
+            left = tbl.get("left") if isinstance(tbl.get("left"), dict) else {}
+            right = tbl.get("right") if isinstance(tbl.get("right"), dict) else {}
+            lh = _norm(left.get("heading") or "")
+            rh = _norm(right.get("heading") or "")
+            if lh:
+                labs.append(lh)
+            if rh:
+                labs.append(rh)
+        elif st == "architecture":
+            boxes = c.get("boxes")
+            if isinstance(boxes, list):
+                for b in boxes[:8]:
+                    if isinstance(b, dict):
+                        lab = _norm(b.get("label") or "")
+                        if lab:
+                            labs.append(lab)
+        return [x for x in labs if x]
+
+    def _limit_words(s: str, max_words: int) -> str:
+        parts = [p for p in re.split(r"\s+", _norm(s)) if p]
+        if len(parts) <= max_words:
+            return " ".join(parts)
+        return " ".join(parts[:max_words])
+
+    def _derive_title(sl: Dict[str, Any], agenda_fallback: str) -> str:
+        st = str(sl.get("type") or "").strip().lower()
+        labs = _pick_labels(sl)
+        if st in {"timeline", "roadmap"} and len(labs) >= 2:
+            return _limit_words(f"From {labs[0]} to {labs[-1]}", 7)
+        if st in {"cards", "card", "card_style", "process_timeline_alt"} and len(labs) >= 2:
+            return _limit_words(f"Key Steps: {labs[0]} to {labs[-1]}", 7)
+        if st in {"comparison", "table"} and len(labs) >= 2:
+            return _limit_words(f"{labs[0]} vs {labs[1]}", 7)
+        if st == "architecture" and len(labs) >= 2:
+            return _limit_words(f"{labs[0]} to {labs[-1]}", 7)
+        return _limit_words(agenda_fallback, 8) or agenda_fallback
+
+    def _derive_subtitle(sl: Dict[str, Any]) -> str:
+        st = str(sl.get("type") or "").strip().lower()
+        labs = _pick_labels(sl)
+        n = len(labs)
+        if st in {"timeline", "roadmap"} and n >= 2:
+            return _limit_words(f"From {labs[0]} to {labs[-1]} across {max(4, min(6, n))} phases with clear deliverables", 14)
+        if st in {"cards", "card", "card_style", "process_timeline_alt"} and n >= 2:
+            return _limit_words(f"From {labs[0]} to {labs[-1]} with owners, outputs, and checkpoints at each step", 14)
+        if st in {"comparison", "table"} and n >= 2:
+            return _limit_words(f"How {labs[0]} differs from {labs[1]} across impacts, risks, and effort", 14)
+        if st == "architecture" and n >= 2:
+            return _limit_words(f"How components interact from {labs[0]} through {labs[-1]} across the full flow", 14)
+        return ""
 
     for s in slides:
         stype = s.get("type")
@@ -1942,8 +2112,34 @@ def _harmonize_titles_to_agenda(slides: List[Dict[str, Any]]) -> List[Dict[str, 
         title = (s.get("title") or "").strip()
         # Map to best agenda bullet
         best_ov, best_i = max((( _overlap(title, a), i) for i, a in enumerate(agenda)), default=(0, 0))
-        if title.lower() in generic_titles or best_ov == 0:
-            s["title"] = agenda[best_i]
+        if _is_bad_title(title) or best_ov == 0:
+            s["title"] = _derive_title(s, agenda[best_i])
+
+        sub0 = _norm(s.get("subtitle") or "")
+        if stype in {"timeline", "roadmap", "cards", "card", "card_style", "process_timeline_alt"}:
+            if stype in {"timeline", "roadmap"}:
+                labs = _pick_labels(s)
+                sub_low = sub0.lower()
+                has_label_overlap = False
+                try:
+                    has_label_overlap = any((lab or "").lower() in sub_low for lab in (labs or [])[:6] if str(lab or "").strip())
+                except Exception:
+                    has_label_overlap = False
+                if _is_bad_subtitle(sub0) or (labs and not has_label_overlap and ("from " not in sub_low)):
+                    s["subtitle"] = _derive_subtitle(s)
+            else:
+                labs = _pick_labels(s)
+                sub_low = sub0.lower()
+                has_label_overlap = False
+                try:
+                    has_label_overlap = any((lab or "").lower() in sub_low for lab in (labs or [])[:6] if str(lab or "").strip())
+                except Exception:
+                    has_label_overlap = False
+                if _is_bad_subtitle(sub0) or (labs and not has_label_overlap and ("from " not in sub_low)):
+                    s["subtitle"] = _derive_subtitle(s)
+        else:
+            if sub0 and _is_bad_subtitle(sub0):
+                s["subtitle"] = ""
         # Remove template-like bullets
         content = s.get("content") or {}
         if isinstance(content.get("bullets"), list):

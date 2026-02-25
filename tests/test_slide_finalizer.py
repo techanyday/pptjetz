@@ -92,8 +92,8 @@ def test_finalize_slides_merges_short_bullet_fragments():
 
 
 def test_choose_slide_count_clamps_user_request_to_min_max():
-    assert choose_slide_count("Topic", user_requested_count=1, content_signal="") == 10
-    assert choose_slide_count("Topic", user_requested_count=10, content_signal="") == 10
+    assert choose_slide_count("Topic", user_requested_count=1, content_signal="") == 11
+    assert choose_slide_count("Topic", user_requested_count=10, content_signal="") == 11
     assert choose_slide_count("Topic", user_requested_count=15, content_signal="") == 15
     assert choose_slide_count("Topic", user_requested_count=99, content_signal="") == 15
 
@@ -102,7 +102,7 @@ def test_choose_slide_count_infers_from_topic_length():
     short = "A brief update on Q1 results"
     medium = " ".join(["word"] * 140)
     long = " ".join(["word"] * 400)
-    assert 10 <= choose_slide_count(short, user_requested_count=None, content_signal=short) <= 12
+    assert 11 <= choose_slide_count(short, user_requested_count=None, content_signal=short) <= 12
     assert 12 <= choose_slide_count(medium, user_requested_count=None, content_signal=medium) <= 14
     assert choose_slide_count(long, user_requested_count=None, content_signal=long) == 15
 

@@ -42,7 +42,7 @@ def test_impact_map_radial_smoke_no_midword_and_connectors(tmp_path):
             "title": "Impact Map",
             "content": {
                 "infographic_intent": "IMPACT",
-                "impact_map_variant": "radial",
+                "impact_map_variant": "classic_circles",
                 "center_label": "Impact on Communication",
                 "bullets": [
                     "Improve customer experience",
@@ -68,5 +68,5 @@ def test_impact_map_radial_smoke_no_midword_and_connectors(tmp_path):
     assert "Communica tion" not in xml
 
     # Connectors in PPTX slide XML are represented as <p:cxnSp>.
-    # Expect at least 6 for the 6-node radial layout.
+    # Expect at least 6 for the 6-spoke hub layout.
     assert xml.count("<p:cxnSp") >= 6

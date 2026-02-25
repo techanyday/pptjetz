@@ -55,7 +55,7 @@ def test_forced_variant_is_respected_when_eligible(tmp_path, capsys):
         {
             "type": "timeline",
             "title": "TL",
-            "content": {"timeline": ["a", "b", "c", "d"], "variant": "vertical"},
+            "content": {"timeline": ["a", "b", "c", "d"], "variant": "tri_pennants"},
         },
         {"type": "thank_you", "title": "Thanks"},
     ]
@@ -65,7 +65,7 @@ def test_forced_variant_is_respected_when_eligible(tmp_path, capsys):
     lines = _variant_lines(capsys)
     seq = _family_variants(lines, "timeline")
     assert seq
-    assert seq[0] == "vertical"
+    assert seq[0] == "tri_pennants"
 
 
 def test_ineligible_forced_variant_is_not_selected(tmp_path, capsys):

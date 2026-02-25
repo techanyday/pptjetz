@@ -892,7 +892,7 @@ def login() -> Any:
 
     if is_dev:
 
-        redirect_uri = "http://localhost:5000" + url_for("main.login_callback")
+        redirect_uri = request.host_url.rstrip("/") + url_for("main.login_callback")
 
     else:
 
@@ -966,7 +966,7 @@ def login_callback() -> Any:
 
     if is_dev:
 
-        redirect_uri = "http://localhost:5000" + url_for("main.login_callback")
+        redirect_uri = request.host_url.rstrip("/") + url_for("main.login_callback")
 
     else:
 
