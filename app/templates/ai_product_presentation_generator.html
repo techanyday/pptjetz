@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}AI Product Presentation Generator – Roadmaps, Metrics & Storytelling | PPTJet{% endblock %}
+{% block description %}Generate a complete product presentation deck with PPTJet. Build slide layouts like roadmaps, impact maps, SWOT, timelines, funnels, and KPI infographics—export to PowerPoint and edit.{% endblock %}
+{% block og_title %}AI Product Presentation Generator – Roadmaps, Metrics & Storytelling{% endblock %}
+{% block og_description %}Generate a complete product presentation deck with PPTJet. Build slide layouts like roadmaps, impact maps, SWOT, timelines, funnels, and KPI infographics—export to PowerPoint and edit.{% endblock %}
+{% block tw_title %}AI Product Presentation Generator – Roadmaps, Metrics & Storytelling{% endblock %}
+{% block tw_description %}Generate a complete product presentation deck with PPTJet. Build slide layouts like roadmaps, impact maps, SWOT, timelines, funnels, and KPI infographics—export to PowerPoint and edit.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/ai-product-presentation-generator",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "PPTJet is an AI presentation engine that generates complete product slide decks with structured layouts such as roadmaps, impact maps, timelines, SWOT analysis, funnels, and KPI infographics. Export to PowerPoint and edit."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is an AI product presentation generator?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "An AI product presentation generator helps you create a complete product deck (structure + slide layouts) from a short brief. PPTJet exports a real PowerPoint file you can edit."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can PPTJet generate product roadmaps and timelines as slides?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet can generate roadmap timelines, milestones, and structured planning slides designed for product updates and stakeholder reviews."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does PPTJet provide templates?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "PPTJet is not a template library. It generates complete decks end-to-end with structured slide layouts, then exports to .pptx for editing."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is the product presentation generator free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet is free and supports unlimited presentation generation and exports with no credit card required."
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Product Presentation Generator</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Product decks need clarity: what changed, why it matters, what’s next, and what you need from stakeholders.
+        PPTJet generates a complete product presentation deck with slide layouts that are built for real product communication—not generic templates.
+      </p>
+    </header>
+
+    <section class="mt-8">
+      <h2 class="text-2xl font-bold text-gray-900">Slide Layouts Built for Product Communication</h2>
+      <p class="mt-3 text-gray-700">
+        PPTJet can generate structured visual slides commonly used in product updates, roadmap reviews, and planning sessions.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Roadmaps</strong>, timelines, and milestone plans</li>
+        <li><strong>Impact maps</strong> (goals, actors, outcomes, deliverables)</li>
+        <li><strong>Funnels</strong> and metric breakdowns</li>
+        <li><strong>SWOT analysis</strong> and competitive framing</li>
+        <li><strong>Risk matrices</strong> and dependency tracking</li>
+        <li><strong>KPI infographics</strong> for stakeholder-ready reporting</li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-gray-900">How to Generate a Product Deck</h2>
+      <ol class="mt-3 list-decimal pl-6 text-gray-700">
+        <li><strong>Enter your product context</strong> (audience, release scope, key metrics, and decisions needed).</li>
+        <li><strong>PPTJet generates the full deck</strong> with a coherent slide sequence and visual layouts.</li>
+        <li><strong>Export to PowerPoint</strong> and iterate quickly with your team.</li>
+      </ol>
+    </section>
+
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-gray-900">Common Use Cases</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li>Product roadmap presentations</li>
+        <li>Monthly product updates to leadership</li>
+        <li>Launch reviews and postmortems</li>
+        <li>Stakeholder alignment and planning decks</li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+        Generate a product deck
+      </a>
+      <p class="mt-3 text-sm text-gray-600">
+        PPTJet is <strong>free</strong> and allows <strong>unlimited</strong> presentation generation. No credit card. No usage limits.
+      </p>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8">
+      <h2 class="text-2xl font-bold text-gray-900">Frequently Asked Questions</h2>
+
+      <h3 class="mt-5 text-lg font-semibold text-gray-900">Can I use this for roadmap reviews and stakeholder updates?</h3>
+      <p class="mt-2 text-gray-700">
+        Yes. PPTJet is designed for decks where structure and visuals matter—like roadmaps, outcomes, metrics, risks, and next steps.
+      </p>
+
+      <h3 class="mt-5 text-lg font-semibold text-gray-900">Can I edit the exported deck?</h3>
+      <p class="mt-2 text-gray-700">
+        Yes. You get a PowerPoint file you can edit like any other deck.
+      </p>
+
+      <h3 class="mt-5 text-lg font-semibold text-gray-900">Is this a product presentation template library?</h3>
+      <p class="mt-2 text-gray-700">
+        No. PPTJet generates a complete deck with slide layouts based on your brief.
+      </p>
+
+      <h3 class="mt-5 text-lg font-semibold text-gray-900">Is PPTJet free?</h3>
+      <p class="mt-2 text-gray-700">
+        Yes. PPTJet is free and supports unlimited generation and exports.
+      </p>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8">
+      <h2 class="text-xl font-bold text-gray-900">Related Tools</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.presentation_outline_generator_page') }}">Presentation outline generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.board_presentation_generator_page') }}">Board presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_technical_presentation_generator_page') }}">AI technical presentation generator</a></li>
+      </ul>
+    </section>
+  </article>
+</div>
+{% endblock %}

@@ -361,6 +361,36 @@ def board_presentation_generator_page() -> Any:
 
 
 
+@bp.get("/ai-business-presentation-generator")
+
+def ai_business_presentation_generator_page() -> Any:
+
+    return render_template("ai_business_presentation_generator.html")
+
+
+
+
+
+@bp.get("/ai-product-presentation-generator")
+
+def ai_product_presentation_generator_page() -> Any:
+
+    return render_template("ai_product_presentation_generator.html")
+
+
+
+
+
+@bp.get("/ai-technical-presentation-generator")
+
+def ai_technical_presentation_generator_page() -> Any:
+
+    return render_template("ai_technical_presentation_generator.html")
+
+
+
+
+
 @bp.get("/presentation-outline-generator")
 
 def presentation_outline_generator_page() -> Any:
