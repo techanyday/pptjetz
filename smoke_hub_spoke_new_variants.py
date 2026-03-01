@@ -1,15 +1,37 @@
 from __future__ import annotations
 
+import argparse
 import os
 
 from app.services.pptx_builder import build_pptx_from_slides
 
 
-def _slides(deck_id: str, variant: str):
+def _spokes_for_topic(topic: str) -> list[str]:
+    t = (topic or "").strip().lower()
+    if "5g" in t:
+        return [
+            "mmWave spectrum",
+            "Network slicing",
+            "Ultra-low latency",
+            "Massive IoT",
+            "Edge computing",
+            "Security",
+        ]
+    return [
+        "Definition",
+        "Key benefits",
+        "Use cases",
+        "Architecture",
+        "Risks",
+        "Next steps",
+    ]
+
+
+def _slides(deck_id: str, variant: str, *, topic: str):
     return [
         {
             "type": "title",
-            "title": f"Hub & Spoke — {variant}",
+            "title": f"{topic} — Hub & Spoke ({variant})",
             "subtitle": "Smoke test",
             "presenter": "PPTJet",
             "date": "",
@@ -17,19 +39,12 @@ def _slides(deck_id: str, variant: str):
         },
         {
             "type": "infographic",
-            "title": "Hub & Spoke",
+            "title": topic,
             "content": {
                 "infographic_intent": "IMPACT",
                 "impact_map_variant": variant,
-                "center_label": "Hub",
-                "bullets": [
-                    "Project",
-                    "Planning",
-                    "Improve",
-                    "Profit",
-                    "Sales",
-                    "Execution",
-                ],
+                "center_label": topic,
+                "bullets": _spokes_for_topic(topic),
             },
             "_render_exact": True,
         },
@@ -38,6 +53,11 @@ def _slides(deck_id: str, variant: str):
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--topic", default="Hub & Spoke", help="Topic to use for the hub/spoke smoke deck")
+    args = parser.parse_args()
+    topic = str(args.topic or "Hub & Spoke").strip() or "Hub & Spoke"
+
     deck_id = "smoke_hub_spoke_new_variants"
     out_dir = os.path.join(os.getcwd(), "tmp_previews", deck_id)
     os.makedirs(out_dir, exist_ok=True)
@@ -47,7 +67,7 @@ def main() -> None:
 
     for v in variants:
         out_path = os.path.join(out_dir, f"deck_{v}.pptx")
-        build_pptx_from_slides(_slides(deck_id + "_" + v, v), out_path, theme_name="SLEEK")
+        build_pptx_from_slides(_slides(deck_id + "_" + v, v, topic=topic), out_path, theme_name="SLEEK")
         out_paths.append(out_path)
 
     for p in out_paths:
