@@ -6996,13 +6996,14 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
         hub = _hub_label(sl, content)
         step_cols = _step_colors()
-        cx, cy = SLIDE_W_IN / 2.0, 4.65
+        cx, cy = SLIDE_W_IN / 2.0, SLIDE_H_IN * 0.62
 
         ring_d = 2.20
+        ring_line_pt = 8
         ring = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - ring_d / 2), Inches(cy - ring_d / 2), Inches(ring_d), Inches(ring_d))
         ring.fill.solid(); ring.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
         ring.line.color.rgb = RGBColor(*pal.get("primary", (59, 130, 246)))
-        ring.line.width = Pt(8)
+        ring.line.width = Pt(ring_line_pt)
 
         core_d = 1.50
         core_rgb = pal.get("primary", (59, 130, 246))
@@ -7030,16 +7031,21 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         badge_d = 0.46
         n_nodes = 6
         node_r = node_d / 2.0
+        node_line_pt = 3
         angles = [(-math.pi / 2.0) + (2.0 * math.pi / n_nodes) * i for i in range(n_nodes)]
 
         ring_r = ring_d / 2.0
         top_limit = 1.95
         bottom_margin = 0.15
-        gap = 0.22
-        r_min = ring_r + node_r + gap
+        ring_stroke_in = float(ring_line_pt) / 72.0
+        node_stroke_in = float(node_line_pt) / 72.0
+        start_r = ring_r + ring_stroke_in / 2.0
+        node_edge_r = node_r + node_stroke_in / 2.0
+        min_conn_len = 0.32
+        r_min = start_r + node_edge_r + min_conn_len
         r_max = min((cy - top_limit) - node_r, (SLIDE_H_IN - bottom_margin - cy) - node_r)
-        desired_r = max(r_min, min(2.05, r_max))
-        r = max(r_min, min(desired_r, r_max))
+        r_max = max(0.0, r_max)
+        r = min(r_max, max(r_min, 2.05)) if r_max > 0.0 else max(r_min, 2.05)
 
         for i, raw in enumerate(items[:n_nodes]):
             ang = angles[i]
@@ -7051,7 +7057,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             node = s.shapes.add_shape(MsoShape.OVAL, Inches(nx), Inches(ny), Inches(node_d), Inches(node_d))
             node.fill.solid(); node.fill.fore_color.rgb = RGBColor(255, 255, 255)
             node.line.color.rgb = RGBColor(*col)
-            node.line.width = Pt(3)
+            node.line.width = Pt(node_line_pt)
 
             head, _ = _split_head_tail(str(raw or ""))
             lab = (head or str(raw or "")).strip()
@@ -7102,8 +7108,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
             # connector
             ux, uy = math.cos(ang), math.sin(ang)
-            sx, sy = cx + ux * ring_r, cy + uy * ring_r
-            ex, ey = cx + ux * (r - node_r), cy + uy * (r - node_r)
+            sx, sy = cx + ux * start_r, cy + uy * start_r
+            ex, ey = cx + ux * (r - node_edge_r), cy + uy * (r - node_edge_r)
             conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(sx), Inches(sy), Inches(ex), Inches(ey))
             conn.line.color.rgb = RGBColor(*_shade(col, -10))
             conn.line.width = Pt(1.75)
