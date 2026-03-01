@@ -564,6 +564,12 @@ def _agenda_head_desc(item: Any) -> Tuple[str, str]:
     head, tail = _split_head_tail(txt)
     head_txt = (head or txt).strip()
     tail_txt = (tail or "").strip()
+
+    if tail_txt:
+        tail_words = re.findall(r"[A-Za-z0-9]+", tail_txt)
+        if len(tail_words) <= 1 or len(tail_txt) < 10:
+            head_txt = (head_txt + " " + tail_txt).strip()
+            tail_txt = ""
     try:
         tail_txt = _shorten(tail_txt, 96) if tail_txt else ""
     except Exception:
@@ -832,9 +838,15 @@ def _render_agenda_split_panel(slide, items: List[Any], *, pal: Dict[str, Tuple[
             _add_textbox(slide, col_x + 0.32, y, 1.1, 0.55, f"{i+1:02d}", font_size_pt=52, bold=True, color=col, word_wrap=False, auto_fit=True)
             head_x = col_x + 1.55
             head_w = max(1.6, (col_x + col_w) - head_x)
-            _add_textbox(slide, head_x, y + 0.10, head_w, 0.35, head_txt, font_size_pt=18, bold=True, color=pal.get("text", (15, 23, 42)), word_wrap=True, auto_fit=True)
+            head_len = len(str(head_txt or "").strip())
+            head_h = 0.58 if head_len >= 22 else 0.38
+            head_fs = 16 if head_len >= 30 else 18
+            head_y = y + 0.08
+            _add_textbox(slide, head_x, head_y, head_w, head_h, head_txt, font_size_pt=head_fs, bold=True, color=pal.get("text", (15, 23, 42)), word_wrap=True, auto_fit=True)
             if tail_txt:
-                _add_textbox(slide, head_x, y + 0.46, head_w, max(0.12, row_h - 0.50), tail_txt, font_size_pt=12, color=pal.get("muted", pal.get("text", (71, 85, 105))), word_wrap=True, auto_fit=True)
+                tail_y = head_y + head_h + 0.06
+                tail_h = max(0.12, (y + row_h) - tail_y)
+                _add_textbox(slide, head_x, tail_y, head_w, tail_h, tail_txt, font_size_pt=12, color=pal.get("muted", pal.get("text", (71, 85, 105))), word_wrap=True, auto_fit=True)
             y += row_h + row_gap
 
 def _render_agenda_rows_column(slide, items: List[str], origin_x_in: float, origin_y_in: float, col_w_in: float, row_h_in: float, gap_in: float, *, pal: Dict[str, Tuple[int, int, int]]):
@@ -3171,42 +3183,109 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         title = content.get("title", "Before vs After")
         
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
-        
-        # Two-column layout
-        margin_x = 1.0
-        start_y = 2.2
-        gap = 0.8
-        avail_w = max(7.0, SLIDE_W_IN - 2 * margin_x)
-        col_w = (avail_w - gap) / 2.0
-        start_x = margin_x
-        col_h = max(3.4, SLIDE_H_IN - start_y - 0.95)
-        
-        columns = [
-            ("before", "Before", 0),
-            ("after", "After", 1)
-        ]
-        
-        for key, label, col_idx in columns:
-            x = start_x + col_idx * (col_w + gap)
-            col_data = content.get(key, {})
-            heading = str(col_data.get("heading", label))[:50]
-            points = col_data.get("points", [])
-            
-            # Column container
-            col_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(start_y), Inches(col_w), Inches(col_h))
-            col_box.fill.solid(); col_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
-            col_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
-            
-            # Column heading
-            _add_textbox(s, x + 0.18, start_y + 0.16, col_w - 0.36, 0.56, heading,
-                        font_size_pt=19, bold=True, color=pal["primary"], word_wrap=True, auto_fit=True)
-            
-            # Bullet points
-            if points:
-                bullet_text = "\n".join(f"• {str(p)[:68]}" for p in points[:8])  # Max 8 points
-                _add_textbox(s, x + 0.18, start_y + 0.78, col_w - 0.36, max(0.5, col_h - 0.98), bullet_text,
-                            font_size_pt=13, color=pal["text"], word_wrap=True, auto_fit=True)
+        _add_textbox(s, 1.0, 0.85, 11.3, 0.95, title, font_size_pt=34, bold=True, color=TITLE_COL, align="center", word_wrap=True, auto_fit=True)
+
+        def _render_before_after_modern(slide, content2: Dict[str, Any]) -> None:
+            before = content2.get("before") if isinstance(content2.get("before"), dict) else {}
+            after = content2.get("after") if isinstance(content2.get("after"), dict) else {}
+
+            left_heading = str((before or {}).get("heading") or "Before")[:50]
+            right_heading = str((after or {}).get("heading") or "After")[:50]
+            left_pts = [str(x).strip() for x in ((before or {}).get("points") or []) if str(x).strip()][:4]
+            right_pts = [str(x).strip() for x in ((after or {}).get("points") or []) if str(x).strip()][:4]
+
+            bg_rgb = pal.get("bg", (255, 255, 255))
+            text_rgb = pal.get("text", (24, 24, 27))
+            accent = pal.get("primary", (59, 130, 246))
+            muted = pal.get("muted", text_rgb)
+
+            def _set_transparency(shape, v: float) -> None:
+                try:
+                    shape.fill.fore_color.transparency = max(0.0, min(1.0, float(v)))
+                except Exception:
+                    pass
+
+            center_x = SLIDE_W_IN / 2.0
+            label_y = 1.85
+            card_y = 2.55
+            card_w = 4.65
+            card_h = 3.10
+            margin_x = 1.05
+            left_x = margin_x
+            right_x = SLIDE_W_IN - margin_x - card_w
+            header_h = 0.62
+
+            subtle = _blend_rgb(bg_rgb, pal.get("secondary", bg_rgb), 0.55)
+            subtle = _blend_rgb(subtle, (255, 255, 255), 0.70)
+            _add_textbox(slide, left_x, label_y, card_w, 0.70, "BEFORE", font_size_pt=44, bold=True, color=subtle, align="center")
+            _add_textbox(slide, right_x, label_y, card_w, 0.70, "AFTER", font_size_pt=44, bold=True, color=subtle, align="center")
+
+            glow_pad_x = 0.65
+            glow_pad_y = 0.55
+            glow_h = card_h + glow_pad_y * 2
+            glow_y = card_y - glow_pad_y
+            glow_w = card_w + glow_pad_x * 2
+
+            glow_left = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(left_x - glow_pad_x), Inches(glow_y), Inches(glow_w), Inches(glow_h))
+            glow_left.fill.solid(); glow_left.fill.fore_color.rgb = RGBColor(*_blend_rgb(bg_rgb, (160, 174, 192), 0.35))
+            _set_transparency(glow_left, 0.78)
+            glow_left.line.fill.background()
+
+            glow_right = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(right_x - glow_pad_x), Inches(glow_y), Inches(glow_w), Inches(glow_h))
+            glow_right.fill.solid(); glow_right.fill.fore_color.rgb = RGBColor(*_blend_rgb(bg_rgb, accent, 0.25))
+            _set_transparency(glow_right, 0.78)
+            glow_right.line.fill.background()
+
+            divider = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(center_x - 0.01), Inches(card_y - 0.15), Inches(0.02), Inches(card_h + 0.30))
+            divider.fill.solid(); divider.fill.fore_color.rgb = RGBColor(*_blend_rgb(bg_rgb, muted, 0.40))
+            _set_transparency(divider, 0.70)
+            divider.line.fill.background()
+
+            def _card(x0: float, hdr: str, pts: List[str], *, header_fill: Tuple[int, int, int], header_text: Tuple[int, int, int]) -> None:
+                card = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(card_y), Inches(card_w), Inches(card_h))
+                card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*(pal.get("bg", (255, 255, 255))))
+                card.line.fill.background()
+                try:
+                    card.shadow.inherit = False
+                    card.shadow.visible = True
+                    card.shadow.blur = 18
+                    card.shadow.distance = 3
+                except Exception:
+                    pass
+
+                band = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(card_y), Inches(card_w), Inches(header_h))
+                band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*header_fill)
+                band.line.fill.background()
+                try:
+                    band.shadow.inherit = False
+                    band.shadow.visible = True
+                    band.shadow.blur = 12
+                    band.shadow.distance = 2
+                except Exception:
+                    pass
+
+                _add_textbox(slide, x0 + 0.30, card_y + 0.14, card_w - 0.60, 0.40, hdr, font_size_pt=16, bold=True, color=header_text, word_wrap=True, auto_fit=True)
+
+                y0 = card_y + header_h + 0.35
+                row_h = 0.52
+                dot_d = 0.085
+                dot_x = x0 + 0.45
+                txt_x = x0 + 0.62
+                max_rows = 4
+                pts2 = (pts or [])[:max_rows]
+                for i, t in enumerate(pts2):
+                    yy = y0 + i * row_h
+                    dot = slide.shapes.add_shape(MsoShape.OVAL, Inches(dot_x), Inches(yy + 0.16), Inches(dot_d), Inches(dot_d))
+                    dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(*accent)
+                    dot.line.fill.background()
+                    _add_textbox(slide, txt_x, yy + 0.05, card_w - (txt_x - x0) - 0.35, row_h, str(t), font_size_pt=13, color=text_rgb, word_wrap=True, auto_fit=True)
+
+            _card(left_x, left_heading, left_pts, header_fill=accent, header_text=(255, 255, 255))
+            right_fill = _blend_rgb(bg_rgb, pal.get("secondary", bg_rgb), 0.70)
+            _card(right_x, right_heading, right_pts, header_fill=right_fill, header_text=_shade(accent, -40))
+
+        _render_before_after_modern(s, content)
+        return
 
     def _render_architecture(sl) -> None:
         """Render architecture diagram with boxes and directional arrows."""
@@ -3391,7 +3470,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         s = prs.slides.add_slide(blank); apply_bg(s)
         c = _content(sl)
         title_txt = str(sl.get("title") or "Agenda").strip() or "Agenda"
-        subtitle_txt = str(sl.get("subtitle") or c.get("subtitle") or "").strip() or None
+        subtitle_txt = str(c.get("subtitle") or "").strip() or None
 
         raw_forced = str(c.get("agenda_variant") or c.get("variant") or "").strip().lower()
         forced_map = {
@@ -10581,9 +10660,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         title = content.get("title", "Before vs After")
         
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
+        _add_textbox(s, 1.0, 0.85, 11.3, 0.95, title, font_size_pt=34, bold=True, color=TITLE_COL, align="center", word_wrap=True, auto_fit=True)
 
-        def _render_before_after_chevrons(slide, content2: Dict[str, Any]) -> None:
+        def _render_before_after_modern(slide, content2: Dict[str, Any]) -> None:
             before = content2.get("before") if isinstance(content2.get("before"), dict) else {}
             after = content2.get("after") if isinstance(content2.get("after"), dict) else {}
 
@@ -10592,133 +10671,113 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             left_pts = [str(x).strip() for x in ((before or {}).get("points") or []) if str(x).strip()][:4]
             right_pts = [str(x).strip() for x in ((after or {}).get("points") or []) if str(x).strip()][:4]
 
-            n = max(2, min(4, max(len(left_pts), len(right_pts), 2)))
+            bg_rgb = pal.get("bg", (255, 255, 255))
+            text_rgb = pal.get("text", (24, 24, 27))
+            accent = pal.get("primary", (59, 130, 246))
+            muted = pal.get("muted", text_rgb)
 
-            dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
-            text_rgb = (255, 255, 255) if dark_bg else pal.get("text", (24, 24, 27))
-            muted_rgb = pal.get("muted", text_rgb)
-            accent_left = pal.get("primary", text_rgb)
-            accent_right = pal.get("secondary", accent_left)
-
-            margin_x = 0.95
-            top_y = 2.15
-            bottom_margin = 0.85
-            gap = 0.40
-            chev_w = 0.35
-            avail_w = max(7.0, SLIDE_W_IN - 2 * margin_x)
-
-            card_w = (avail_w - chev_w - 2 * gap) / 2.0
-            card_w = max(4.4, min(5.35, card_w))
-            total_w = card_w * 2 + chev_w + 2 * gap
-            start_x = max(margin_x, (SLIDE_W_IN - total_w) / 2.0)
-
-            avail_h = max(2.8, SLIDE_H_IN - top_y - bottom_margin)
-            card_h = max(2.85, min(3.75, avail_h))
-            start_y = top_y + max(0.0, (avail_h - card_h) / 2.0)
-
-            left_x = start_x
-            chev_x = left_x + card_w + gap
-            right_x = chev_x + chev_w + gap
-
-            header_h = 0.58
-            pad = 0.18
-            row_area_h = max(1.0, card_h - header_h - 2 * pad)
-            row_h = max(0.55, row_area_h / max(1, n))
-
-            def _card(x0: float, hdr: str, pts: List[str], accent: Tuple[int, int, int]) -> None:
-                card = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(start_y), Inches(card_w), Inches(card_h))
-                card_fill = pal.get("secondary", pal.get("bg", (255, 255, 255))) if dark_bg else pal.get("bg", (255, 255, 255))
-                card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*card_fill)
-                card.line.color.rgb = RGBColor(*accent)
+            def _set_transparency(shape, v: float) -> None:
                 try:
-                    card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 10; card.shadow.distance = 2
+                    shape.fill.fore_color.transparency = max(0.0, min(1.0, float(v)))
                 except Exception:
                     pass
 
-                band_fill = pal.get("secondary", (241, 245, 249)) if not dark_bg else accent
-                band = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(start_y), Inches(card_w), Inches(header_h))
-                band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*band_fill)
+            center_x = SLIDE_W_IN / 2.0
+            label_y = 1.85
+            card_y = 2.55
+            card_w = 4.65
+            card_h = 3.10
+            margin_x = 1.05
+            left_x = margin_x
+            right_x = SLIDE_W_IN - margin_x - card_w
+            header_h = 0.62
+
+            subtle = _blend_rgb(bg_rgb, pal.get("secondary", bg_rgb), 0.55)
+            subtle = _blend_rgb(subtle, (255, 255, 255), 0.70)
+            _add_textbox(slide, left_x, label_y, card_w, 0.70, "BEFORE", font_size_pt=44, bold=True, color=subtle, align="center")
+            _add_textbox(slide, right_x, label_y, card_w, 0.70, "AFTER", font_size_pt=44, bold=True, color=subtle, align="center")
+
+            glow_pad_x = 0.65
+            glow_pad_y = 0.55
+            glow_h = card_h + glow_pad_y * 2
+            glow_y = card_y - glow_pad_y
+            glow_w = card_w + glow_pad_x * 2
+
+            glow_left = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(left_x - glow_pad_x), Inches(glow_y), Inches(glow_w), Inches(glow_h))
+            glow_left.fill.solid(); glow_left.fill.fore_color.rgb = RGBColor(*_blend_rgb(bg_rgb, (160, 174, 192), 0.35))
+            _set_transparency(glow_left, 0.78)
+            glow_left.line.fill.background()
+
+            glow_right = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(right_x - glow_pad_x), Inches(glow_y), Inches(glow_w), Inches(glow_h))
+            glow_right.fill.solid(); glow_right.fill.fore_color.rgb = RGBColor(*_blend_rgb(bg_rgb, accent, 0.25))
+            _set_transparency(glow_right, 0.78)
+            glow_right.line.fill.background()
+
+            divider = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(center_x - 0.01), Inches(card_y - 0.15), Inches(0.02), Inches(card_h + 0.30))
+            divider.fill.solid(); divider.fill.fore_color.rgb = RGBColor(*_blend_rgb(bg_rgb, muted, 0.40))
+            _set_transparency(divider, 0.70)
+            divider.line.fill.background()
+
+            def _card(x0: float, hdr: str, pts: List[str], *, header_fill: Tuple[int, int, int], header_text: Tuple[int, int, int]) -> None:
+                card = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(card_y), Inches(card_w), Inches(card_h))
+                card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*(pal.get("bg", (255, 255, 255))))
+                card.line.fill.background()
+                try:
+                    card.shadow.inherit = False
+                    card.shadow.visible = True
+                    card.shadow.blur = 18
+                    card.shadow.distance = 3
+                except Exception:
+                    pass
+
+                band = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(card_y), Inches(card_w), Inches(header_h))
+                band.fill.solid(); band.fill.fore_color.rgb = RGBColor(*header_fill)
                 band.line.fill.background()
+                try:
+                    band.shadow.inherit = False
+                    band.shadow.visible = True
+                    band.shadow.blur = 12
+                    band.shadow.distance = 2
+                except Exception:
+                    pass
 
-                _add_textbox(slide, x0 + 0.22, start_y + 0.14, card_w - 0.44, 0.40, hdr, font_size_pt=16, bold=True, color=_contrast_text(band_fill), word_wrap=True, auto_fit=True)
+                _add_textbox(slide, x0 + 0.30, card_y + 0.14, card_w - 0.60, 0.40, hdr, font_size_pt=16, bold=True, color=header_text, word_wrap=True, auto_fit=True)
 
-                pts2 = (pts or [])[:n]
-                while len(pts2) < n:
-                    pts2.append("")
-
-                y0 = start_y + header_h + pad
-                for i in range(n):
+                y0 = card_y + header_h + 0.35
+                row_h = 0.52
+                dot_d = 0.085
+                dot_x = x0 + 0.45
+                txt_x = x0 + 0.62
+                max_rows = 4
+                pts2 = (pts or [])[:max_rows]
+                for i, t in enumerate(pts2):
                     yy = y0 + i * row_h
-                    txt = pts2[i]
-                    t = f"• {txt}" if txt else ""
-                    _add_textbox(slide, x0 + 0.22, yy, card_w - 0.44, row_h, t, font_size_pt=12, color=(text_rgb if txt else muted_rgb), word_wrap=True, auto_fit=True)
-                    if i < n - 1:
-                        sep = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(x0 + 0.20), Inches(yy + row_h - 0.06), Inches(card_w - 0.40), Inches(0.02))
-                        sep.fill.solid(); sep.fill.fore_color.rgb = RGBColor(*pal.get("muted", (203, 213, 225)))
-                        sep.line.fill.background()
+                    dot = slide.shapes.add_shape(MsoShape.OVAL, Inches(dot_x), Inches(yy + 0.16), Inches(dot_d), Inches(dot_d))
+                    dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(*accent)
+                    dot.line.fill.background()
+                    _add_textbox(slide, txt_x, yy + 0.05, card_w - (txt_x - x0) - 0.35, row_h, str(t), font_size_pt=13, color=text_rgb, word_wrap=True, auto_fit=True)
 
-            _card(left_x, left_heading, left_pts, accent_left)
-            _card(right_x, right_heading, right_pts, accent_right)
-
-            y0 = start_y + header_h + pad
-            for i in range(n):
-                yy = y0 + i * row_h
-                cy = yy + row_h / 2.0 - 0.18
-                tb = slide.shapes.add_textbox(Inches(chev_x), Inches(cy), Inches(chev_w), Inches(0.36)).text_frame
-                tb.clear()
-                p = tb.paragraphs[0]
-                p.text = "›"
-                p.alignment = PP_ALIGN.CENTER
-                p.font.size = Pt(22)
-                p.font.bold = True
-                p.font.color.rgb = RGBColor(*pal.get("muted", text_rgb))
+            # Left card: primary header
+            _card(left_x, left_heading, left_pts, header_fill=accent, header_text=(255, 255, 255))
+            # Right card: light header
+            right_fill = _blend_rgb(bg_rgb, pal.get("secondary", bg_rgb), 0.70)
+            _card(right_x, right_heading, right_pts, header_fill=right_fill, header_text=_shade(accent, -40))
 
         variant_raw = str(content.get("before_after_variant") or content.get("variant") or "").strip().lower()
         variant_map = {
-            "columns": "columns",
-            "two_columns": "columns",
-            "two-column": "columns",
-            "chevrons": "chevrons",
-            "arrows": "chevrons",
-            "connector": "chevrons",
+            "columns": "modern",
+            "two_columns": "modern",
+            "two-column": "modern",
+            "chevrons": "modern",
+            "arrows": "modern",
+            "connector": "modern",
+            "modern": "modern",
         }
         forced = variant_map.get(variant_raw)
-        chosen = choose_variant("before_after", ["columns", "chevrons"], forced=forced)
-        _debug_variant(family="before_after", chosen=chosen, eligible=["columns", "chevrons"], forced=forced)
-        if chosen == "chevrons":
-            _render_before_after_chevrons(s, content)
-            return
-        
-        # Two-column layout
-        start_x, start_y = 1.0, 2.2
-        col_w, col_h = 5.5, 4.0
-        gap = 0.8
-        
-        columns = [
-            ("before", "Before", 0),
-            ("after", "After", 1)
-        ]
-        
-        for key, label, col_idx in columns:
-            x = start_x + col_idx * (col_w + gap)
-            col_data = content.get(key, {})
-            heading = str(col_data.get("heading", label))[:50]
-            points = col_data.get("points", [])
-            
-            # Column container
-            col_box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(start_y), Inches(col_w), Inches(col_h))
-            col_box.fill.solid(); col_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
-            col_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
-            
-            # Column heading
-            _add_textbox(s, x + 0.15, start_y + 0.15, col_w - 0.3, 0.5, heading,
-                        font_size_pt=18, bold=True, color=pal["primary"], word_wrap=True)
-            
-            # Bullet points
-            if points:
-                bullet_text = "\n".join(f"• {str(p)[:60]}" for p in points[:8])  # Max 8 points
-                _add_textbox(s, x + 0.15, start_y + 0.7, col_w - 0.3, col_h - 0.85, bullet_text,
-                            font_size_pt=12, color=pal["text"], word_wrap=True, auto_fit=True)
+        chosen = choose_variant("before_after", ["modern"], forced=forced)
+        _debug_variant(family="before_after", chosen=chosen, eligible=["modern"], forced=forced)
+        _render_before_after_modern(s, content)
+        return
 
     def _render_architecture(sl) -> None:
         """Render architecture diagram with boxes and directional arrows."""
