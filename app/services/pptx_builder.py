@@ -6996,7 +6996,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
         hub = _hub_label(sl, content)
         step_cols = _step_colors()
-        cx, cy = SLIDE_W_IN / 2.0, 4.05
+        cx, cy = SLIDE_W_IN / 2.0, 4.65
 
         ring_d = 2.20
         ring = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - ring_d / 2), Inches(cy - ring_d / 2), Inches(ring_d), Inches(ring_d))
@@ -7028,15 +7028,24 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
         node_d = 1.22
         badge_d = 0.46
-        r = 3.55
-        angles = [-math.pi / 2.0, -math.pi / 6.0, math.pi / 6.0, math.pi / 2.0, 5.0 * math.pi / 6.0, -5.0 * math.pi / 6.0]
-        for i, raw in enumerate(items):
-            ang = angles[i % len(angles)]
+        n_nodes = 6
+        node_r = node_d / 2.0
+        angles = [(-math.pi / 2.0) + (2.0 * math.pi / n_nodes) * i for i in range(n_nodes)]
+
+        ring_r = ring_d / 2.0
+        top_limit = 1.95
+        bottom_margin = 0.15
+        gap = 0.22
+        r_min = ring_r + node_r + gap
+        r_max = min((cy - top_limit) - node_r, (SLIDE_H_IN - bottom_margin - cy) - node_r)
+        desired_r = max(r_min, min(2.05, r_max))
+        r = max(r_min, min(desired_r, r_max))
+
+        for i, raw in enumerate(items[:n_nodes]):
+            ang = angles[i]
             tx = cx + r * math.cos(ang)
-            ty = cy + (r * 0.86) * math.sin(ang)
-            nx, ny = tx - node_d / 2.0, ty - node_d / 2.0
-            nx = max(0.55, min(SLIDE_W_IN - 0.55 - node_d, nx))
-            ny = max(1.95, min(SLIDE_H_IN - 0.70 - node_d, ny))
+            ty = cy + r * math.sin(ang)
+            nx, ny = tx - node_r, ty - node_r
 
             col = step_cols[i % len(step_cols)]
             node = s.shapes.add_shape(MsoShape.OVAL, Inches(nx), Inches(ny), Inches(node_d), Inches(node_d))
@@ -7092,11 +7101,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             rr = bp.add_run(); rr.text = f"{i+1:02d}"; rr.font.size = Pt(10); rr.font.bold = True; rr.font.color.rgb = RGBColor(255, 255, 255)
 
             # connector
-            vx, vy = (nx + node_d / 2.0) - cx, (ny + node_d / 2.0) - cy
-            d = (vx * vx + vy * vy) ** 0.5 or 1.0
-            ux, uy = vx / d, vy / d
-            sx, sy = cx + ux * (core_d / 2.0), cy + uy * (core_d / 2.0)
-            ex, ey = (nx + node_d / 2.0) - ux * (node_d / 2.0), (ny + node_d / 2.0) - uy * (node_d / 2.0)
+            ux, uy = math.cos(ang), math.sin(ang)
+            sx, sy = cx + ux * ring_r, cy + uy * ring_r
+            ex, ey = cx + ux * (r - node_r), cy + uy * (r - node_r)
             conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(sx), Inches(sy), Inches(ex), Inches(ey))
             conn.line.color.rgb = RGBColor(*_shade(col, -10))
             conn.line.width = Pt(1.75)
