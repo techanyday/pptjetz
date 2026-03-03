@@ -371,6 +371,25 @@ def ai_business_presentation_generator_page() -> Any:
 
 
 
+@bp.get("/ai-presentation-generator")
+
+def ai_presentation_generator_page() -> Any:
+
+    return render_template("ai_presentation_generator.html")
+
+
+
+
+@bp.get("/create-timeline-slides-with-ai")
+
+def create_timeline_slides_with_ai_page() -> Any:
+
+    return render_template("create_timeline_slides_with_ai.html")
+
+
+
+
+
 @bp.get("/ai-product-presentation-generator")
 
 def ai_product_presentation_generator_page() -> Any:
@@ -7267,6 +7286,12 @@ def sitemap_xml_route() -> Any:
         {"loc": url_for('main.privacy', _external=True), "changefreq": "yearly", "priority": "0.2"},
 
         {"loc": url_for('main.terms', _external=True), "changefreq": "yearly", "priority": "0.2"},
+
+        {"loc": url_for('main.ai_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_business_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.create_timeline_slides_with_ai_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
     ]
 

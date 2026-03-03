@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Create Timeline Slides with AI – Free & Unlimited | PPTJet{% endblock %}
+{% block description %}Create structured project and strategy timeline slides instantly with AI — free and unlimited.{% endblock %}
+{% block og_title %}Create Timeline Slides with AI – Free & Unlimited | PPTJet{% endblock %}
+{% block og_description %}Create structured project and strategy timeline slides instantly with AI — free and unlimited.{% endblock %}
+{% block tw_title %}Create Timeline Slides with AI – Free & Unlimited | PPTJet{% endblock %}
+{% block tw_description %}Create structured project and strategy timeline slides instantly with AI — free and unlimited.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/create-timeline-slides-with-ai",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "PPTJet lets you create structured timeline slides with AI (linear, vertical, horizontal, chevrons, roadmap bands, ring milestones, and phase-based timelines). Free and unlimited."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Can I create timeline slides with AI for free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet is free and supports unlimited timeline slide generation and exports."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What timeline slide variants can PPTJet generate?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "PPTJet can generate linear, vertical, and horizontal timelines, chevron timeline styles, roadmap bands, ring-based milestone layouts, and phase-based project timelines."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I use this for project planning and strategy roadmaps?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet timeline slides work well for project plans, product launches, rollout strategies, implementation plans, and investment roadmaps."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I get an editable PowerPoint timeline slide?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet exports a real .pptx file that you can open and edit in Microsoft PowerPoint."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How should I format milestones for best results?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Provide short milestone labels (optionally with a brief description). PPTJet will structure and format them into a timeline layout optimized for clarity."
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Create Timeline Slides with AI for Clear Visual Progression</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Timelines communicate progression, milestones, and strategy.
+      </p>
+      <p class="mt-3 text-gray-700">
+        PPTJet lets you generate AI-powered timeline slides instantly — completely <strong>free</strong> and <strong>unlimited</strong>.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Start Creating for Free
+        </a>
+        <a href="{{ url_for('main.ai_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
+          Explore all slide types
+        </a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="timeline-variants">
+      <h2 id="timeline-variants" class="text-2xl font-bold text-gray-900">Timeline Variants</h2>
+      <p class="mt-3 text-gray-700">Generate:</p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li>Linear timelines</li>
+        <li>Vertical timelines</li>
+        <li>Horizontal timelines</li>
+        <li>Chevron timelines</li>
+        <li>Roadmap bands</li>
+        <li>Ring-based milestone layouts</li>
+        <li>Phase-based project timelines</li>
+      </ul>
+      <p class="mt-4 text-gray-700">Each built for clarity.</p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="use-cases">
+      <h2 id="use-cases" class="text-2xl font-bold text-gray-900">Use Cases</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li>Project planning</li>
+        <li>Strategy rollout</li>
+        <li>Product launches</li>
+        <li>Implementation plans</li>
+        <li>Investment roadmaps</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how-it-works">
+      <h2 id="how-it-works" class="text-2xl font-bold text-gray-900">How It Works</h2>
+      <ol class="mt-3 list-decimal pl-6 text-gray-700">
+        <li>Enter milestones</li>
+        <li>Choose a style</li>
+        <li>AI generates structured timeline slides</li>
+        <li>Refine and export</li>
+      </ol>
+      <p class="mt-4 text-gray-700">Unlimited decks. No trial restrictions.</p>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I create timeline slides with AI for free?</dt>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet is free and unlimited.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Which timeline styles work best for executive updates?</dt>
+          <dd class="mt-2 text-gray-700">Roadmap bands and clean milestone timelines tend to work best for leadership slides.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can PPTJet generate project phases (not just dates)?</dt>
+          <dd class="mt-2 text-gray-700">Yes. You can provide phase names and milestones, and PPTJet will format them into a phase-based timeline layout.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Do I get an editable PowerPoint file?</dt>
+          <dd class="mt-2 text-gray-700">Yes. You can export a .pptx and edit it normally in PowerPoint.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Where can I see other structured slide types besides timelines?</dt>
+          <dd class="mt-2 text-gray-700">
+            Visit the <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a> page.
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
+      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li>
+          <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a>
+        </li>
+        <li>
+          <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a>
+        </li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Generate timeline slides in minutes</h2>
+          <p class="mt-1 text-gray-700">Free & unlimited. Create, refine, and export to PowerPoint.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Start Creating for Free
+        </a>
+      </div>
+    </section>
+  </article>
+</main>
+{% endblock %}

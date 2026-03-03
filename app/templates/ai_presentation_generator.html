@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}AI Presentation Generator – Free & Unlimited Slides | PPTJet{% endblock %}
+{% block description %}Create structured, visual presentations instantly with AI. Generate timelines, roadmaps, infographics, SWOT and more — free and unlimited.{% endblock %}
+{% block og_title %}AI Presentation Generator – Free & Unlimited Slides | PPTJet{% endblock %}
+{% block og_description %}Create structured, visual presentations instantly with AI. Generate timelines, roadmaps, infographics, SWOT and more — free and unlimited.{% endblock %}
+{% block tw_title %}AI Presentation Generator – Free & Unlimited Slides | PPTJet{% endblock %}
+{% block tw_description %}Create structured, visual presentations instantly with AI. Generate timelines, roadmaps, infographics, SWOT and more — free and unlimited.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/ai-presentation-generator",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "PPTJet is an AI presentation generator that creates structured, visual slide decks with timelines, roadmaps, infographics, SWOT, KPIs, risk matrices, architecture diagrams, before/after comparisons, and more. Free and unlimited."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is PPTJet free and unlimited?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet is free and supports unlimited slide deck generation and exports. No credit card required."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What kinds of slide layouts can PPTJet generate?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "PPTJet generates structured visual slide types such as timelines, roadmaps, impact maps (hub-and-spoke), process flows/chevrons, SWOT, KPIs, risk matrices, prioritization grids, architecture diagrams, before-and-after comparisons, and comparison tables/cards."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I get a real PowerPoint file (.pptx) that I can edit?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet exports a standard .pptx file you can open and edit in Microsoft PowerPoint."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I need design skills or templates to start?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. PPTJet builds a structured deck with visual storytelling layouts automatically, so you don’t start from blank slides."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I generate business and technical presentations with PPTJet?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet supports business strategy slides (SWOT, KPIs, roadmaps) and technical slides (architecture diagrams, process flows) in the same generation workflow."
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Presentation Generator for Structured, Visual Slides</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Create AI-powered presentations instantly with built-in visual storytelling — <strong>free</strong> and <strong>unlimited</strong>.
+      </p>
+      <p class="mt-3 text-gray-700">
+        PPTJet transforms rough ideas, notes, and outlines into structured slide decks with intelligent visual layouts.
+        No blank slides. No design struggle. No limits.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Start Creating for Free
+        </a>
+        <a href="{{ url_for('main.ai_business_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
+          Explore business slide types
+        </a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="what-you-can-generate">
+      <h2 id="what-you-can-generate" class="text-2xl font-bold text-gray-900">What You Can Generate</h2>
+      <p class="mt-3 text-gray-700">
+        With PPTJet, you don’t just get text on slides. You get structured visual elements designed to communicate clearly:
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li>Timelines that show progression clearly</li>
+        <li>Roadmaps that align milestones with strategy</li>
+        <li>Impact maps and hub-and-spoke visuals</li>
+        <li>Process flows and chevrons that explain workflows instantly</li>
+        <li>SWOT analysis and KPI slides for measurable strategy</li>
+        <li>Risk matrices and prioritization grids</li>
+        <li>Architecture diagrams for technical systems</li>
+        <li>Before-and-after comparisons</li>
+        <li>Comparison tables and decision cards</li>
+        <li>Cyclic loops for ongoing processes</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="who-its-for">
+      <h2 id="who-its-for" class="text-2xl font-bold text-gray-900">Who It’s For</h2>
+      <p class="mt-3 text-gray-700">
+        Consultants, business leaders, product managers, startup founders, analysts, technical teams, educators.
+      </p>
+      <p class="mt-3 text-gray-700">
+        If you need structured communication, PPTJet is built for you.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how-it-works">
+      <h2 id="how-it-works" class="text-2xl font-bold text-gray-900">How It Works</h2>
+      <ol class="mt-3 list-decimal pl-6 text-gray-700">
+        <li>Enter your topic or outline</li>
+        <li>Choose a presentation style</li>
+        <li>PPTJet generates a fully structured, visual deck</li>
+        <li>Edit and export</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        Unlimited decks. No credit card required.
+      </p>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is PPTJet really free and unlimited?</dt>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet is free and supports unlimited generation and exports with no credit card required.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">What should I input to get the best results?</dt>
+          <dd class="mt-2 text-gray-700">A topic, rough outline, or a list of key points works best. PPTJet converts it into structured slide sections and visual layouts.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Does PPTJet generate visual slide types, or only bullet slides?</dt>
+          <dd class="mt-2 text-gray-700">It generates structured visual layouts like timelines, roadmaps, SWOT, KPIs, risk matrices, and hub-and-spoke diagrams.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I edit the slides after generating?</dt>
+          <dd class="mt-2 text-gray-700">Yes. You can export a real PowerPoint file and edit everything in PowerPoint like any normal deck.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">What’s the best page if I need executive strategy slides?</dt>
+          <dd class="mt-2 text-gray-700">Start with the <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a> page to see strategy and executive slide types.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
+      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li>
+          <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a>
+        </li>
+        <li>
+          <a class="text-blue-600 hover:underline" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">create timeline slides with AI</a>
+        </li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Ready to generate a structured deck?</h2>
+          <p class="mt-1 text-gray-700">Free and unlimited. Generate, refine, and export to PowerPoint.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Start Creating for Free
+        </a>
+      </div>
+    </section>
+  </article>
+</main>
+{% endblock %}
