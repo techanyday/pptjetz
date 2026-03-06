@@ -22,6 +22,8 @@ import threading
 
 import time
 
+import secrets
+
 import requests
 
 import sys
@@ -7239,6 +7241,143 @@ def admin_pricing_delete() -> Any:
 
 
 
+
+
+# ---------- SEO: IndexNow (Bing) ----------
+
+_INDEXNOW_KEY_DEFAULT = "81c78f79b06249f588fcc66bf8c96806"
+
+
+def _indexnow_key() -> str:
+
+    return (os.environ.get("INDEXNOW_KEY") or _INDEXNOW_KEY_DEFAULT).strip()
+
+
+def _indexnow_host() -> str:
+
+    host = (os.environ.get("INDEXNOW_HOST") or "").strip()
+
+    if host:
+
+        return host
+
+    try:
+
+        h = (request.host or "").strip()
+
+        return (h.split(":", 1)[0] or "pptjet.com").strip()
+
+    except Exception:
+
+        return "pptjet.com"
+
+
+@bp.get("/<key>.txt")
+
+def indexnow_key_file(key: str) -> Any:
+
+    k = _indexnow_key()
+
+    if key != k:
+
+        abort(404)
+
+    return Response(k, mimetype="text/plain")
+
+
+@bp.post("/indexnow/submit")
+
+def indexnow_submit() -> Any:
+
+    submit_token = (os.environ.get("INDEXNOW_SUBMIT_TOKEN") or "").strip()
+
+    if not submit_token:
+
+        abort(404)
+
+    auth = (request.headers.get("Authorization") or "").strip()
+
+    bearer = ""
+
+    if auth.lower().startswith("bearer "):
+
+        bearer = auth.split(" ", 1)[1].strip()
+
+    provided = (
+
+        (request.headers.get("X-IndexNow-Token") or "").strip()
+
+        or (request.args.get("token") or "").strip()
+
+        or bearer
+
+    )
+
+    if not provided or not secrets.compare_digest(provided, submit_token):
+
+        abort(403)
+
+    data = request.get_json(silent=True) or {}
+
+    url_list = data.get("urlList") or data.get("urls") or []
+
+    if isinstance(url_list, str):
+
+        url_list = [url_list]
+
+    if not isinstance(url_list, list):
+
+        return jsonify({"ok": False, "error": "Invalid urlList"}), 400
+
+    url_list = [str(u).strip() for u in url_list if str(u).strip()]
+
+    if not url_list:
+
+        return jsonify({"ok": False, "error": "Missing urlList"}), 400
+
+    host = _indexnow_host()
+
+    k = _indexnow_key()
+
+    key_location = f"https://{host}/{k}.txt"
+
+    endpoint = (os.environ.get("INDEXNOW_ENDPOINT") or "https://api.indexnow.org/indexnow").strip()
+
+    payload = {
+
+        "host": host,
+
+        "key": k,
+
+        "keyLocation": key_location,
+
+        "urlList": url_list,
+
+    }
+
+    try:
+
+        resp = requests.post(endpoint, json=payload, timeout=12)
+
+        return jsonify({
+
+            "ok": resp.ok,
+
+            "status": resp.status_code,
+
+            "response": (resp.text or "")[:4000],
+
+            "submitted": len(url_list),
+
+            "host": host,
+
+            "keyLocation": key_location,
+
+        }), (200 if resp.ok else 502)
+
+    except Exception as exc:
+
+        return jsonify({"ok": False, "error": str(exc), "submitted": len(url_list)}), 502
 
 
 # ---------- SEO: robots.txt and sitemap.xml ----------
