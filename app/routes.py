@@ -524,23 +524,33 @@ def ads_txt() -> Any:
 
     """
 
-    target = os.environ.get("EZOIC_ADSTXT_URL")
+    target = (os.environ.get("EZOIC_ADSTXT_URL") or "").strip()
 
     if target:
 
-        resp = redirect(target, code=301)
-
         try:
 
-            resp.headers["X-AdsTxt-Source"] = "ezoic-redirect"
+            upstream = requests.get(target, timeout=12)
 
-            resp.headers["Cache-Control"] = "no-store, max-age=0"
+            if upstream.ok and (upstream.text or "").strip():
+
+                resp = Response(upstream.text, mimetype="text/plain")
+
+                try:
+
+                    resp.headers["X-AdsTxt-Source"] = "ezoic-proxy"
+
+                    resp.headers["Cache-Control"] = "no-store, max-age=0"
+
+                except Exception:
+
+                    pass
+
+                return resp
 
         except Exception:
 
             pass
-
-        return resp
 
     resp = send_from_directory(current_app.static_folder, "ads.txt")
 
