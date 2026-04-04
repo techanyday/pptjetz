@@ -41,6 +41,9 @@
     /></noscript>
     <!-- End Meta Pixel Code -->
     {% endif %}
+    {% if BING_UET_ENABLED and BING_UET_TAG_ID %}
+    <script>(function(w, d, t, u, o) {w[u] = w[u] || [], o.ts = (new Date).getTime();var n = d.createElement(t);n.src = "https://bat.bing.net/bat.js?ti=" + o.ti + ("uetq" != u ? "&q=" + u : ""),n.async = 1, n.onload = n.onreadystatechange = function() {var s = this.readyState;s && "loaded" !== s && "complete" !== s ||(o.q = w[u], w[u] = new UET(o), w[u].push("pageLoad"),n.onload = n.onreadystatechange = null)};var i = d.getElementsByTagName(t)[0];i.parentNode.insertBefore(n, i);})(window, document, "script", "uetq", {ti:"{{ BING_UET_TAG_ID }}",enableAutoSpaTracking: true});</script>
+    {% endif %}
     {% if META_PIXEL_ENABLED and META_PIXEL_ID %}
     {% if session.get('just_registered') or request.args.get('reg') == '1' %}
     <script>

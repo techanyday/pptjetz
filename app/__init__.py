@@ -165,6 +165,8 @@ def create_app():
             # Meta Pixel
             "META_PIXEL_ENABLED": os.environ.get("META_PIXEL_ENABLED", "0") == "1",
             "META_PIXEL_ID": os.environ.get("META_PIXEL_ID", "1784365095778916"),
+            "BING_UET_ENABLED": os.environ.get("BING_UET_ENABLED", "0") == "1",
+            "BING_UET_TAG_ID": os.environ.get("BING_UET_TAG_ID", ""),
             # Google Search Console site verification (URL-prefix property via meta tag)
             "GOOGLE_SITE_VERIFICATION": os.environ.get("GOOGLE_SITE_VERIFICATION", ""),
         }
