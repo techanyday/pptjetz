@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Export to PPTX (PowerPoint) – Free & Editable | PPTJet{% endblock %}
+{% block description %}Export AI-generated slides to an editable PowerPoint .pptx file. Download instantly, edit in Microsoft PowerPoint, and share with your team. Free, unlimited exports with PPTJet.{% endblock %}
+{% block og_title %}Export to PPTX (PowerPoint) – Free & Editable | PPTJet{% endblock %}
+{% block og_description %}Export AI-generated slides to an editable PowerPoint .pptx file. Download instantly, edit in Microsoft PowerPoint, and share with your team. Free, unlimited exports with PPTJet.{% endblock %}
+{% block tw_title %}Export to PPTX (PowerPoint) – Free & Editable | PPTJet{% endblock %}
+{% block tw_description %}Export AI-generated slides to an editable PowerPoint .pptx file. Download instantly, edit in Microsoft PowerPoint, and share with your team. Free, unlimited exports with PPTJet.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/export-to-pptx",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "description": "PPTJet lets you export AI-generated presentations to an editable PowerPoint (.pptx) file for free."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "What does export to PPTX mean?", "acceptedAnswer": {"@type": "Answer", "text": "It means downloading your presentation as a standard PowerPoint (.pptx) file that you can open and edit."}},
+    {"@type": "Question", "name": "Is the PPTX editable?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. The export is editable in Microsoft PowerPoint."}},
+    {"@type": "Question", "name": "Is export free and unlimited?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet supports free, unlimited exports."}}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Export to PPTX</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        “Export to PPTX” is the step that makes an AI-generated deck useful in the real world.
+        A PPTX file is the standard PowerPoint format used for editing, presenting, and sharing across teams.
+        PPTJet exports a real, editable .pptx so you can refine the deck and send it with confidence.
+      </p>
+      <p class="mt-3 text-gray-700">
+        The benefit is control.
+        AI can draft structure and wording fast.
+        PowerPoint is still where you finalize brand style, add screenshots, update numbers, and align with stakeholder feedback.
+        PPTJet is designed to fit that workflow.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Generate and export</a>
+        <a href="{{ url_for('main.pptx_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">What is a PPTX generator?</a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="why">
+      <h2 id="why" class="text-2xl font-bold text-gray-900">Why PPTX Export Matters</h2>
+      <p class="mt-3 text-gray-700">
+        Some tools generate “presentations” that you can’t really use: locked layouts, screenshots, or formats that fall apart when you edit.
+        A real PPTX export keeps your deck practical.
+        You can collaborate with teammates, adjust content, and present from a file that your organization already trusts.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Editability</strong>: change text, reorder slides, and adjust layout without rebuilding.</li>
+        <li><strong>Compatibility</strong>: open in PowerPoint and share with stakeholders easily.</li>
+        <li><strong>Brand control</strong>: apply themes, fonts, and templates you already use.</li>
+        <li><strong>Review workflow</strong>: comments, track changes, and internal approvals happen in PPT.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how">
+      <h2 id="how" class="text-2xl font-bold text-gray-900">How to Export a PPTX with PPTJet</h2>
+      <p class="mt-3 text-gray-700">
+        Export is designed to be simple.
+        You draft your deck, then download.
+        After that, you refine in PowerPoint.
+        If your deck is going to be shared, the best practice is to do a quick polish pass.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Generate</strong>: enter your topic or outline and pick a style.</li>
+        <li><strong>Review</strong>: skim the slide order and adjust missing sections if needed.</li>
+        <li><strong>Download</strong>: export the deck as a .pptx file.</li>
+        <li><strong>Polish</strong>: apply your theme, update details, and add visuals.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        For text-heavy input, start with
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a>
+        so paragraphs are turned into clean slide bullets.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="polish">
+      <h2 id="polish" class="text-2xl font-bold text-gray-900">A Quick Polish Checklist</h2>
+      <p class="mt-3 text-gray-700">
+        Export gets you to a usable file.
+        A small polish pass makes it presentation-ready.
+        These steps are fast and make a big difference.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Rewrite slide titles</strong> so they state the conclusion.</li>
+        <li><strong>Reduce text</strong> so each slide is scannable in seconds.</li>
+        <li><strong>Add one strong visual per section</strong>: chart, screenshot, diagram, or example.</li>
+        <li><strong>Check consistency</strong>: spacing, font sizes, and alignment across slides.</li>
+        <li><strong>Make next steps explicit</strong>: end with actions and owners.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is the exported PPTX editable?</dt>
+          <dd class="mt-2 text-gray-700">Yes. You can open and edit the file in Microsoft PowerPoint.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Does the export have a watermark?</dt>
+          <dd class="mt-2 text-gray-700">No. PPTJet exports without a watermark.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">What’s the best starting page?</dt>
+          <dd class="mt-2 text-gray-700">Start with the <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_presentation_generator_page') }}">free AI presentation generator</a> if you want an overview.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
+      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_presentation_generator_page') }}">free AI presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_powerpoint_generator_page') }}">free PowerPoint generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.pptx_generator_page') }}">PPTX generator</a></li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Export an editable deck now</h2>
+          <p class="mt-1 text-gray-700">Generate a draft and download the PowerPoint file instantly.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Start Creating for Free</a>
+      </div>
+    </section>
+  </article>
+</main>
+{% endblock %}

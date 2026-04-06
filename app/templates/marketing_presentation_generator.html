@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}AI Marketing Presentation Generator (Free) | PPTJet{% endblock %}
+{% block description %}Generate a marketing presentation with AI. Create an editable PowerPoint (.pptx) for campaigns, positioning, launches, and performance updates — free and unlimited with PPTJet.{% endblock %}
+{% block og_title %}AI Marketing Presentation Generator (Free) | PPTJet{% endblock %}
+{% block og_description %}Generate a marketing presentation with AI. Create an editable PowerPoint (.pptx) for campaigns, positioning, launches, and performance updates — free and unlimited with PPTJet.{% endblock %}
+{% block tw_title %}AI Marketing Presentation Generator (Free) | PPTJet{% endblock %}
+{% block tw_description %}Generate a marketing presentation with AI. Create an editable PowerPoint (.pptx) for campaigns, positioning, launches, and performance updates — free and unlimited with PPTJet.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/marketing-presentation-generator",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "description": "PPTJet is a free AI marketing presentation generator that creates structured slide decks and exports editable PowerPoint (.pptx) files."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Is PPTJet free for marketing decks?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet is free and supports unlimited generation and exports."}},
+    {"@type": "Question", "name": "Can I generate launch and campaign slides?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. You can generate decks for launches, campaigns, positioning, and performance updates."}},
+    {"@type": "Question", "name": "Is the PowerPoint editable?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. You export a standard .pptx file and can edit it in Microsoft PowerPoint."}}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Marketing Presentation Generator</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Marketing presentations do one main thing: they help people see the story.
+        Whether you’re explaining a campaign plan, positioning, a go-to-market launch, or performance results, the deck has to be clear, visual, and structured.
+        PPTJet helps you generate a first draft in minutes so you can spend time on creative and strategy instead of slide formatting.
+      </p>
+      <p class="mt-3 text-gray-700">
+        PPTJet is <strong>free</strong>, supports <strong>unlimited exports</strong>, and produces an editable PowerPoint file.
+        You can download a .pptx, apply your brand theme, and refine messaging for different audiences.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Generate a marketing deck</a>
+        <a href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">Need KPI slides?</a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="use-cases">
+      <h2 id="use-cases" class="text-2xl font-bold text-gray-900">Common Marketing Deck Use Cases</h2>
+      <p class="mt-3 text-gray-700">
+        Marketing teams create decks constantly.
+        Some are forward-looking (plans and strategy), and others are backward-looking (results and learnings).
+        PPTJet can draft both types as long as you provide the goal and a few constraints.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Campaign plans</strong>: audience, channels, creative themes, and timeline.</li>
+        <li><strong>Product launch decks</strong>: positioning, messaging, rollout plan, and enablement.</li>
+        <li><strong>Performance updates</strong>: KPIs, insights, wins, and next experiments.</li>
+        <li><strong>Brand narratives</strong>: category story, differentiators, and proof.</li>
+        <li><strong>Stakeholder alignment</strong>: what you need from sales, product, or leadership.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="structure">
+      <h2 id="structure" class="text-2xl font-bold text-gray-900">A Strong Marketing Presentation Structure</h2>
+      <p class="mt-3 text-gray-700">
+        The best marketing decks feel like a short narrative.
+        They build context, reveal insights, and end with a plan.
+        Use this structure as a starting point and adjust based on audience.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Context</strong>: what changed in the market and why now.</li>
+        <li><strong>Audience</strong>: who we are targeting and what they care about.</li>
+        <li><strong>Positioning</strong>: category, message, and differentiation.</li>
+        <li><strong>Plan</strong>: channels, creative angles, timeline, and budget assumptions.</li>
+        <li><strong>Measurement</strong>: KPIs, dashboards, and reporting cadence.</li>
+        <li><strong>Risks</strong>: constraints, dependencies, and mitigations.</li>
+        <li><strong>Next steps</strong>: decisions needed and owners.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        For timeline-heavy launches, consider using structured timeline slides.
+        You can start at
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">create timeline slides with AI</a>
+        and build your launch deck around it.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="inputs">
+      <h2 id="inputs" class="text-2xl font-bold text-gray-900">What to Enter for Better Output</h2>
+      <p class="mt-3 text-gray-700">
+        Marketing decks become generic when the inputs are generic.
+        Provide a few real details and the draft becomes far more usable.
+        You don’t need final copy, just the key facts.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Goal</strong>: awareness, pipeline, activation, retention, or launch readiness.</li>
+        <li><strong>Audience segments</strong>: roles, company size, and pain points.</li>
+        <li><strong>Message pillars</strong>: 3–5 main claims you want to reinforce.</li>
+        <li><strong>Channels</strong>: email, paid, SEO, events, partnerships, sales enablement.</li>
+        <li><strong>KPIs</strong>: target metrics, baselines, and reporting cadence.</li>
+        <li><strong>Timeline</strong>: milestones and deadlines.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you’re pasting raw notes or a brief, you can start from
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a>
+        and then polish the deck after export.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="visuals">
+      <h2 id="visuals" class="text-2xl font-bold text-gray-900">Slide Types That Work Well for Marketing</h2>
+      <p class="mt-3 text-gray-700">
+        Clear visuals reduce debate.
+        Instead of long paragraphs, show the plan in a simple structure.
+        PPTJet supports structured formats that are common in marketing decks.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Timelines</strong>: launch phases, campaign calendar, rollout plan.</li>
+        <li><strong>KPI dashboards</strong>: performance snapshots and trend highlights.</li>
+        <li><strong>Roadmaps</strong>: initiative sequencing across quarters.</li>
+        <li><strong>Comparison tables</strong>: positioning vs alternatives.</li>
+        <li><strong>Risk matrices</strong>: risks, likelihood, and mitigations.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you need a KPI-focused deck, the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides generator</a>
+        is a good starting point.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is PPTJet free?</dt>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet is free and supports unlimited generation and exports.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I make this match my brand?</dt>
+          <dd class="mt-2 text-gray-700">Yes. Export to .pptx and apply your brand theme and fonts in PowerPoint.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I use this for launch decks?</dt>
+          <dd class="mt-2 text-gray-700">Yes. Provide a launch plan and timeline, then refine slides with your final messaging.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
+      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">timeline slides</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_powerpoint_generator_page') }}">free PowerPoint generator</a></li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Generate a marketing deck draft now</h2>
+          <p class="mt-1 text-gray-700">Get structure fast, then refine messaging and visuals.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Start Creating for Free</a>
+      </div>
+    </section>
+  </article>
+</main>
+{% endblock %}

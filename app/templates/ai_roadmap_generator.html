@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}AI Roadmap Generator (Free & Unlimited) | PPTJet{% endblock %}
+{% block description %}Generate roadmap slides in minutes with AI. Create structured, editable PowerPoint roadmaps you can customize for product, strategy, and project planning—free and unlimited with PPTJet.{% endblock %}
+{% block og_title %}AI Roadmap Generator (Free & Unlimited){% endblock %}
+{% block og_description %}Generate roadmap slides in minutes with AI. Create structured, editable PowerPoint roadmaps you can customize for product, strategy, and project planning—free and unlimited with PPTJet.{% endblock %}
+{% block tw_title %}AI Roadmap Generator (Free & Unlimited){% endblock %}
+{% block tw_description %}Generate roadmap slides in minutes with AI. Create structured, editable PowerPoint roadmaps you can customize for product, strategy, and project planning—free and unlimited with PPTJet.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/ai-roadmap-generator",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "PPTJet is an AI roadmap generator that creates structured roadmap slides as an editable PowerPoint (.pptx). Free and unlimited."
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Roadmap Generator for Clear, Executable Roadmap Slides</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Roadmaps are only useful when they’re easy to read and easy to update. If your roadmap slide is a wall of text or a messy table, stakeholders won’t remember it—and your team won’t trust it.
+      </p>
+      <p class="mt-3 text-gray-700">
+        PPTJet is an AI roadmap generator that turns a short brief into a structured roadmap slide (or a small roadmap sequence) you can export and edit in PowerPoint.
+        Use it for product roadmaps, strategy roadmaps, transformation programs, project delivery plans, and cross-team planning.
+      </p>
+      <p class="mt-3 text-gray-700">
+        The goal is not to “predict the future.” The goal is to align teams on what’s next, what’s important, and how progress will be communicated.
+        PPTJet helps you start from a layout designed for clarity so you can focus on the decisions and trade-offs behind the plan.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Generate roadmap slides
+        </a>
+        <a href="{{ url_for('main.create_timeline_slides_with_ai_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
+          Timeline slides with AI
+        </a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="roadmap-formats">
+      <h2 id="roadmap-formats" class="text-2xl font-bold text-gray-900">Roadmap Slide Formats That Work</h2>
+      <p class="mt-3 text-gray-700">
+        A roadmap is a communication tool. The format should match the audience.
+        PPTJet can generate roadmap layouts that are readable in a meeting and still detailed enough to guide follow-up.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Now / Next / Later</strong> roadmaps for high-level strategy alignment</li>
+        <li><strong>Quarterly roadmaps</strong> for leadership updates and QBRs</li>
+        <li><strong>Milestone roadmaps</strong> for delivery planning and program updates</li>
+        <li><strong>Theme-based roadmaps</strong> grouped by outcomes (not features)</li>
+        <li><strong>Cross-functional roadmaps</strong> showing streams (Product, Eng, GTM, Ops)</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If your roadmap needs dates, choose a timeline style. If your roadmap is more about priorities, a theme-based structure is often clearer.
+        The best roadmap slide communicates scope, focus, and sequencing without pretending everything is certain.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how-to-brief">
+      <h2 id="how-to-brief" class="text-2xl font-bold text-gray-900">What to Include in Your Roadmap Brief</h2>
+      <p class="mt-3 text-gray-700">
+        To generate a roadmap slide that feels realistic, provide a few constraints and a few outcomes.
+        You don’t need a full PRD—just enough to anchor the slide.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Audience</strong> (execs, customers, internal team, cross-functional planning)</li>
+        <li><strong>Horizon</strong> (next 6 weeks, quarter, half-year, year)</li>
+        <li><strong>Themes</strong> (reliability, onboarding, growth, cost reduction, security)</li>
+        <li><strong>Key initiatives</strong> with short labels and optional descriptions</li>
+        <li><strong>Dependencies / risks</strong> that need to be surfaced (vendors, hiring, migrations)</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        A roadmap slide is strongest when it’s tied to outcomes.
+        Instead of “build feature X,” consider “reduce time-to-value,” “improve retention,” or “unlock enterprise readiness.”
+        The slide becomes a story about impact, not a backlog.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="roadmap-for-different-teams">
+      <h2 id="roadmap-for-different-teams" class="text-2xl font-bold text-gray-900">Roadmap Slides for Product, Strategy, and Delivery Teams</h2>
+      <p class="mt-3 text-gray-700">
+        The word “roadmap” means different things to different teams.
+        PPTJet is designed to help you generate a baseline slide you can tailor to the conversation.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Product roadmaps</strong> that balance discovery, delivery, and measurement</li>
+        <li><strong>Company strategy roadmaps</strong> that connect initiatives to goals and KPIs</li>
+        <li><strong>Project roadmaps</strong> that show phases, milestones, and deliverables</li>
+        <li><strong>Transformation roadmaps</strong> that make change programs tangible and trackable</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        After export, you can edit the slide like any other PowerPoint file.
+        Swap the labels, adjust the timeline, add your branding, and keep the structure.
+        The real win is having a consistent format you can update every month without redesigning from scratch.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="cta">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Create your roadmap slide in minutes</h2>
+          <p class="mt-1 text-gray-700">Free & unlimited. Generate, export to PowerPoint, and refine with your team.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Start Creating for Free
+        </a>
+      </div>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related">
+      <h2 id="related" class="text-2xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_product_presentation_generator_page') }}">AI product presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">create timeline slides with AI</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides generator</a></li>
+      </ul>
+    </section>
+  </article>
+</main>
+{% endblock %}

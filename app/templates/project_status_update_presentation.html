@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Project Status Update Presentation Generator (AI, Free) | PPTJet{% endblock %}
+{% block description %}Generate a project status update presentation with AI. Create an editable PowerPoint (.pptx) for weekly updates, steering committees, and stakeholder reviews — free and unlimited with PPTJet.{% endblock %}
+{% block og_title %}Project Status Update Presentation Generator (AI, Free) | PPTJet{% endblock %}
+{% block og_description %}Generate a project status update presentation with AI. Create an editable PowerPoint (.pptx) for weekly updates, steering committees, and stakeholder reviews — free and unlimited with PPTJet.{% endblock %}
+{% block tw_title %}Project Status Update Presentation Generator (AI, Free) | PPTJet{% endblock %}
+{% block tw_description %}Generate a project status update presentation with AI. Create an editable PowerPoint (.pptx) for weekly updates, steering committees, and stakeholder reviews — free and unlimited with PPTJet.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/project-status-update-presentation",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "description": "PPTJet is a free AI generator for project status update presentations. Create structured stakeholder update decks and export editable PowerPoint (.pptx) files."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "What should a status update deck include?", "acceptedAnswer": {"@type": "Answer", "text": "Goals, progress, key metrics, risks, decisions needed, and next steps."}},
+    {"@type": "Question", "name": "Can I export an editable PPTX?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet exports a standard .pptx file you can edit in PowerPoint."}},
+    {"@type": "Question", "name": "Is it free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet supports free, unlimited generation and exports."}}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Project Status Update Presentation Generator</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Status updates are a special kind of presentation.
+        Your audience is usually busy and already has partial context.
+        They need to know what changed, what’s blocked, what’s at risk, and what decisions you need.
+        PPTJet helps you generate a clean status update deck structure so you can communicate clearly and reduce back-and-forth.
+      </p>
+      <p class="mt-3 text-gray-700">
+        PPTJet is <strong>free</strong>, supports <strong>unlimited exports</strong>, and generates an editable PowerPoint file.
+        You can download a .pptx and adapt it for weekly updates, steering committees, or executive reviews.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Generate a status update deck</a>
+        <a href="{{ url_for('main.board_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">Need a board deck?</a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="who">
+      <h2 id="who" class="text-2xl font-bold text-gray-900">Who This Status Update Deck Is For</h2>
+      <p class="mt-3 text-gray-700">
+        Status decks are used across teams.
+        The structure stays similar, but the detail level changes depending on audience.
+        PPTJet helps you draft a version that matches your stakeholder’s expectations.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Project sponsors</strong>: what’s on track, what’s at risk, decisions needed.</li>
+        <li><strong>Steering committees</strong>: progress vs plan, dependencies, and trade-offs.</li>
+        <li><strong>Delivery teams</strong>: blockers, actions, owners, and next milestones.</li>
+        <li><strong>Executives</strong>: outcomes, KPIs, risk, and timeline.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="structure">
+      <h2 id="structure" class="text-2xl font-bold text-gray-900">A Clear Status Update Deck Structure</h2>
+      <p class="mt-3 text-gray-700">
+        The easiest status update to understand is one that makes the “delta” obvious.
+        What changed since last time?
+        What’s the plan for the next period?
+        What needs attention now?
+        Use this structure as a starting point.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Executive summary</strong>: one slide with what’s green, yellow, red.</li>
+        <li><strong>Goals and scope</strong>: what success looks like and what’s included.</li>
+        <li><strong>Progress</strong>: what was completed since last update.</li>
+        <li><strong>Plan</strong>: next milestones and timeline.</li>
+        <li><strong>KPIs</strong>: a small set of metrics (schedule, budget, quality, adoption).</li>
+        <li><strong>Risks and issues</strong>: top risks, owners, mitigations.</li>
+        <li><strong>Decisions needed</strong>: what you need from leadership.</li>
+        <li><strong>Next steps</strong>: actions and owners until the next meeting.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        If your update needs strong visuals, KPI dashboards and risk matrices are effective.
+        See the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides generator</a>
+        and
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrix generator</a>.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="inputs">
+      <h2 id="inputs" class="text-2xl font-bold text-gray-900">What to Enter for Better Status Slides</h2>
+      <p class="mt-3 text-gray-700">
+        Status updates get messy when you try to include everything.
+        Better updates focus on the few items that matter.
+        When generating, provide a short list of accomplishments, blockers, risks, and decisions needed.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Project name and goal</strong>: what success means.</li>
+        <li><strong>Time window</strong>: weekly, biweekly, monthly, QBR.</li>
+        <li><strong>Completed work</strong>: what shipped or finished since last update.</li>
+        <li><strong>In progress</strong>: what’s actively being worked on.</li>
+        <li><strong>Blockers</strong>: what’s stuck and what help you need.</li>
+        <li><strong>Risks</strong>: what could go wrong and mitigations.</li>
+        <li><strong>Decisions</strong>: what needs approval or alignment.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you already keep a written status in a doc, you can start from
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a>
+        and then simplify slides after export.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="tips">
+      <h2 id="tips" class="text-2xl font-bold text-gray-900">Tips for a Better Stakeholder Update</h2>
+      <p class="mt-3 text-gray-700">
+        A strong status deck is easy to skim.
+        Executives should be able to understand the situation in under two minutes.
+        After generating a draft, refine the slides with these simple practices.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Lead with the “ask”</strong>: decisions needed should be obvious.</li>
+        <li><strong>Use RAG status carefully</strong>: define what red/yellow/green means.</li>
+        <li><strong>Keep risks short</strong>: top 3 risks with owners and mitigations.</li>
+        <li><strong>Show a timeline</strong>: next milestones by date.</li>
+        <li><strong>End with next steps</strong>: owners and due dates.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If your update includes a roadmap, the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_roadmap_generator_page') }}">AI roadmap generator</a>
+        can provide a clean structure.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is PPTJet free?</dt>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet supports free, unlimited generation and exports.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I edit the deck after export?</dt>
+          <dd class="mt-2 text-gray-700">Yes. You export a standard .pptx file you can edit in PowerPoint.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">How many slides should a weekly update be?</dt>
+          <dd class="mt-2 text-gray-700">Often 5–10 slides is enough: summary, progress, plan, risks, decisions, next steps.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
+      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrix generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_powerpoint_generator_page') }}">free PowerPoint generator</a></li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Generate a clearer status update</h2>
+          <p class="mt-1 text-gray-700">Draft a structured update now, then refine with your real metrics.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Start Creating for Free</a>
+      </div>
+    </section>
+  </article>
+</main>
+{% endblock %}

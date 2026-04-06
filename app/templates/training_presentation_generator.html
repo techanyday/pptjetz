@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}AI Training Presentation Generator (Free) | PPTJet{% endblock %}
+{% block description %}Generate training presentations with AI. Create an editable PowerPoint (.pptx) for onboarding, SOPs, workshops, and enablement — free and unlimited with PPTJet.{% endblock %}
+{% block og_title %}AI Training Presentation Generator (Free) | PPTJet{% endblock %}
+{% block og_description %}Generate training presentations with AI. Create an editable PowerPoint (.pptx) for onboarding, SOPs, workshops, and enablement — free and unlimited with PPTJet.{% endblock %}
+{% block tw_title %}AI Training Presentation Generator (Free) | PPTJet{% endblock %}
+{% block tw_description %}Generate training presentations with AI. Create an editable PowerPoint (.pptx) for onboarding, SOPs, workshops, and enablement — free and unlimited with PPTJet.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/training-presentation-generator",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "description": "PPTJet is a free AI training presentation generator that drafts structured training decks and exports editable PowerPoint (.pptx) files."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Can I generate onboarding and SOP training decks?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet can draft onboarding, SOP, and workshop training slides from your outline or notes."}},
+    {"@type": "Question", "name": "Is the export editable?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. You download a standard .pptx and can edit it in PowerPoint."}},
+    {"@type": "Question", "name": "Is PPTJet free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet is free and supports unlimited exports."}}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Training Presentation Generator</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Training decks have one goal: make people competent faster.
+        Whether you’re onboarding new hires, teaching a process, rolling out a new tool, or running a workshop, the slides need to be clear, paced, and practical.
+        PPTJet helps you draft a training deck structure quickly so you can focus on examples, exercises, and real instructions.
+      </p>
+      <p class="mt-3 text-gray-700">
+        PPTJet is <strong>free</strong>, supports <strong>unlimited exports</strong>, and generates an editable PowerPoint file.
+        Use it to draft the first version of a training deck, then refine it with your organization’s SOPs and screenshots.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Generate training slides</a>
+        <a href="{{ url_for('main.presentation_outline_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">Create an outline first</a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="use-cases">
+      <h2 id="use-cases" class="text-2xl font-bold text-gray-900">Common Training Deck Use Cases</h2>
+      <p class="mt-3 text-gray-700">
+        Training decks are everywhere: onboarding, compliance, enablement, and internal operations.
+        PPTJet can draft a structure that fits most of these scenarios.
+        You’ll get the best results when you specify the audience level and what “competent” means after the training.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Employee onboarding</strong>: culture, tools, workflow, expectations, first-week checklist.</li>
+        <li><strong>SOP training</strong>: step-by-step process with do’s and don’ts.</li>
+        <li><strong>Sales enablement</strong>: product knowledge, objection handling, demo flow.</li>
+        <li><strong>Tool rollout</strong>: why change, how to use it, and where to get help.</li>
+        <li><strong>Workshops</strong>: agenda, activities, discussion prompts, and outcomes.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="structure">
+      <h2 id="structure" class="text-2xl font-bold text-gray-900">A Practical Training Deck Structure</h2>
+      <p class="mt-3 text-gray-700">
+        Good training is paced.
+        People need context, examples, practice, and checks for understanding.
+        Use this structure as a base and then add your organization’s specifics.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Objective</strong>: what learners will be able to do afterward.</li>
+        <li><strong>Why it matters</strong>: stakes, impact, and common failure modes.</li>
+        <li><strong>Overview</strong>: the workflow at a high level.</li>
+        <li><strong>Step-by-step</strong>: the process broken into clear stages.</li>
+        <li><strong>Examples</strong>: a worked example showing a correct output.</li>
+        <li><strong>Practice</strong>: an exercise or scenario for learners to try.</li>
+        <li><strong>Check for understanding</strong>: quick quiz or reflection prompts.</li>
+        <li><strong>Resources</strong>: links, owners, and where to get help.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        If your training is time-sequenced, timelines can help learners see the order clearly.
+        See
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">timeline slides</a>
+        for an example layout.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="inputs">
+      <h2 id="inputs" class="text-2xl font-bold text-gray-900">What to Enter for Better Training Slides</h2>
+      <p class="mt-3 text-gray-700">
+        Training decks become confusing when the input is unclear.
+        Provide a few concrete constraints and you’ll get a much more teachable draft.
+        Think: audience level, common mistakes, and what a “good outcome” looks like.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Audience level</strong>: new hire, intermediate, advanced.</li>
+        <li><strong>Scope</strong>: what the training covers and what it does not cover.</li>
+        <li><strong>Key steps</strong>: the process steps in order.</li>
+        <li><strong>Common mistakes</strong>: what learners usually get wrong.</li>
+        <li><strong>Exercise</strong>: a short scenario learners can practice on.</li>
+        <li><strong>Time budget</strong>: 15 minutes, 30 minutes, 60 minutes, half-day workshop.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you have an outline already, use
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_presentation_from_outline_page') }}">generate presentation from outline</a>
+        to preserve your structure.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="editing">
+      <h2 id="editing" class="text-2xl font-bold text-gray-900">How to Make Training Slides More Effective</h2>
+      <p class="mt-3 text-gray-700">
+        Most training slides improve when you add two things: examples and practice.
+        After exporting the draft deck, spend a few minutes adding real screenshots, “good vs bad” examples, and a short exercise.
+        This makes the training actionable instead of theoretical.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>One example per concept</strong>: show what “good” looks like.</li>
+        <li><strong>Practice slide</strong>: a prompt learners can do in 2–5 minutes.</li>
+        <li><strong>Checklist</strong>: a simple list learners can follow afterward.</li>
+        <li><strong>Support slide</strong>: where to ask questions and what to do when stuck.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I use this for onboarding?</dt>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet is great for drafting onboarding decks and checklists.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I edit the deck after export?</dt>
+          <dd class="mt-2 text-gray-700">Yes. You export a standard .pptx file you can edit in PowerPoint.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is PPTJet free?</dt>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet supports free, unlimited generation and exports.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
+      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_powerpoint_generator_page') }}">free PowerPoint generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.presentation_outline_generator_page') }}">presentation outline generator</a></li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Create a training deck draft now</h2>
+          <p class="mt-1 text-gray-700">Draft structure fast, then add your SOPs and examples.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Start Creating for Free</a>
+      </div>
+    </section>
+  </article>
+</main>
+{% endblock %}

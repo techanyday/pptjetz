@@ -16,6 +16,15 @@
         Board decks usually fail for predictable reasons: too much detail, unclear priorities, and slides that don’t tell the board what decision is needed.
         PPTJet helps you generate a clean, structured board presentation layout so you can spend your time validating the numbers and sharpening the message.
       </p>
+      <p class="mt-3 text-gray-700">
+        A board presentation is a communication artifact.
+        It should help directors and executives understand what changed since the last meeting, what the company is doing next, and what help you need.
+        PPTJet is built to help you start from structure and visual clarity, then export to PowerPoint so you can refine language, swap in real metrics, and apply branding.
+      </p>
+      <p class="mt-3 text-gray-700">
+        If you want to explore all structured slide types beyond board reporting, start with the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a>.
+      </p>
     </header>
 
     <section class="mt-8">
@@ -25,6 +34,11 @@
         <li>Leadership status reports that need to be consistent across teams</li>
         <li>Decision memos translated into concise, presentation-ready slides</li>
       </ul>
+      <p class="mt-4 text-gray-700">
+        Board decks are also used in “board-adjacent” contexts:
+        executive steering committees, investor updates, operating reviews, and audit or risk oversight meetings.
+        The audience changes, but the need is the same: a short deck that respects time and makes decisions easier.
+      </p>
     </section>
 
     <section class="mt-8">
@@ -36,6 +50,70 @@
         <li>Risks, mitigations, and dependencies in a structured view</li>
         <li>Comparison tables for options and trade-offs</li>
       </ul>
+      <p class="mt-4 text-gray-700">
+        The goal is not to add more slides.
+        The goal is to choose the smallest set of slide types that make the situation clear.
+        For most board updates, that means a tight executive summary, a KPI dashboard slide, a forward-looking plan (roadmap or timeline), and a risk slide.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="what-a-board-deck-should-do">
+      <h2 id="what-a-board-deck-should-do" class="text-2xl font-bold text-gray-900">What a Board Deck Should Do</h2>
+      <p class="mt-3 text-gray-700">
+        Directors are not looking for an internal status report.
+        They want a concise narrative that helps them understand performance and make decisions.
+        A strong board presentation usually does three things.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Summarizes outcomes</strong>: what happened since the last meeting and why it matters.</li>
+        <li><strong>Shows the plan</strong>: what you’re doing next, what you’re prioritizing, and what will be different by the next board meeting.</li>
+        <li><strong>Surfaces risks and asks</strong>: what could go wrong, what help you need, and what decisions are required.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If your deck is missing one of those pieces, the meeting usually becomes inefficient.
+        People ask for context, debate priorities, or discover risks too late.
+        PPTJet helps you avoid that by generating a structured baseline deck.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="recommended-board-slide-sequence">
+      <h2 id="recommended-board-slide-sequence" class="text-2xl font-bold text-gray-900">Recommended Board Slide Sequence</h2>
+      <p class="mt-3 text-gray-700">
+        Many companies converge on a similar sequence because it matches how board discussions typically flow.
+        You can tailor the depth by moving details to an appendix.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Executive summary</strong>: key wins, misses, and decisions required.</li>
+        <li><strong>Company performance</strong>: KPIs with trends and narrative context.</li>
+        <li><strong>Financial highlights</strong>: revenue, margin, runway, forecast, variance vs plan.</li>
+        <li><strong>Operating priorities</strong>: what the company is focused on next.</li>
+        <li><strong>Roadmap / timeline</strong>: milestones, upcoming launches, delivery plan.</li>
+        <li><strong>Risks and mitigations</strong>: the honest view of what could derail the plan.</li>
+        <li><strong>Appendix</strong>: deeper metrics, functional updates, and supporting analysis.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        The deck is stronger when each slide includes a short “so what” sentence.
+        A board slide should not only show data; it should interpret what the data means for decisions.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="tips-for-better-board-decks">
+      <h2 id="tips-for-better-board-decks" class="text-2xl font-bold text-gray-900">Tips for Better Board Presentations</h2>
+      <p class="mt-3 text-gray-700">
+        Board decks are read quickly.
+        Your job is to reduce ambiguity and make the discussion productive.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Lead with decisions</strong>: if you need approval, put it on slide one.</li>
+        <li><strong>Use consistent KPIs</strong>: avoid redefining metrics between meetings.</li>
+        <li><strong>Show trends</strong>: a single number rarely tells the story; change over time does.</li>
+        <li><strong>Separate signal from noise</strong>: keep details in the appendix and focus the main deck.</li>
+        <li><strong>Be explicit about risks</strong>: directors will ask; it’s better when you bring it first.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        PPTJet helps you start with a clean structure.
+        After export, you can apply your brand, adjust wording, and add the real supporting evidence that makes the deck credible.
+      </p>
     </section>
 
     <section class="mt-10">
@@ -47,11 +125,44 @@
       </p>
     </section>
 
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">Frequently Asked Questions</h2>
+
+      <h3 class="mt-5 text-lg font-semibold text-gray-900">How long should a board deck be?</h3>
+      <p class="mt-2 text-gray-700">
+        It depends on your company and meeting format, but clarity matters more than slide count.
+        Most teams keep the main narrative concise and use an appendix for details.
+        If the board needs to review a decision, include enough context to evaluate trade-offs without turning the deck into an internal document.
+      </p>
+
+      <h3 class="mt-5 text-lg font-semibold text-gray-900">What metrics should I include?</h3>
+      <p class="mt-2 text-gray-700">
+        Include a small set of KPIs that reflect performance and risk: growth, retention, revenue, margin, runway, pipeline, and any operational metrics that predict future outcomes.
+        A dedicated KPI slide helps directors understand performance quickly.
+      </p>
+
+      <h3 class="mt-5 text-lg font-semibold text-gray-900">Can I edit the generated deck?</h3>
+      <p class="mt-2 text-gray-700">
+        Yes. PPTJet exports a standard PowerPoint file.
+        You can update numbers, adjust text, reorder slides, and apply branding like any normal deck.
+      </p>
+
+      <h3 class="mt-5 text-lg font-semibold text-gray-900">Is this useful for non-board executive updates?</h3>
+      <p class="mt-2 text-gray-700">
+        Yes. The same structure works for exec steering committees, operating reviews, and leadership updates.
+        The difference is often depth: board decks are typically higher level, while internal leadership decks may include more operational detail.
+      </p>
+    </section>
+
     <section class="mt-10 border-t border-gray-200 pt-8">
       <h2 class="text-xl font-bold text-gray-900">You may also find these useful</h2>
       <ul class="mt-3 list-disc pl-6 text-gray-700">
         <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.investor_pitch_deck_generator_page') }}">Investor pitch deck generator</a></li>
         <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.presentation_outline_generator_page') }}">Presentation outline generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_roadmap_generator_page') }}">AI roadmap generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.risk_matrix_generator_page') }}">Risk matrix generator</a></li>
       </ul>
     </section>
   </article>

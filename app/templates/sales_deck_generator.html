@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}AI Sales Deck Generator (Free) | PPTJet{% endblock %}
+{% block description %}Generate a sales deck with AI in minutes. Create a structured, editable PowerPoint (.pptx) for discovery calls, demos, and proposals — free and unlimited with PPTJet.{% endblock %}
+{% block og_title %}AI Sales Deck Generator (Free) | PPTJet{% endblock %}
+{% block og_description %}Generate a sales deck with AI in minutes. Create a structured, editable PowerPoint (.pptx) for discovery calls, demos, and proposals — free and unlimited with PPTJet.{% endblock %}
+{% block tw_title %}AI Sales Deck Generator (Free) | PPTJet{% endblock %}
+{% block tw_description %}Generate a sales deck with AI in minutes. Create a structured, editable PowerPoint (.pptx) for discovery calls, demos, and proposals — free and unlimited with PPTJet.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/sales-deck-generator",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "description": "PPTJet is a free AI sales deck generator that creates a structured slide deck and exports an editable PowerPoint (.pptx)."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Is PPTJet free for sales decks?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet is free and supports unlimited generation and exports."}},
+    {"@type": "Question", "name": "Do I get an editable PowerPoint file?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. You download a standard .pptx file and can edit it in Microsoft PowerPoint."}},
+    {"@type": "Question", "name": "What input works best?", "acceptedAnswer": {"@type": "Answer", "text": "Use bullets: target customer, pain points, value proposition, proof, pricing approach, and next steps."}}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Sales Deck Generator</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        A sales deck is a tool to move a buyer forward.
+        It isn’t a brochure, and it isn’t a product document.
+        The best sales decks make the buyer feel two things quickly: “you understand my problem” and “your solution is credible.”
+        PPTJet helps you generate a clean first draft of that story so you can stop wrestling with slide formatting and focus on closing.
+      </p>
+      <p class="mt-3 text-gray-700">
+        PPTJet is <strong>free</strong>, supports <strong>unlimited exports</strong>, and generates a real PowerPoint file.
+        You can download an editable .pptx, apply your brand theme, and tailor the narrative for each customer segment.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Generate a sales deck</a>
+        <a href="{{ url_for('main.pitch_deck_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">Need a pitch deck?</a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="when">
+      <h2 id="when" class="text-2xl font-bold text-gray-900">When to Use a Sales Deck (and When Not To)</h2>
+      <p class="mt-3 text-gray-700">
+        Sales decks work best when they support a conversation.
+        They are most effective in discovery follow-ups, demo intros, proposals, and stakeholder alignment meetings.
+        They work less well when you try to solve every objection on every slide.
+        Instead, your deck should answer the key questions your buyer will ask in the first few minutes.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Discovery follow-up</strong>: summarize pain, goals, and what you heard.</li>
+        <li><strong>Demo intro</strong>: set context and show why the demo matters.</li>
+        <li><strong>Proposal deck</strong>: scope, approach, timeline, and outcomes.</li>
+        <li><strong>Stakeholder alignment</strong>: explain value to multiple roles.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="structure">
+      <h2 id="structure" class="text-2xl font-bold text-gray-900">A High-Converting Sales Deck Structure</h2>
+      <p class="mt-3 text-gray-700">
+        You can adapt the exact slide order, but most effective sales decks follow a consistent flow.
+        The goal is to reduce cognitive load.
+        When the structure feels familiar, your buyer spends attention on your message rather than on figuring out what comes next.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Title + who it’s for</strong>: name the audience and the outcome you enable.</li>
+        <li><strong>The problem</strong>: what’s painful, expensive, or risky today.</li>
+        <li><strong>The cost of inaction</strong>: what happens if nothing changes.</li>
+        <li><strong>Your approach</strong>: how you solve it (simple, visual explanation).</li>
+        <li><strong>Proof</strong>: results, case studies, metrics, or customer quotes.</li>
+        <li><strong>How it works</strong>: implementation steps or timeline.</li>
+        <li><strong>Pricing or packaging</strong>: your model and what’s included.</li>
+        <li><strong>Next steps</strong>: pilot, security review, procurement, or rollout plan.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        If you’re selling to executives, make the slide titles “point-first.”
+        A point-first title is a conclusion, not a topic.
+        It helps decision makers scan the deck quickly and still understand your narrative.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="inputs">
+      <h2 id="inputs" class="text-2xl font-bold text-gray-900">What to Enter for Better Output</h2>
+      <p class="mt-3 text-gray-700">
+        The fastest way to get a good deck is to supply structured inputs.
+        You don’t need perfect writing.
+        You need the building blocks the deck should be built from.
+        Bullet points usually outperform long paragraphs.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Target customer</strong>: industry, company size, role, and common triggers.</li>
+        <li><strong>Pain points</strong>: what’s broken today and why it matters.</li>
+        <li><strong>Value proposition</strong>: what outcome you deliver and how it’s different.</li>
+        <li><strong>Proof points</strong>: metrics, case studies, testimonials, logos (if permitted).</li>
+        <li><strong>Implementation</strong>: what onboarding looks like and how long it takes.</li>
+        <li><strong>Constraints</strong>: budget range, timeline, or compliance concerns.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you already have notes, you can also start from
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a>
+        to transform raw text into slide-ready structure.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="personalize">
+      <h2 id="personalize" class="text-2xl font-bold text-gray-900">Personalization: One Deck per Segment</h2>
+      <p class="mt-3 text-gray-700">
+        Most teams try to make one deck that works for everyone.
+        That usually leads to generic messaging.
+        A better approach is to keep one core structure and create variations for different segments: SMB vs enterprise, technical buyer vs business buyer, and different industries.
+        PPTJet helps you generate those variations quickly so you can keep the deck relevant.
+      </p>
+      <p class="mt-3 text-gray-700">
+        For example, your “problem” slide for a security buyer might focus on risk and compliance.
+        For a revenue leader, the problem might be pipeline conversion or sales cycle length.
+        The structure stays the same, but the proof and language change.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is PPTJet free and unlimited?</dt>
+          <dd class="mt-2 text-gray-700">Yes. You can generate and export unlimited decks with no credit card required.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I edit the sales deck after export?</dt>
+          <dd class="mt-2 text-gray-700">Yes. The export is a standard .pptx file and remains fully editable.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Where can I generate strategy slides like roadmaps and KPIs?</dt>
+          <dd class="mt-2 text-gray-700">Start with the <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a>.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
+      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.pitch_deck_generator_page') }}">pitch deck generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_powerpoint_generator_page') }}">free PowerPoint generator</a></li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Ready to build a sales-ready deck?</h2>
+          <p class="mt-1 text-gray-700">Generate a structured draft now, then polish in PowerPoint.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Start Creating for Free</a>
+      </div>
+    </section>
+  </article>
+</main>
+{% endblock %}

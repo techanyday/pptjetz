@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}AI Presentation Generator for Teachers (Free) | PPTJet{% endblock %}
+{% block description %}Create lesson slides faster. Turn learning objectives into a structured, editable PowerPoint deck with clear pacing, examples, and checks for understanding — free and unlimited with PPTJet.{% endblock %}
+{% block og_title %}AI Presentation Generator for Teachers (Free) | PPTJet{% endblock %}
+{% block og_description %}Create lesson slides faster. Turn learning objectives into a structured, editable PowerPoint deck with clear pacing, examples, and checks for understanding — free and unlimited with PPTJet.{% endblock %}
+{% block tw_title %}AI Presentation Generator for Teachers (Free) | PPTJet{% endblock %}
+{% block tw_description %}Create lesson slides faster. Turn learning objectives into a structured, editable PowerPoint deck with clear pacing, examples, and checks for understanding — free and unlimited with PPTJet.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "EducationalApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/ai-presentation-generator-for-teachers",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "PPTJet is a free AI presentation generator for teachers. Build lesson slide decks from objectives and outlines and export an editable PowerPoint (.pptx)."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is PPTJet free for teachers?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet is free and supports unlimited slide generation and PowerPoint exports."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I align slides with my lesson objectives?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Provide the objective, grade level, and time budget, and PPTJet will draft a structured slide sequence you can refine."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it generate an editable PowerPoint file?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet exports a standard .pptx you can edit in Microsoft PowerPoint."
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Presentation Generator for Teachers</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Building lesson slides is repetitive.
+        You already know the objective and the sequence you want, but the work still takes time: formatting, pacing, examples, and making sure the deck is understandable for your class.
+        PPTJet helps you draft a clear slide flow quickly so you can focus on instruction instead of slide design.
+      </p>
+      <p class="mt-3 text-gray-700">
+        PPTJet is <strong>free</strong>, supports <strong>unlimited exports</strong>, and generates a real PowerPoint file you can edit.
+        Use it to create first drafts for lectures, revision sessions, classroom activities, and assessment review decks.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Create lesson slides
+        </a>
+        <a href="{{ url_for('main.ai_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
+          See all slide types
+        </a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="teacher-use-cases">
+      <h2 id="teacher-use-cases" class="text-2xl font-bold text-gray-900">Common Teacher Use Cases</h2>
+      <p class="mt-3 text-gray-700">
+        Teachers use PPTJet when they need a slide deck quickly but still want it to be structured and teachable.
+        The best results come from giving the tool your objective and constraints.
+        Think of it as planning support: a draft sequence that you refine with your own examples and classroom language.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Daily lesson slides</strong>: warm-up, direct instruction, guided practice, exit ticket.</li>
+        <li><strong>Unit overview</strong>: what students will learn and how topics connect.</li>
+        <li><strong>Exam review</strong>: key concepts, common mistakes, practice questions.</li>
+        <li><strong>Project briefs</strong>: rubric, timeline, deliverables, and checkpoints.</li>
+        <li><strong>Parent or staff sessions</strong>: short updates that are easy to follow.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="what-to-enter">
+      <h2 id="what-to-enter" class="text-2xl font-bold text-gray-900">What to Enter for Better Lesson Slides</h2>
+      <p class="mt-3 text-gray-700">
+        You don’t need long prompts.
+        A few well-chosen constraints produce better decks than paragraphs.
+        If you want student-friendly slides, specify the grade level and vocabulary expectations.
+        If you want a tight 10-minute mini-lesson, specify the time budget and slide count.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Grade level</strong>: e.g., 5th grade, middle school, GCSE, AP, university.</li>
+        <li><strong>Objective</strong>: what students should know or be able to do by the end.</li>
+        <li><strong>Time budget</strong>: 10 minutes, 30 minutes, 60 minutes.</li>
+        <li><strong>Required routine</strong>: warm-up, I do/we do/you do, discussion, exit ticket.</li>
+        <li><strong>Examples</strong>: 2–3 concrete examples you want included.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        If you already have a lesson outline, the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_presentation_from_outline_page') }}">generate presentation from outline</a>
+        flow can preserve your planned structure.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="lesson-structure">
+      <h2 id="lesson-structure" class="text-2xl font-bold text-gray-900">A Simple Slide Structure That Matches Classroom Pacing</h2>
+      <p class="mt-3 text-gray-700">
+        A teachable deck has predictable rhythm.
+        Students should know when they are listening, when they are practicing, and when they are being checked for understanding.
+        Use this pattern to keep slides aligned with instruction.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Do now / warm-up</strong>: quick retrieval question or starter task.</li>
+        <li><strong>Objective</strong>: what you’re learning today (student-friendly language).</li>
+        <li><strong>Key concept</strong>: definition and a simple explanation.</li>
+        <li><strong>Worked example</strong>: step-by-step demonstration.</li>
+        <li><strong>Guided practice</strong>: 2–3 questions with time to attempt.</li>
+        <li><strong>Check for understanding</strong>: quick poll, mini-quiz, or exit ticket prompt.</li>
+        <li><strong>Summary</strong>: the 3 takeaways you want remembered.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        For lessons that are sequence-heavy (history events, scientific processes, project milestones), timeline slides can help.
+        See the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">timeline slides</a>
+        page for examples.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="differentiation">
+      <h2 id="differentiation" class="text-2xl font-bold text-gray-900">Differentiation and Accessibility Tips</h2>
+      <p class="mt-3 text-gray-700">
+        Lesson slides work best when they are readable and inclusive.
+        After generating a draft, consider a quick accessibility pass.
+        Small changes improve comprehension and reduce classroom friction.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Keep text short</strong>: one idea per slide whenever possible.</li>
+        <li><strong>Prefer concrete examples</strong>: abstract terms become clearer with one example.</li>
+        <li><strong>Use consistent vocabulary</strong>: align terms with your curriculum and assessments.</li>
+        <li><strong>Add a recap slide</strong>: a quick review helps different pacing needs.</li>
+        <li><strong>High contrast</strong>: ensure students can read slides from the back of the room.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is PPTJet free for teachers?</dt>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet is free and supports unlimited generation and exports.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I use these slides with my own classroom style?</dt>
+          <dd class="mt-2 text-gray-700">Yes. Export to .pptx and edit headings, examples, and activities to match your tone and routines.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Will it match my school’s curriculum exactly?</dt>
+          <dd class="mt-2 text-gray-700">Treat the output as a draft. Replace placeholders and adjust examples to match your curriculum, standards, and class needs.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
+      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.presentation_outline_generator_page') }}">presentation outline generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a></li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Want lesson slides drafted in minutes?</h2>
+          <p class="mt-1 text-gray-700">Generate a structured deck, then refine with your own examples.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Start Creating for Free
+        </a>
+      </div>
+    </section>
+  </article>
+</main>
+{% endblock %}

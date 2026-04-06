@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}KPI Dashboard Slides Generator (Free & Unlimited) | PPTJet{% endblock %}
+{% block description %}Generate KPI dashboard slides in minutes using AI. Create structured, editable PowerPoint KPI slides you can customize for QBRs, exec updates, and performance reporting—free and unlimited with PPTJet.{% endblock %}
+{% block og_title %}KPI Dashboard Slides Generator (Free & Unlimited){% endblock %}
+{% block og_description %}Generate KPI dashboard slides in minutes using AI. Create structured, editable PowerPoint KPI slides you can customize for QBRs, exec updates, and performance reporting—free and unlimited with PPTJet.{% endblock %}
+{% block tw_title %}KPI Dashboard Slides Generator (Free & Unlimited){% endblock %}
+{% block tw_description %}Generate KPI dashboard slides in minutes using AI. Create structured, editable PowerPoint KPI slides you can customize for QBRs, exec updates, and performance reporting—free and unlimited with PPTJet.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/kpi-dashboard-slides-generator",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "PPTJet is a KPI dashboard slides generator that creates structured KPI slides as an editable PowerPoint (.pptx). Free and unlimited."
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">KPI Dashboard Slides Generator for Executive-Ready Reporting</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        KPI slides are supposed to create clarity, but many KPI decks create confusion.
+        The numbers might be correct, yet the slide fails because it lacks context, prioritization, and a clear “so what.”
+      </p>
+      <p class="mt-3 text-gray-700">
+        PPTJet is a KPI dashboard slides generator that turns your KPI list into a clean, structured slide layout you can export and edit in PowerPoint.
+        Use it for QBRs, board updates, weekly exec dashboards, team performance reporting, and operational reviews.
+      </p>
+      <p class="mt-3 text-gray-700">
+        The goal is to help you present metrics as a story: what changed, why it changed, and what you’ll do next.
+        PPTJet gives you a strong baseline structure so you can spend time validating the data and adding the interpretation your audience needs.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Generate KPI slides
+        </a>
+        <a href="{{ url_for('main.board_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
+          Board presentation generator
+        </a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="what-to-show">
+      <h2 id="what-to-show" class="text-2xl font-bold text-gray-900">What to Show on a KPI Dashboard Slide</h2>
+      <p class="mt-3 text-gray-700">
+        The best KPI slides do not try to show everything.
+        They show the minimum set of metrics needed to support a decision or a narrative.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>North star metric</strong> (the one metric that best represents value creation)</li>
+        <li><strong>Input metrics</strong> that explain what drives the north star (activation, conversion, retention)</li>
+        <li><strong>Financial metrics</strong> when relevant (ARR, gross margin, CAC payback)</li>
+        <li><strong>Operational metrics</strong> when relevant (quality, reliability, support volume)</li>
+        <li><strong>Targets</strong> and <strong>variance</strong> (where you are vs where you planned to be)</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If a metric is on the slide, it should have a reason.
+        If it doesn’t change what someone does, it might belong in an appendix.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how-to-make-kpis-readable">
+      <h2 id="how-to-make-kpis-readable" class="text-2xl font-bold text-gray-900">How to Make KPI Slides Readable in Meetings</h2>
+      <p class="mt-3 text-gray-700">
+        KPI slides are often presented live. That means your audience has seconds—not minutes—to interpret what they’re seeing.
+        Structure and visual hierarchy matter as much as the numbers.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Limit the number of KPIs per slide</strong> so each metric is readable.</li>
+        <li><strong>Use consistent definitions</strong> (avoid changing what “active user” means).</li>
+        <li><strong>Add context</strong>: trend direction, previous period comparison, and targets.</li>
+        <li><strong>Call out insights</strong> in one sentence: what changed and why.</li>
+        <li><strong>End with actions</strong>: what you’ll do next based on the data.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        PPTJet helps by producing a clean starting layout.
+        After export, you can adjust labels, move blocks, highlight the most important metrics, and add a short insight line that makes the slide self-explanatory.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="use-cases">
+      <h2 id="use-cases" class="text-2xl font-bold text-gray-900">Common KPI Slide Use Cases</h2>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>QBR decks</strong> that summarize the quarter and set next-quarter goals</li>
+        <li><strong>Board reporting</strong> with key performance highlights and risks</li>
+        <li><strong>Team dashboards</strong> that align everyone on what success means</li>
+        <li><strong>Customer success reviews</strong> with adoption and retention trends</li>
+        <li><strong>Growth updates</strong> with funnel performance and channel breakdowns</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you want to connect KPIs to a plan, pair your KPI slide with a roadmap or timeline slide.
+        That combination makes the story complete: performance, interpretation, and what’s next.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="cta">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Turn metrics into clear slides</h2>
+          <p class="mt-1 text-gray-700">Free & unlimited. Generate, export to PowerPoint, and refine with real data.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Start Creating for Free
+        </a>
+      </div>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related">
+      <h2 id="related" class="text-2xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_product_presentation_generator_page') }}">AI product presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_roadmap_generator_page') }}">AI roadmap generator</a></li>
+      </ul>
+    </section>
+  </article>
+</main>
+{% endblock %}

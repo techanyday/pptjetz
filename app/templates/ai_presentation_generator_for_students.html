@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}AI Presentation Generator for Students (100% Free) | PPTJet{% endblock %}
+{% block description %}Generate school and university presentations in minutes. Turn notes into an editable PowerPoint deck with clear structure, visuals, and speaker notes — free and unlimited with PPTJet.{% endblock %}
+{% block og_title %}AI Presentation Generator for Students (100% Free) | PPTJet{% endblock %}
+{% block og_description %}Generate school and university presentations in minutes. Turn notes into an editable PowerPoint deck with clear structure, visuals, and speaker notes — free and unlimited with PPTJet.{% endblock %}
+{% block tw_title %}AI Presentation Generator for Students (100% Free) | PPTJet{% endblock %}
+{% block tw_description %}Generate school and university presentations in minutes. Turn notes into an editable PowerPoint deck with clear structure, visuals, and speaker notes — free and unlimited with PPTJet.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "EducationalApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/ai-presentation-generator-for-students",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "PPTJet is a free AI presentation generator for students. Convert notes and outlines into an editable PowerPoint (.pptx) deck with clear structure, slide flow, and visual layouts."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is PPTJet free for students?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet is free and supports unlimited presentation generation and PowerPoint exports."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I edit the presentation after generating?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet exports a real .pptx file you can open and edit in Microsoft PowerPoint."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What should I paste into the generator for the best result?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A short outline, your lecture notes, headings, or bullet points work best. Add your course level, audience, and slide count as constraints."
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Presentation Generator for Students</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Whether you’re presenting a book report, a science project, a history topic, or a thesis summary, the hardest part is often not the research — it’s turning your material into a clear slide story.
+        PPTJet helps you convert notes into a structured deck you can present with confidence.
+      </p>
+      <p class="mt-3 text-gray-700">
+        This is a <strong>100% free</strong> AI presentation generator with <strong>unlimited exports</strong> and <strong>no watermark</strong>.
+        You generate a real PowerPoint file, then make last-mile edits the same way you normally would.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Create a student presentation
+        </a>
+        <a href="{{ url_for('main.ai_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
+          See all slide types
+        </a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="when-to-use">
+      <h2 id="when-to-use" class="text-2xl font-bold text-gray-900">When Students Should Use an AI Presentation Generator</h2>
+      <p class="mt-3 text-gray-700">
+        Use PPTJet when time is limited, when you have lots of notes but no slide structure, or when you need a clear flow fast.
+        A good deck is not a copy of your essay. It’s a short visual explanation that helps your class follow the main point.
+        The best workflow is: generate a clean first draft (slide order, headings, key bullets), then add your sources and teacher requirements.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Book reports and literature presentations</strong> (themes, characters, evidence)</li>
+        <li><strong>Science and lab presentations</strong> (method, results, takeaways)</li>
+        <li><strong>History presentations</strong> (timeline, cause and effect, outcomes)</li>
+        <li><strong>Group projects</strong> (clear sections and consistent formatting)</li>
+        <li><strong>Thesis or dissertation summaries</strong> (problem, approach, findings)</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="what-you-get">
+      <h2 id="what-you-get" class="text-2xl font-bold text-gray-900">What You Get (and Why It’s Useful)</h2>
+      <p class="mt-3 text-gray-700">
+        PPTJet generates an editable .pptx file with a coherent structure.
+        Instead of staring at a blank slide deck, you start with a draft that already has a logical flow.
+        This matters because most presentation grades come from clarity: can the audience understand your point quickly?
+      </p>
+      <p class="mt-3 text-gray-700">
+        It’s also useful for turning long notes into shorter slides. Slides should be readable in seconds.
+        The most common mistake is copying paragraphs. PPTJet pushes you toward headings and bullets so your speaking does the explaining.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how-to-prompt">
+      <h2 id="how-to-prompt" class="text-2xl font-bold text-gray-900">How to Get a Better Deck from Your Notes</h2>
+      <p class="mt-3 text-gray-700">
+        You don’t need a perfect prompt. You need <em>constraints</em>.
+        Tell the generator who the audience is, the course level, and what your teacher expects.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Topic + course level</strong>: “Photosynthesis (9th grade biology)” or “The Cold War (AP History)”</li>
+        <li><strong>Goal</strong>: “Explain the process” or “Compare two viewpoints”</li>
+        <li><strong>Required sections</strong>: “definition, key terms, examples, conclusion, references”</li>
+        <li><strong>Slide count</strong>: “8 slides” or “12 slides including a sources slide”</li>
+        <li><strong>Style</strong>: “simple, classroom-friendly, high contrast”</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        If you already have an outline, you can also use the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_presentation_from_outline_page') }}">generate presentation from outline</a>
+        workflow.
+        It’s a fast way to preserve your structure while improving slide balance.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="slide-structure">
+      <h2 id="slide-structure" class="text-2xl font-bold text-gray-900">A Student-Friendly Slide Structure That Works</h2>
+      <p class="mt-3 text-gray-700">
+        A simple structure makes your content easier to follow and easier to grade.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Title</strong>: your topic + your name/class</li>
+        <li><strong>Overview</strong>: what you’ll cover (3–5 points)</li>
+        <li><strong>Core explanation</strong>: definitions and key terms</li>
+        <li><strong>Evidence</strong>: examples, data, quotes, or a timeline</li>
+        <li><strong>Why it matters</strong>: impact, lessons learned, consequences</li>
+        <li><strong>Conclusion</strong>: 3 key takeaways</li>
+        <li><strong>Sources</strong>: citations (teacher-specific style)</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        For timeline-heavy topics, it can help to start from the dedicated
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">timeline slides</a>
+        page and build your deck around a clean chronology.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="academic-integrity">
+      <h2 id="academic-integrity" class="text-2xl font-bold text-gray-900">Academic Integrity and Citations</h2>
+      <p class="mt-3 text-gray-700">
+        PPTJet is best used as a drafting assistant.
+        Verify claims, use your course materials, and add citations.
+        If your teacher requires a format (APA, MLA, Chicago), include that requirement in your prompt and review every reference before presenting.
+      </p>
+      <p class="mt-3 text-gray-700">
+        Use AI to draft structure, then make the final deck yours.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is PPTJet really free for students?</dt>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet is free, supports unlimited generation and exports, and does not add a watermark.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Will my teacher know I used an AI tool?</dt>
+          <dd class="mt-2 text-gray-700">PPTJet exports a standard PowerPoint file. Always follow your school’s policy and add citations when required.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">How do I make the deck sound like me?</dt>
+          <dd class="mt-2 text-gray-700">After export, rewrite headings in your voice and add the examples your teacher used in class.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
+      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.presentation_outline_generator_page') }}">presentation outline generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a></li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Ready to present with confidence?</h2>
+          <p class="mt-1 text-gray-700">Create a clean, editable deck from your notes — free and unlimited.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Start Creating for Free
+        </a>
+      </div>
+    </section>
+  </article>
+</main>
+{% endblock %}

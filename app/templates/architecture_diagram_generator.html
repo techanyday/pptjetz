@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Architecture Diagram Generator (Free & Unlimited) | PPTJet{% endblock %}
+{% block description %}Generate architecture diagram slides in minutes using AI. Create structured, editable PowerPoint architecture diagrams you can customize for engineering reviews and technical stakeholder updates—free and unlimited with PPTJet.{% endblock %}
+{% block og_title %}Architecture Diagram Generator (Free & Unlimited){% endblock %}
+{% block og_description %}Generate architecture diagram slides in minutes using AI. Create structured, editable PowerPoint architecture diagrams you can customize for engineering reviews and technical stakeholder updates—free and unlimited with PPTJet.{% endblock %}
+{% block tw_title %}Architecture Diagram Generator (Free & Unlimited){% endblock %}
+{% block tw_description %}Generate architecture diagram slides in minutes using AI. Create structured, editable PowerPoint architecture diagrams you can customize for engineering reviews and technical stakeholder updates—free and unlimited with PPTJet.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/architecture-diagram-generator",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "PPTJet is an architecture diagram generator that creates structured architecture diagram slides as an editable PowerPoint (.pptx). Free and unlimited."
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Architecture Diagram Generator for Clean Technical Slides</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Architecture diagrams are one of the fastest ways to align a team.
+        But in many decks, architecture slides are either too complex to read or too abstract to be useful.
+      </p>
+      <p class="mt-3 text-gray-700">
+        PPTJet is an architecture diagram generator that helps you create a clean architecture diagram slide you can export and edit in PowerPoint.
+        Use it for design reviews, engineering onboarding, stakeholder updates, incident recaps, and technical roadmaps.
+      </p>
+      <p class="mt-3 text-gray-700">
+        The goal is to produce a slide that communicates the system at the right level: components, data flows, responsibilities, and boundaries.
+        After export, you can rename services, adjust shapes, and tailor labels to match your stack.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Generate an architecture slide
+        </a>
+        <a href="{{ url_for('main.ai_technical_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
+          Technical presentation generator
+        </a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="what-a-good-architecture-slide-shows">
+      <h2 id="what-a-good-architecture-slide-shows" class="text-2xl font-bold text-gray-900">What a Good Architecture Diagram Slide Shows</h2>
+      <p class="mt-3 text-gray-700">
+        A good architecture slide answers the most important questions quickly.
+        It helps your audience understand what the system is, how parts interact, and where the complexity lives.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Core components</strong> and their responsibilities</li>
+        <li><strong>Interfaces</strong> (APIs, events, queues) between components</li>
+        <li><strong>Data stores</strong> and how data moves</li>
+        <li><strong>External dependencies</strong> (vendors, identity providers, payment systems)</li>
+        <li><strong>Boundaries</strong> (trust zones, networks, environments)</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        The diagram should be readable from a distance.
+        In most decks, one clear slide beats three complicated slides.
+        If you need depth, keep the executive diagram simple and add an appendix for detailed flows.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how-to-brief">
+      <h2 id="how-to-brief" class="text-2xl font-bold text-gray-900">How to Brief an Architecture Diagram Generator</h2>
+      <p class="mt-3 text-gray-700">
+        You don’t need to describe every service.
+        Focus on the minimum set of components needed to explain the system and the decision being discussed.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>State the purpose</strong>: onboarding, design review, migration plan, or incident recap.</li>
+        <li><strong>List core components</strong>: client, API, workers, database, data pipeline.</li>
+        <li><strong>Describe key flows</strong>: authentication, write path, read path, background processing.</li>
+        <li><strong>Call out risks</strong>: scaling limits, single points of failure, vendor dependencies.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        After export, you can update labels and add details.
+        The value is starting from a clean structure that is presentation-friendly and easy to iterate.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="use-cases">
+      <h2 id="use-cases" class="text-2xl font-bold text-gray-900">Common Architecture Slide Use Cases</h2>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Engineering design reviews</strong> that need a shared picture of the system</li>
+        <li><strong>Executive stakeholder updates</strong> that require a simple system overview</li>
+        <li><strong>Migration plans</strong> showing old vs new architecture boundaries</li>
+        <li><strong>Reliability reviews</strong> highlighting failure domains and mitigations</li>
+        <li><strong>Incident recaps</strong> explaining what failed and what changed</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        Architecture slides work best when paired with a timeline and a risk matrix.
+        The combination explains the system, the plan, and the uncertainty.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="cta">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Create a clean architecture diagram slide</h2>
+          <p class="mt-1 text-gray-700">Free & unlimited. Generate, export to PowerPoint, and tailor to your stack.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Start Creating for Free
+        </a>
+      </div>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related">
+      <h2 id="related" class="text-2xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_technical_presentation_generator_page') }}">AI technical presentation generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.risk_matrix_generator_page') }}">Risk matrix generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">create timeline slides with AI</a></li>
+      </ul>
+    </section>
+  </article>
+</main>
+{% endblock %}

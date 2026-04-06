@@ -382,10 +382,80 @@ def ai_presentation_generator_page() -> Any:
 
 
 
+@bp.get("/ai-presentation-generator-for-students")
+
+def ai_presentation_generator_for_students_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_students.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-consultants")
+
+def ai_presentation_generator_for_consultants_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_consultants.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-teachers")
+
+def ai_presentation_generator_for_teachers_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_teachers.html")
+
+
+@bp.get("/free-ai-presentation-generator")
+
+def free_ai_presentation_generator_page() -> Any:
+
+    return render_template("free_ai_presentation_generator.html")
+
+
+@bp.get("/free-powerpoint-generator")
+
+def free_powerpoint_generator_page() -> Any:
+
+    return render_template("free_powerpoint_generator.html")
+
+
+@bp.get("/pptx-generator")
+
+def pptx_generator_page() -> Any:
+
+    return render_template("pptx_generator.html")
+
+
+@bp.get("/export-to-pptx")
+
+def export_to_pptx_page() -> Any:
+    return render_template("export_to_pptx.html")
+
+
+@bp.get("/sales-deck-generator")
+def sales_deck_generator_page() -> Any:
+    return render_template("sales_deck_generator.html")
+
+
+@bp.get("/marketing-presentation-generator")
+def marketing_presentation_generator_page() -> Any:
+    return render_template("marketing_presentation_generator.html")
+
+
+@bp.get("/training-presentation-generator")
+def training_presentation_generator_page() -> Any:
+    return render_template("training_presentation_generator.html")
+
+
+@bp.get("/project-status-update-presentation")
+def project_status_update_presentation_page() -> Any:
+    return render_template("project_status_update_presentation.html")
+
+
 @bp.get("/create-timeline-slides-with-ai")
-
 def create_timeline_slides_with_ai_page() -> Any:
-
     return render_template("create_timeline_slides_with_ai.html")
 
 
@@ -437,6 +507,60 @@ def convert_text_to_powerpoint_page() -> Any:
 def pitch_deck_generator_page() -> Any:
 
     return render_template("pitch_deck_generator.html")
+
+
+
+
+@bp.get("/startup-pitch-deck-generator")
+
+def startup_pitch_deck_generator_page() -> Any:
+
+    return render_template("startup_pitch_deck_generator.html")
+
+
+
+
+@bp.get("/ai-roadmap-generator")
+
+def ai_roadmap_generator_page() -> Any:
+
+    return render_template("ai_roadmap_generator.html")
+
+
+
+
+@bp.get("/swot-analysis-generator")
+
+def swot_analysis_generator_page() -> Any:
+
+    return render_template("swot_analysis_generator.html")
+
+
+
+
+@bp.get("/kpi-dashboard-slides-generator")
+
+def kpi_dashboard_slides_generator_page() -> Any:
+
+    return render_template("kpi_dashboard_slides_generator.html")
+
+
+
+
+@bp.get("/risk-matrix-generator")
+
+def risk_matrix_generator_page() -> Any:
+
+    return render_template("risk_matrix_generator.html")
+
+
+
+
+@bp.get("/architecture-diagram-generator")
+
+def architecture_diagram_generator_page() -> Any:
+
+    return render_template("architecture_diagram_generator.html")
 
 
 
@@ -7438,9 +7562,53 @@ def sitemap_xml_route() -> Any:
 
         {"loc": url_for('main.ai_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
+        {"loc": url_for('main.free_ai_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.free_powerpoint_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.pptx_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.export_to_pptx_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.sales_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.marketing_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.training_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.project_status_update_presentation_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_students_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_consultants_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_teachers_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
         {"loc": url_for('main.ai_business_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
         {"loc": url_for('main.create_timeline_slides_with_ai_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_product_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_technical_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.pitch_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.investor_pitch_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.startup_pitch_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.board_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_roadmap_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.swot_analysis_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.kpi_dashboard_slides_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.risk_matrix_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.architecture_diagram_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
     ]
 
