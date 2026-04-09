@@ -5400,6 +5400,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 auto_fit=True,
             )
 
+        # Constraint-based layout:
+        # - Triangle is the anchor.
+        # - Caption (label/description) is positioned relative to the triangle with fixed gaps.
+        # - Baseline is clamped so top captions never collide with title/subtitle and bottom captions
+        #   stay within slide margins.
+        scale = min(SLIDE_W_IN / 13.333, SLIDE_H_IN / 7.5)
+        top_safe_y = 2.05 if sub_raw else 1.85
+        bottom_safe_y = SLIDE_H_IN - 0.55
+        label_gap_above = 0.22 * scale
+        label_gap_below = 0.22 * scale
+
         raw_items: List[Any] = [x for x in (points or []) if x is not None]
         if not raw_items:
             raw_items = [
@@ -5480,20 +5491,40 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         ]
         tri_cols = [_blend_rgb(c, primary, 0.10) for c in ref_cols][:n]
 
-        margin_x = 0.85
+        margin_x = 0.85 * scale
         avail_w = SLIDE_W_IN - 2 * margin_x
-        baseline_y = 4.15
-        tri_h = 1.65
+        tri_h = 1.65 * scale
 
-        tri_w = (avail_w - 0.50 * (n - 1)) / max(1, n)
-        tri_w = max(1.35, min(2.05, tri_w))
-        gap = 0.50
+        # Captions need a stable (snap) size so spacing is consistent. Use a size that can
+        # accommodate wrapping while keeping labels visually close to their anchors.
+        cap_h = 1.18 * scale
+        cap_h_max = 1.55 * scale
+        cap_h = min(cap_h, cap_h_max)
+
+        # Choose a baseline that guarantees both:
+        # - enough room above for "down" triangle captions
+        # - enough room below for "up" triangle captions
+        baseline_min = top_safe_y + cap_h + label_gap_above + 0.10 * scale
+        baseline_max = bottom_safe_y - (tri_h + label_gap_below + cap_h + 0.10 * scale)
+        baseline_y = 4.15 * scale
+        if baseline_min <= baseline_max:
+            baseline_y = max(baseline_min, min(baseline_max, baseline_y))
+        else:
+            # If content area is tight (rare), reduce caption height to preserve the system.
+            cap_h = max(0.95 * scale, min(cap_h, (bottom_safe_y - top_safe_y - tri_h - label_gap_above - label_gap_below - 0.30 * scale) / 2))
+            baseline_min = top_safe_y + cap_h + label_gap_above + 0.10 * scale
+            baseline_max = bottom_safe_y - (tri_h + label_gap_below + cap_h + 0.10 * scale)
+            baseline_y = max(baseline_min, min(baseline_max, baseline_y))
+
+        gap = 0.50 * scale
+        tri_w = (avail_w - gap * (n - 1)) / max(1, n)
+        tri_w = max(1.35 * scale, min(2.05 * scale, tri_w))
         total_w = n * tri_w + (n - 1) * gap
         start_x = margin_x + max(0.0, (avail_w - total_w) / 2)
 
         base_x = start_x - 0.10
         base_w = min(avail_w + 0.20, total_w + 0.20)
-        base = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(base_x), Inches(baseline_y), Inches(base_w), Inches(0.05))
+        base = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(base_x), Inches(baseline_y), Inches(base_w), Inches(0.05 * scale))
         base.fill.solid(); base.fill.fore_color.rgb = RGBColor(210, 216, 223)
         base.line.fill.background()
 
@@ -5525,17 +5556,25 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             p.alignment = PP_ALIGN.CENTER
             r = p.add_run()
             r.text = str(year) if show_year else ""
-            r.font.size = Pt(22)
+            r.font.size = Pt(max(18, int(round(22 * scale))))
             r.font.bold = True
             r.font.color.rgb = RGBColor(255, 255, 255)
 
-            cap_w = tri_w + 0.35
-            cap_x = x - 0.175
+            # Caption box is centered on the triangle midpoint (X-midpoint match).
+            cap_w = min(tri_w + 0.45 * scale, tri_w + gap)
+            cap_x = (x + tri_w / 2) - (cap_w / 2)
+            cap_x = max(margin_x, min(SLIDE_W_IN - margin_x - cap_w, cap_x))
+
+            # Fixed vertical spacing rules (snap):
+            # - For up triangles: caption below triangle
+            # - For down triangles: caption above triangle
             if is_up:
-                cap_y = baseline_y + tri_h + 0.22
+                cap_y = (y + tri_h) + label_gap_below
+                cap_y = min(cap_y, bottom_safe_y - cap_h)
             else:
-                cap_y = 2.25
-            cap_h = 1.15
+                cap_y = y - label_gap_above - cap_h
+                cap_y = max(cap_y, top_safe_y)
+
             cap = s.shapes.add_textbox(Inches(cap_x), Inches(cap_y), Inches(cap_w), Inches(cap_h)).text_frame
             cap.word_wrap = True
             cap.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -5549,7 +5588,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             p1.alignment = PP_ALIGN.CENTER
             rr1 = p1.add_run()
             rr1.text = lab
-            rr1.font.size = Pt(14)
+            rr1.font.size = Pt(max(12, int(round(14 * scale))))
             rr1.font.bold = True
             rr1.font.color.rgb = RGBColor(*pal.get("text", (15, 23, 42)))
 
@@ -5558,7 +5597,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 p2.alignment = PP_ALIGN.CENTER
                 rr2 = p2.add_run()
                 rr2.text = _shorten(desc, 78)
-                rr2.font.size = Pt(10)
+                rr2.font.size = Pt(max(9, int(round(10 * scale))))
                 rr2.font.color.rgb = RGBColor(*pal.get("muted", (71, 85, 105)))
 
 
