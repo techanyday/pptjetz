@@ -410,20 +410,8 @@ def _add_bullets(
             except Exception:
                 pass
 
-        # Harmonise font sizes, bolding, and colors across runs/paragraphs
-        for idx, run in enumerate(p.runs):
-            run.font.size = Pt(font_size_pt)
-            if idx >= 1:  # r1 is the headline
-                run.font.bold = True
-            if color is not None:
-                run.font.color.rgb = RGBColor(*color)
-
-        if explainer:
-            for run in p2.runs:
-                run.font.size = Pt(max(12, font_size_pt - 4))
-                run.font.bold = False
-                if color is not None:
-                    run.font.color.rgb = RGBColor(*color)
+    # hub-and-spoke side-by-side renderers are defined inside build_pptx_from_slides
+    # so they can access prs, blank, pal and helper functions.
 
     return box
 
@@ -7319,6 +7307,331 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         t = re.sub(r"\s+", " ", t)
         return t or "Hub"
 
+    def _render_hub_spoke_side_by_side_6(sl) -> None:
+        title, items, content = _hub_spoke_items(sl, target_n=6)
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        hub = _hub_label(sl, content)
+        step_cols = _step_colors()
+        core_rgb = pal.get("primary", (59, 130, 246))
+
+        cx, cy = SLIDE_W_IN / 2.0, SLIDE_H_IN / 2.0
+
+        outer_d = 2.85
+        outer_line_pt = 10
+        outer = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - outer_d / 2), Inches(cy - outer_d / 2), Inches(outer_d), Inches(outer_d))
+        outer.fill.solid(); outer.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
+        outer.line.color.rgb = RGBColor(*_shade(core_rgb, 10))
+        outer.line.width = Pt(outer_line_pt)
+
+        inner_d = 2.10
+        inner = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - inner_d / 2), Inches(cy - inner_d / 2), Inches(inner_d), Inches(inner_d))
+        inner.fill.solid(); inner.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
+        try:
+            inner.line.color.rgb = RGBColor(220, 226, 235)
+            inner.line.width = Pt(2)
+        except Exception:
+            pass
+
+        core_d = 1.55
+        core = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - core_d / 2), Inches(cy - core_d / 2), Inches(core_d), Inches(core_d))
+        core.fill.solid(); core.fill.fore_color.rgb = RGBColor(255, 255, 255)
+        try:
+            core.line.color.rgb = RGBColor(220, 226, 235)
+            core.line.width = Pt(1.5)
+        except Exception:
+            pass
+        tfc = core.text_frame
+        tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        try:
+            tfc.vertical_anchor = MSO_ANCHOR.MIDDLE
+            tfc.margin_left = Pt(6)
+            tfc.margin_right = Pt(6)
+            tfc.margin_top = Pt(2)
+            tfc.margin_bottom = Pt(2)
+        except Exception:
+            pass
+        pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+        wrapped_c, fs_c = _fit_text_no_midword(hub, box_w_in=core_d * 0.90, box_h_in=core_d * 0.75, base_font_pt=16, min_font_pt=11, max_lines=3)
+        rc = pc.add_run(); rc.text = wrapped_c
+        rc.font.size = Pt(fs_c); rc.font.bold = True; rc.font.color.rgb = RGBColor(*pal.get("text", (15, 23, 42)))
+
+        node_w, node_h = 4.20, 0.92
+        side_margin = 0.65
+        left_x = side_margin
+        right_x = SLIDE_W_IN - side_margin - node_w
+        inner_gap_from_hub = 0.55
+        row_gap = 0.58
+        start_y = cy - (node_h * 1.5 + row_gap)
+
+        dot_d = 0.10
+        dot_rgb = (190, 198, 210)
+
+        def _node_row_y(i: int) -> float:
+            return start_y + i * (node_h + row_gap)
+
+        def _draw_node(*, x: float, y: float, idx: int, text: str, align_left: bool) -> None:
+            col = step_cols[idx % len(step_cols)]
+
+            pill = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(node_w), Inches(node_h))
+            pill.fill.solid(); pill.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            try:
+                pill.line.color.rgb = RGBColor(231, 236, 244)
+                pill.line.width = Pt(1)
+            except Exception:
+                pill.line.fill.background()
+
+            stripe_w = 1.30
+            stripe_x = x if align_left else (x + node_w - stripe_w)
+            stripe = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(stripe_x), Inches(y), Inches(stripe_w), Inches(node_h))
+            stripe.fill.solid(); stripe.fill.fore_color.rgb = RGBColor(*col)
+            stripe.line.fill.background()
+
+            badge_d = 0.54
+            badge_x = (stripe_x + stripe_w - badge_d - 0.16) if align_left else (stripe_x + 0.16)
+            badge = s.shapes.add_shape(MsoShape.OVAL, Inches(badge_x), Inches(y + node_h / 2.0 - badge_d / 2.0), Inches(badge_d), Inches(badge_d))
+            badge.fill.solid(); badge.fill.fore_color.rgb = RGBColor(255, 255, 255)
+            try:
+                badge.line.color.rgb = RGBColor(*_shade(col, -20))
+                badge.line.width = Pt(1.25)
+            except Exception:
+                pass
+            btf = badge.text_frame
+            btf.clear(); btf.word_wrap = False; btf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                btf.vertical_anchor = MSO_ANCHOR.MIDDLE
+                btf.margin_left = Pt(0)
+                btf.margin_right = Pt(0)
+                btf.margin_top = Pt(0)
+                btf.margin_bottom = Pt(0)
+            except Exception:
+                pass
+            bp = btf.paragraphs[0]; bp.alignment = PP_ALIGN.CENTER
+            br = bp.add_run(); br.text = f"{idx + 1:02d}"
+            br.font.size = Pt(11)
+            br.font.bold = True
+            br.font.color.rgb = RGBColor(*_shade(col, -25))
+
+            text_pad = 0.28
+            if align_left:
+                tx = x + stripe_w + text_pad
+                tw = node_w - stripe_w - 2 * text_pad
+            else:
+                tx = x + text_pad
+                tw = node_w - stripe_w - 2 * text_pad
+            _add_textbox(
+                s,
+                tx,
+                y + 0.16,
+                tw,
+                node_h - 0.25,
+                _shorten(str(text or "").strip(), 64),
+                font_size_pt=14,
+                bold=True,
+                color=pal.get("text", (15, 23, 42)),
+                align="left",
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+            ymid = y + node_h / 2.0
+            if align_left:
+                hub_x = cx - outer_d / 2.0
+                dot_x = hub_x - inner_gap_from_hub
+                end_x = x + node_w
+            else:
+                hub_x = cx + outer_d / 2.0
+                dot_x = hub_x + inner_gap_from_hub
+                end_x = x
+
+            dot = s.shapes.add_shape(MsoShape.OVAL, Inches(dot_x - dot_d / 2), Inches(ymid - dot_d / 2), Inches(dot_d), Inches(dot_d))
+            dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(*dot_rgb)
+            dot.line.fill.background()
+
+            c1 = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(hub_x), Inches(ymid), Inches(dot_x), Inches(ymid))
+            c2 = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(dot_x), Inches(ymid), Inches(end_x), Inches(ymid))
+            for c in (c1, c2):
+                c.line.color.rgb = RGBColor(222, 228, 238)
+                c.line.width = Pt(1)
+
+        for i in range(3):
+            y = _node_row_y(i)
+            _draw_node(x=left_x, y=y, idx=i, text=items[i], align_left=True)
+
+        for i in range(3):
+            y = _node_row_y(i)
+            _draw_node(x=right_x, y=y, idx=i + 3, text=items[i + 3], align_left=False)
+
+    def _render_hub_spoke_side_by_side_infographic_6(sl) -> None:
+        title, items, content = _hub_spoke_items(sl, target_n=6)
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        hub = _hub_label(sl, content)
+        step_cols = _step_colors()
+        core_rgb = pal.get("primary", (59, 130, 246))
+        bg_rgb = pal.get("bg", (255, 255, 255))
+
+        cx, cy = SLIDE_W_IN / 2.0, SLIDE_H_IN / 2.0
+
+        # Center ring: keep it clean and light. PowerPoint gradients aren't
+        # reliable via python-pptx, so approximate a soft gradient with two
+        # concentric strokes.
+        outer_d = 3.00
+        ring = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - outer_d / 2), Inches(cy - outer_d / 2), Inches(outer_d), Inches(outer_d))
+        ring.fill.solid(); ring.fill.fore_color.rgb = RGBColor(*bg_rgb)
+        ring.line.color.rgb = RGBColor(*_shade(core_rgb, 30))
+        ring.line.width = Pt(6)
+
+        mid_d = 2.72
+        ring2 = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - mid_d / 2), Inches(cy - mid_d / 2), Inches(mid_d), Inches(mid_d))
+        ring2.fill.solid(); ring2.fill.fore_color.rgb = RGBColor(*bg_rgb)
+        ring2.line.color.rgb = RGBColor(*_shade(core_rgb, 10))
+        ring2.line.width = Pt(4)
+
+        inner_d = 2.30
+        inner = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - inner_d / 2), Inches(cy - inner_d / 2), Inches(inner_d), Inches(inner_d))
+        inner.fill.solid(); inner.fill.fore_color.rgb = RGBColor(*bg_rgb)
+        try:
+            inner.line.color.rgb = RGBColor(228, 233, 241)
+            inner.line.width = Pt(1.25)
+        except Exception:
+            pass
+
+        core_d = 1.65
+        core = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - core_d / 2), Inches(cy - core_d / 2), Inches(core_d), Inches(core_d))
+        core.fill.solid(); core.fill.fore_color.rgb = RGBColor(255, 255, 255)
+        try:
+            core.line.color.rgb = RGBColor(220, 226, 235)
+            core.line.width = Pt(1.5)
+        except Exception:
+            pass
+        tfc = core.text_frame
+        tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        try:
+            tfc.vertical_anchor = MSO_ANCHOR.MIDDLE
+            tfc.margin_left = Pt(6)
+            tfc.margin_right = Pt(6)
+            tfc.margin_top = Pt(2)
+            tfc.margin_bottom = Pt(2)
+        except Exception:
+            pass
+        pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
+        wrapped_c, fs_c = _fit_text_no_midword(hub, box_w_in=core_d * 0.90, box_h_in=core_d * 0.75, base_font_pt=16, min_font_pt=11, max_lines=3)
+        rc = pc.add_run(); rc.text = wrapped_c
+        rc.font.size = Pt(fs_c); rc.font.bold = True; rc.font.color.rgb = RGBColor(*pal.get("text", (15, 23, 42)))
+
+        # Side pills: smaller + lighter to keep the slide airy.
+        node_w, node_h = 4.05, 0.86
+        side_margin = 0.78
+        left_x = side_margin
+        right_x = SLIDE_W_IN - side_margin - node_w
+        inner_gap_from_hub = 0.46
+        row_gap = 0.62
+        start_y = cy - (node_h * 1.5 + row_gap)
+
+        dot_d = 0.10
+        dot_rgb = (190, 198, 210)
+
+        def _node_row_y(i: int) -> float:
+            return start_y + i * (node_h + row_gap)
+
+        def _draw_node(*, x: float, y: float, idx: int, text: str, align_left: bool) -> None:
+            col = step_cols[idx % len(step_cols)]
+            head, tail = _split_head_tail(str(text or "").strip())
+            head_txt = (head or str(text or "")).strip() or f"Option {idx + 1}"
+            body_txt = (tail or "").strip()
+            if body_txt and len(body_txt.split()) > 12:
+                body_txt = " ".join(body_txt.split()[:12]).rstrip(" ,.;:-")
+
+            pill = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(node_w), Inches(node_h))
+            pill.fill.solid(); pill.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            try:
+                pill.line.color.rgb = RGBColor(231, 236, 244)
+                pill.line.width = Pt(1)
+            except Exception:
+                pill.line.fill.background()
+
+            stripe_w = 1.12
+            stripe_x = x if align_left else (x + node_w - stripe_w)
+            stripe = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(stripe_x), Inches(y), Inches(stripe_w), Inches(node_h))
+            stripe.fill.solid(); stripe.fill.fore_color.rgb = RGBColor(*col)
+            stripe.line.fill.background()
+
+            badge_d = 0.50
+            badge_x = (stripe_x + stripe_w - badge_d - 0.16) if align_left else (stripe_x + 0.16)
+            badge = s.shapes.add_shape(MsoShape.OVAL, Inches(badge_x), Inches(y + node_h / 2.0 - badge_d / 2.0), Inches(badge_d), Inches(badge_d))
+            badge.fill.solid(); badge.fill.fore_color.rgb = RGBColor(255, 255, 255)
+            try:
+                badge.line.color.rgb = RGBColor(*_shade(col, -20))
+                badge.line.width = Pt(1)
+            except Exception:
+                pass
+            btf = badge.text_frame
+            btf.clear(); btf.word_wrap = False; btf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                btf.vertical_anchor = MSO_ANCHOR.MIDDLE
+                btf.margin_left = Pt(0)
+                btf.margin_right = Pt(0)
+                btf.margin_top = Pt(0)
+                btf.margin_bottom = Pt(0)
+            except Exception:
+                pass
+            bp = btf.paragraphs[0]; bp.alignment = PP_ALIGN.CENTER
+            br = bp.add_run(); br.text = f"{idx + 1:02d}"
+            br.font.size = Pt(11)
+            br.font.bold = True
+            br.font.color.rgb = RGBColor(*_shade(col, -25))
+
+            text_pad = 0.24
+            if align_left:
+                tx = x + stripe_w + text_pad
+                tw = node_w - stripe_w - 2 * text_pad
+            else:
+                tx = x + text_pad
+                tw = node_w - stripe_w - 2 * text_pad
+            th = node_h - 0.22
+            tframe = s.shapes.add_textbox(Inches(tx), Inches(y + 0.12), Inches(tw), Inches(th)).text_frame
+            tframe.clear(); tframe.word_wrap = True; tframe.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            p1 = tframe.paragraphs[0]; p1.clear(); p1.alignment = PP_ALIGN.LEFT
+            wrapped_h, fs_h = _fit_text_no_midword(head_txt, box_w_in=tw, box_h_in=th * (0.58 if body_txt else 1.0), base_font_pt=13, min_font_pt=11, max_lines=2)
+            r1 = p1.add_run(); r1.text = wrapped_h
+            r1.font.size = Pt(fs_h); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (15, 23, 42)))
+            if body_txt:
+                p2 = tframe.add_paragraph(); p2.clear(); p2.alignment = PP_ALIGN.LEFT
+                wrapped_b, fs_b = _fit_text_no_midword(body_txt, box_w_in=tw, box_h_in=th * 0.42, base_font_pt=9, min_font_pt=8, max_lines=2)
+                r2 = p2.add_run(); r2.text = wrapped_b
+                r2.font.size = Pt(fs_b); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+
+            ymid = y + node_h / 2.0
+            if align_left:
+                hub_x = cx - outer_d / 2.0
+                dot_x = hub_x - inner_gap_from_hub
+                end_x = x + node_w
+            else:
+                hub_x = cx + outer_d / 2.0
+                dot_x = hub_x + inner_gap_from_hub
+                end_x = x
+
+            dot = s.shapes.add_shape(MsoShape.OVAL, Inches(dot_x - dot_d / 2), Inches(ymid - dot_d / 2), Inches(dot_d), Inches(dot_d))
+            dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(*dot_rgb)
+            dot.line.fill.background()
+
+            c1 = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(hub_x), Inches(ymid), Inches(dot_x), Inches(ymid))
+            c2 = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(dot_x), Inches(ymid), Inches(end_x), Inches(ymid))
+            for c in (c1, c2):
+                c.line.color.rgb = RGBColor(222, 228, 238)
+                c.line.width = Pt(1)
+
+        for i in range(3):
+            y = _node_row_y(i)
+            _draw_node(x=left_x, y=y, idx=i, text=items[i], align_left=True)
+
+        for i in range(3):
+            y = _node_row_y(i)
+            _draw_node(x=right_x, y=y, idx=i + 3, text=items[i + 3], align_left=False)
+
     def _render_hub_spoke_classic_circles(sl) -> None:
         title, items, content = _hub_spoke_items(sl, target_n=6)
         s = prs.slides.add_slide(blank); apply_bg(s)
@@ -9331,11 +9644,23 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 "hub-spoke-circular-ring": "circular_ring",
                 "hub_spoke_orbit": "orbit",
                 "hub-spoke-orbit": "orbit",
+                "side_by_side": "side_by_side_6",
+                "side-by-side": "side_by_side_6",
+                "side_by_side_6": "side_by_side_6",
+                "side-by-side-6": "side_by_side_6",
+                "side_by_side_infographic": "side_by_side_infographic_6",
+                "side-by-side-infographic": "side_by_side_infographic_6",
+                "side_by_side_infographic_6": "side_by_side_infographic_6",
+                "side-by-side-infographic-6": "side_by_side_infographic_6",
+                "infographic_side_by_side": "side_by_side_infographic_6",
+                "infographic-side-by-side": "side_by_side_infographic_6",
+                "side": "side_by_side_6",
+                "side6": "side_by_side_6",
                 "spokes": "classic_circles",
             }
             forced = variant_map.get(raw_variant)
 
-            eligible: List[str] = ["classic_circles", "circular_ring", "lr_boxes", "orbit"]
+            eligible: List[str] = ["classic_circles", "circular_ring", "lr_boxes", "orbit", "side_by_side_6", "side_by_side_infographic_6"]
             if forced and forced not in eligible:
                 eligible.append(forced)
 
@@ -9354,6 +9679,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 _render_hub_spoke_lr_boxes(sl)
             elif chosen == "orbit":
                 _render_hub_spoke_orbit(sl)
+            elif chosen == "side_by_side_6":
+                _render_hub_spoke_side_by_side_6(sl)
+            elif chosen == "side_by_side_infographic_6":
+                _render_hub_spoke_side_by_side_infographic_6(sl)
             else:
                 _render_hub_spoke_classic_circles(sl)
 
