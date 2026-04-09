@@ -61,15 +61,19 @@ def _slides(deck_id: str, variant: str, topic: str):
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--topic", default="", help="Topic used to generate agenda items")
+    ap.add_argument("--variant", default="", help="If set, render only this agenda variant")
     args = ap.parse_args()
     topic = str(args.topic or "").strip()
+    only_variant = str(args.variant or "").strip()
 
     deck_id = "smoke_agenda_new_variants"
     out_dir = os.path.join(os.getcwd(), "tmp_previews", deck_id)
     os.makedirs(out_dir, exist_ok=True)
     run_tag = str(int(time.time()))
 
-    variants = ["step_squares", "minimal_rule", "stacked_circles", "split_panel", "zebra"]
+    variants = ["step_squares", "center_chevrons", "chevron_badges", "minimal_rule", "stacked_circles", "split_panel"]
+    if only_variant:
+        variants = [only_variant]
     out_paths = []
 
     for v in variants:

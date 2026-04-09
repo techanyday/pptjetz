@@ -478,6 +478,36 @@ def _clean_agenda_items_any(items: List[Any], limit: int = 32) -> List[Any]:
     seen = set()
     out: List[Any] = []
     for it in items or []:
+        # Preserve structured agenda items. Some upstream flows can stringify dicts;
+        # normalize those back into dicts so title/description extraction is reliable.
+        try:
+            if isinstance(it, str):
+                s = it.strip()
+                if s.startswith("{") and ("title" in s or "description" in s):
+                    s_norm = (
+                        s.replace("“", '"')
+                        .replace("”", '"')
+                        .replace("’", "'")
+                        .replace("‘", "'")
+                    )
+                    probe = s_norm
+                    if "}" in probe:
+                        probe = probe[: probe.rfind("}") + 1]
+                    try:
+                        import ast as _ast
+
+                        obj = _ast.literal_eval(probe)
+                        if isinstance(obj, dict):
+                            it = obj
+                    except Exception:
+                        try:
+                            obj2 = json.loads(probe)
+                            if isinstance(obj2, dict):
+                                it = obj2
+                        except Exception:
+                            pass
+        except Exception:
+            pass
         head_txt, _tail_txt = _agenda_head_desc(it)
         t = str(head_txt or "").strip()
         if not t or t.lower() in {"tbd", "-", "•"}:
@@ -533,6 +563,9 @@ def _agenda_head_desc(item: Any) -> Tuple[str, str]:
             head_txt = str(item.get("title") or item.get("label") or item.get("heading") or "").strip()
             tail_txt = str(item.get("description") or item.get("details") or item.get("text") or "").strip()
             if head_txt:
+                tail_txt = str(tail_txt or "").strip()
+                if tail_txt and not re.search(r"[A-Za-z0-9]", tail_txt):
+                    tail_txt = ""
                 return head_txt, _shorten(tail_txt, 96) if tail_txt else ""
     except Exception:
         pass
@@ -541,18 +574,53 @@ def _agenda_head_desc(item: Any) -> Tuple[str, str]:
     # are stringified), attempt to parse it and re-run extraction.
     try:
         txt_probe = str(item or "").strip()
-        if txt_probe.startswith("{") and txt_probe.endswith("}") and ("title" in txt_probe or "description" in txt_probe):
+        # Normalize smart quotes so dict-like strings are parseable and match regex patterns.
+        txt_probe = (
+            txt_probe.replace("“", '"')
+            .replace("”", '"')
+            .replace("’", "'")
+            .replace("‘", "'")
+        )
+        # Be tolerant of dict-like strings that may have extra characters or not strictly end with '}'.
+        # Try to isolate the first JSON/dict object and parse it.
+        if txt_probe.startswith("{") and ("title" in txt_probe or "description" in txt_probe):
             import ast as _ast
+            probe = txt_probe
+            if "}" in probe:
+                probe = probe[: probe.rfind("}") + 1]
             try:
-                obj = _ast.literal_eval(txt_probe)
+                obj = _ast.literal_eval(probe)
                 if isinstance(obj, dict):
                     return _agenda_head_desc(obj)
             except Exception:
                 pass
             try:
-                obj2 = json.loads(txt_probe)
+                obj2 = json.loads(probe)
                 if isinstance(obj2, dict):
                     return _agenda_head_desc(obj2)
+            except Exception:
+                pass
+
+            # Regex fallback for cases where the string is almost-a-dict but not parseable
+            # (e.g., mixed quotes/formatting). This prevents placeholder-looking output.
+            try:
+                m_title = re.search(r"(?:'title'|\"title\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", probe)
+                if not m_title:
+                    # Handle malformed key/value where ':' is missing after the title key.
+                    m_title = re.search(r"(?:'title'|\"title\")\s*(?:,|\s)+\s*(?:'([^']+)'|\"([^\"]+)\")", probe)
+
+                m_desc = re.search(r"(?:'description'|\"description\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", probe)
+                if not m_desc:
+                    m_desc = re.search(r"(?:'desc'|\"desc\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", probe)
+
+                title_val = (m_title.group(1) or m_title.group(2)) if m_title else ""
+                desc_val = (m_desc.group(1) or m_desc.group(2)) if m_desc else ""
+                title_val = str(title_val or "").strip()
+                desc_val = str(desc_val or "").strip()
+                if title_val:
+                    if desc_val and not re.search(r"[A-Za-z0-9]", desc_val):
+                        desc_val = ""
+                    return title_val, _shorten(desc_val, 96) if desc_val else ""
             except Exception:
                 pass
     except Exception:
@@ -571,9 +639,45 @@ def _agenda_head_desc(item: Any) -> Tuple[str, str]:
             head_txt = (head_txt + " " + tail_txt).strip()
             tail_txt = ""
     try:
+        tail_txt = str(tail_txt or "").strip()
+        if tail_txt and not re.search(r"[A-Za-z0-9]", tail_txt):
+            tail_txt = ""
         tail_txt = _shorten(tail_txt, 96) if tail_txt else ""
     except Exception:
         tail_txt = tail_txt or ""
+
+    # Final guard: if the "headline" looks like a dict key placeholder, attempt to extract a real title.
+    head_probe = str(head_txt or "").strip()
+    if (
+        head_probe in {"{'title'", '{"title"', "{title"}
+        or head_probe.startswith("{'title")
+        or head_probe.startswith('{"title')
+    ):
+        try:
+            s0 = str(item or "").strip()
+            s0 = (
+                s0.replace("“", '"')
+                .replace("”", '"')
+                .replace("’", "'")
+                .replace("‘", "'")
+            )
+            m_title2 = re.search(r"(?:'title'|\"title\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", s0)
+            if not m_title2:
+                m_title2 = re.search(r"(?:'title'|\"title\")\s*(?:,|\s)+\s*(?:'([^']+)'|\"([^\"]+)\")", s0)
+
+            m_desc2 = re.search(r"(?:'description'|\"description\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", s0)
+            if not m_desc2:
+                m_desc2 = re.search(r"(?:'desc'|\"desc\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", s0)
+            title2 = (m_title2.group(1) or m_title2.group(2)) if m_title2 else ""
+            desc2 = (m_desc2.group(1) or m_desc2.group(2)) if m_desc2 else ""
+            title2 = str(title2 or "").strip()
+            desc2 = str(desc2 or "").strip()
+            if title2:
+                if desc2 and not re.search(r"[A-Za-z0-9]", desc2):
+                    desc2 = ""
+                return title2, _shorten(desc2, 96) if desc2 else ""
+        except Exception:
+            pass
     return head_txt, tail_txt
 
 def _agenda_step_colors(pal: Dict[str, Tuple[int, int, int]]) -> List[Tuple[int, int, int]]:
@@ -773,6 +877,262 @@ def _render_agenda_stacked_circles(slide, items: List[Any], *, pal: Dict[str, Tu
             if tail_txt:
                 desc_h = max(0.12, row_h - 0.46)
                 _add_textbox(slide, text_x, y + 0.41, text_w, desc_h, tail_txt, font_size_pt=12, color=pal.get("muted", pal.get("text", (71, 85, 105))), word_wrap=True, auto_fit=True)
+            y += row_h + row_gap
+
+
+def _render_agenda_center_chevrons(slide, items: List[Any], *, pal: Dict[str, Tuple[int, int, int]], title: str = "Agenda", subtitle: str | None = None) -> None:
+    cleaned = _clean_agenda_items_any(list(items or []), limit=10)
+    if not cleaned:
+        cleaned = ["Overview", "Approach", "Findings", "Next Steps"]
+    n = min(8, max(4, len(cleaned)))
+    cleaned = cleaned[:n]
+
+    # Cleaning can reduce the list (dedupe/strip placeholders). Ensure we still have
+    # the minimum count expected by this layout (paired rows).
+    if len(cleaned) < 4:
+        fallback = ["Overview", "Approach", "Findings", "Next Steps"]
+        while len(cleaned) < 4 and len(cleaned) < len(fallback):
+            cleaned.append(fallback[len(cleaned)])
+        while len(cleaned) < 4:
+            cleaned.append(cleaned[-1])
+    n = len(cleaned)
+
+    title_h = _agenda_title(slide, title, pal=pal)
+    sub_h = _agenda_subtitle(slide, 0.9 + title_h, subtitle or "", pal=pal)
+    top = 0.9 + title_h + (sub_h if sub_h else 0.0) + 0.30
+    avail_h = SLIDE_H_IN - 0.8 - top
+
+    STEP_COLS = _agenda_step_colors(pal)
+
+    # Layout: paired rows (1 left, 2 right), with center dots in between.
+    rows = int((n + 1) // 2)
+    row_gap = 0.22
+    row_h = max(0.78, min(1.05, (avail_h - (rows - 1) * row_gap) / max(1, rows)))
+
+    center_x = SLIDE_W_IN / 2
+    side_margin = 0.95
+    center_gap = 0.80
+    avail_w = SLIDE_W_IN - 2 * side_margin - center_gap
+    col_w = avail_w / 2
+
+    left_x = side_margin
+    right_x = center_x + center_gap / 2
+    bar_w = col_w
+    bar_h = max(0.56, row_h * 0.72)
+
+    dot_d = max(0.10, min(0.16, row_h * 0.16))
+    dot_col = pal.get("primary", (59, 130, 246))
+
+    circ_d = max(0.42, min(0.62, row_h * 0.58))
+    circ_fill = RGBColor(255, 255, 255)
+    circ_txt_col = pal.get("text", (15, 23, 42))
+
+    def _bar_text(slide, x_in: float, y_in: float, w_in: float, h_in: float, txt: str, *, color_rgb: Tuple[int, int, int]):
+        tf = slide.shapes.add_textbox(Inches(x_in), Inches(y_in), Inches(w_in), Inches(h_in)).text_frame
+        tf.clear()
+        tf.word_wrap = True
+        tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        try:
+            from pptx.enum.text import MSO_ANCHOR
+            tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        except Exception:
+            pass
+        p = tf.paragraphs[0]
+        p.alignment = PP_ALIGN.CENTER
+        r = p.add_run()
+        r.text = str(txt or "").strip()
+        r.font.size = Pt(16)
+        r.font.bold = True
+        r.font.color.rgb = RGBColor(*color_rgb)
+
+    for ridx in range(rows):
+        left_idx = ridx * 2
+        right_idx = left_idx + 1
+        y = top + ridx * (row_h + row_gap)
+        y_mid = y + row_h / 2
+        bar_y = y + max(0.0, (row_h - bar_h) / 2)
+
+        # Center dot per row
+        dot = slide.shapes.add_shape(MsoShape.OVAL, Inches(center_x - dot_d / 2), Inches(y_mid - dot_d / 2), Inches(dot_d), Inches(dot_d))
+        dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(*dot_col)
+        dot.line.fill.background()
+
+        if left_idx < n:
+            head_txt, _tail_txt = _agenda_head_desc(cleaned[left_idx])
+            col = STEP_COLS[left_idx % len(STEP_COLS)]
+            bar = slide.shapes.add_shape(MsoShape.RIGHT_ARROW, Inches(left_x), Inches(bar_y), Inches(bar_w), Inches(bar_h))
+            bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(*col)
+            bar.line.fill.background()
+
+            # Number circle near the inner edge
+            cx = center_x - center_gap / 2 - circ_d * 0.55
+            circ = slide.shapes.add_shape(MsoShape.OVAL, Inches(cx - circ_d / 2), Inches(y_mid - circ_d / 2), Inches(circ_d), Inches(circ_d))
+            circ.fill.solid(); circ.fill.fore_color.rgb = circ_fill
+            try:
+                circ.line.color.rgb = RGBColor(*col)
+                circ.line.width = Pt(1.5)
+            except Exception:
+                pass
+            tfc = circ.text_frame
+            tfc.clear(); tfc.word_wrap = False; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                from pptx.enum.text import MSO_ANCHOR
+                tfc.vertical_anchor = MSO_ANCHOR.MIDDLE
+            except Exception:
+                pass
+            pc = tfc.paragraphs[0]
+            pc.alignment = PP_ALIGN.CENTER
+            rc = pc.add_run()
+            rc.text = f"{left_idx + 1:d}"
+            rc.font.size = Pt(18)
+            rc.font.bold = True
+            rc.font.color.rgb = RGBColor(*circ_txt_col)
+
+            _bar_text(slide, left_x + 0.25, bar_y, bar_w - 0.70, bar_h, head_txt, color_rgb=(255, 255, 255))
+
+        if right_idx < n:
+            head_txt, _tail_txt = _agenda_head_desc(cleaned[right_idx])
+            col = STEP_COLS[right_idx % len(STEP_COLS)]
+            bar = slide.shapes.add_shape(MsoShape.LEFT_ARROW, Inches(right_x), Inches(bar_y), Inches(bar_w), Inches(bar_h))
+            bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(*col)
+            bar.line.fill.background()
+
+            cx = center_x + center_gap / 2 + circ_d * 0.55
+            circ = slide.shapes.add_shape(MsoShape.OVAL, Inches(cx - circ_d / 2), Inches(y_mid - circ_d / 2), Inches(circ_d), Inches(circ_d))
+            circ.fill.solid(); circ.fill.fore_color.rgb = circ_fill
+            try:
+                circ.line.color.rgb = RGBColor(*col)
+                circ.line.width = Pt(1.5)
+            except Exception:
+                pass
+            tfc = circ.text_frame
+            tfc.clear(); tfc.word_wrap = False; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                from pptx.enum.text import MSO_ANCHOR
+                tfc.vertical_anchor = MSO_ANCHOR.MIDDLE
+            except Exception:
+                pass
+            pc = tfc.paragraphs[0]
+            pc.alignment = PP_ALIGN.CENTER
+            rc = pc.add_run()
+            rc.text = f"{right_idx + 1:d}"
+            rc.font.size = Pt(18)
+            rc.font.bold = True
+            rc.font.color.rgb = RGBColor(*circ_txt_col)
+
+            _bar_text(slide, right_x + 0.45, bar_y, bar_w - 0.70, bar_h, head_txt, color_rgb=(255, 255, 255))
+
+
+def _render_agenda_chevron_badges(slide, items: List[Any], *, pal: Dict[str, Tuple[int, int, int]], title: str = "Agenda", subtitle: str | None = None) -> None:
+    cleaned = _clean_agenda_items_any(list(items or []), limit=10)
+    if not cleaned:
+        cleaned = ["Overview", "Approach", "Findings", "Next Steps"]
+    n = min(8, max(4, len(cleaned)))
+    cleaned = cleaned[:n]
+
+    # Cleaning can reduce the list (dedupe/strip placeholders). Ensure we still have
+    # the minimum count expected by this layout.
+    if len(cleaned) < 4:
+        fallback = ["Overview", "Approach", "Findings", "Next Steps"]
+        while len(cleaned) < 4 and len(cleaned) < len(fallback):
+            cleaned.append(fallback[len(cleaned)])
+        while len(cleaned) < 4:
+            cleaned.append(cleaned[-1])
+    n = len(cleaned)
+
+    title_h = _agenda_title(slide, title, pal=pal)
+    sub_h = _agenda_subtitle(slide, 0.9 + title_h, subtitle or "", pal=pal)
+    top = 0.9 + title_h + (sub_h if sub_h else 0.0) + 0.35
+    avail_h = SLIDE_H_IN - 0.85 - top
+
+    STEP_COLS = _agenda_step_colors(pal)
+
+    left_count = (n + 1) // 2
+    left_items = cleaned[:left_count]
+    right_items = cleaned[left_count:]
+    rows = max(len(left_items), len(right_items))
+
+    col_gap = 0.75
+    col_w = (SLIDE_W_IN - 2.0 - col_gap) / 2
+    col_xs = [1.0, 1.0 + col_w + col_gap]
+
+    row_gap = 0.28
+    row_h = max(0.82, min(1.22, (avail_h - (rows - 1) * row_gap) / max(1, rows)))
+
+    badge_h = max(0.55, min(0.78, row_h * 0.72))
+    badge_w = max(0.90, min(1.10, badge_h * 1.55))
+    badge_y_off = max(0.0, (row_h - badge_h) / 2)
+
+    text_x_off = badge_w + 0.30
+    head_h = 0.34
+    tail_h_min = 0.18
+
+    for col_idx, col_items in enumerate([left_items, right_items]):
+        col_x = col_xs[col_idx]
+        y = top
+        for j in range(rows):
+            global_idx = (j if col_idx == 0 else (left_count + j))
+            if global_idx >= n:
+                continue
+            raw = col_items[j] if j < len(col_items) else None
+            if raw is None:
+                continue
+
+            head_txt, tail_txt = _agenda_head_desc(raw)
+            col = STEP_COLS[global_idx % len(STEP_COLS)]
+
+            # Chevron badge
+            b = slide.shapes.add_shape(MsoShape.CHEVRON, Inches(col_x), Inches(y + badge_y_off), Inches(badge_w), Inches(badge_h))
+            b.fill.solid(); b.fill.fore_color.rgb = RGBColor(*col)
+            b.line.fill.background()
+
+            tfb = b.text_frame
+            tfb.clear(); tfb.word_wrap = False; tfb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                from pptx.enum.text import MSO_ANCHOR
+                tfb.vertical_anchor = MSO_ANCHOR.MIDDLE
+            except Exception:
+                pass
+            pb = tfb.paragraphs[0]
+            pb.alignment = PP_ALIGN.CENTER
+            rb = pb.add_run()
+            rb.text = f"{global_idx + 1:02d}"
+            rb.font.size = Pt(20)
+            rb.font.bold = True
+            rb.font.color.rgb = RGBColor(255, 255, 255)
+
+            text_x = col_x + text_x_off
+            text_w = max(1.8, (col_x + col_w) - text_x)
+
+            _add_textbox(
+                slide,
+                text_x,
+                y,
+                text_w,
+                head_h,
+                head_txt,
+                font_size_pt=16,
+                bold=True,
+                color=pal.get("text", (15, 23, 42)),
+                word_wrap=True,
+                auto_fit=True,
+            )
+            if tail_txt:
+                tail_y = y + head_h + 0.10
+                tail_h = max(tail_h_min, row_h - (tail_y - y))
+                _add_textbox(
+                    slide,
+                    text_x,
+                    tail_y,
+                    text_w,
+                    tail_h,
+                    tail_txt,
+                    font_size_pt=11,
+                    color=pal.get("muted", pal.get("text", (71, 85, 105))),
+                    word_wrap=True,
+                    auto_fit=True,
+                )
+
             y += row_h + row_gap
 
 def _render_agenda_split_panel(slide, items: List[Any], *, pal: Dict[str, Tuple[int, int, int]], title: str = "Agenda", subtitle: str | None = None) -> None:
@@ -3474,13 +3834,22 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
         raw_forced = str(c.get("agenda_variant") or c.get("variant") or "").strip().lower()
         forced_map = {
-            "zebra": "zebra",
-            "rows": "zebra",
-            "list": "zebra",
+            "zebra": "minimal_rule",
+            "rows": "minimal_rule",
+            "list": "minimal_rule",
             "step_squares": "step_squares",
             "step-squares": "step_squares",
             "squares": "step_squares",
             "square": "step_squares",
+            "center_chevrons": "center_chevrons",
+            "center-chevrons": "center_chevrons",
+            "center": "center_chevrons",
+            "chevrons": "center_chevrons",
+            "arrows": "center_chevrons",
+            "chevron_badges": "chevron_badges",
+            "chevron-badges": "chevron_badges",
+            "badges": "chevron_badges",
+            "badge": "chevron_badges",
             "minimal": "minimal_rule",
             "minimal_rule": "minimal_rule",
             "minimal-rule": "minimal_rule",
@@ -3498,13 +3867,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         }
         forced_norm = forced_map.get(raw_forced) if raw_forced else None
 
-        pool = ["step_squares", "minimal_rule", "stacked_circles", "split_panel", "zebra"]
+        pool = ["step_squares", "center_chevrons", "chevron_badges", "minimal_rule", "stacked_circles", "split_panel"]
         chosen = choose_variant("agenda", pool, forced=forced_norm)
         _debug_variant(family="agenda", chosen=chosen, eligible=pool, forced=forced_norm)
 
         bullets_raw = c.get("bullets", [])[:32]
         if chosen == "step_squares":
             _render_agenda_step_squares(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
+        elif chosen == "center_chevrons":
+            _render_agenda_center_chevrons(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
+        elif chosen == "chevron_badges":
+            _render_agenda_chevron_badges(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
         elif chosen == "minimal_rule":
             _render_agenda_minimal_rule(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
         elif chosen == "stacked_circles":
@@ -3512,14 +3885,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         elif chosen == "split_panel":
             _render_agenda_split_panel(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
         else:
-            # Single-slide agenda per topic; extra items are ignored instead of paginated
-            bullets_txt = []
-            for it in bullets_raw:
-                head_txt, _tail_txt = _agenda_head_desc(it)
-                t = str(head_txt or "").strip() or str(it or "").strip()
-                if t:
-                    bullets_txt.append(t)
-            _render_agenda_zebra_autofit(prs, s, bullets_txt, pal=pal, title=title_txt, subtitle=subtitle_txt, is_cont=False)
+            # Fallback to a supported, single-slide agenda layout
+            _render_agenda_minimal_rule(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
 
     def render_one_idea(sl):
         """Render a simple one-idea intro slide: bold headline + short paragraph.

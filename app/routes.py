@@ -434,6 +434,26 @@ def export_to_pptx_page() -> Any:
     return render_template("export_to_pptx.html")
 
 
+@bp.get("/free-ai-powerpoint-generator")
+def free_ai_powerpoint_generator_page() -> Any:
+    return render_template("free_ai_powerpoint_generator.html")
+
+
+@bp.get("/free-ai-slide-generator")
+def free_ai_slide_generator_page() -> Any:
+    return render_template("free_ai_slide_generator.html")
+
+
+@bp.get("/free-ai-ppt-generator")
+def free_ai_ppt_generator_page() -> Any:
+    return render_template("free_ai_ppt_generator.html")
+
+
+@bp.get("/free-ai-presentation-maker")
+def free_ai_presentation_maker_page() -> Any:
+    return render_template("free_ai_presentation_maker.html")
+
+
 @bp.get("/sales-deck-generator")
 def sales_deck_generator_page() -> Any:
     return render_template("sales_deck_generator.html")
@@ -7569,6 +7589,14 @@ def sitemap_xml_route() -> Any:
         {"loc": url_for('main.pptx_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
         {"loc": url_for('main.export_to_pptx_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.free_ai_powerpoint_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.free_ai_slide_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.free_ai_ppt_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.free_ai_presentation_maker_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
         {"loc": url_for('main.sales_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
