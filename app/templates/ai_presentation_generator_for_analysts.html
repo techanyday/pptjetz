@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}AI Presentation Generator for Analysts (Free) | PPTJet{% endblock %}
+{% block description %}Create insight-driven decks faster. Turn research notes and metrics into a structured, editable PowerPoint (.pptx) with clear narrative, charts, and executive summaries — free and unlimited with PPTJet.{% endblock %}
+{% block og_title %}AI Presentation Generator for Analysts (Free) | PPTJet{% endblock %}
+{% block og_description %}Create insight-driven decks faster. Turn research notes and metrics into a structured, editable PowerPoint (.pptx) with clear narrative, charts, and executive summaries — free and unlimited with PPTJet.{% endblock %}
+{% block tw_title %}AI Presentation Generator for Analysts (Free) | PPTJet{% endblock %}
+{% block tw_description %}Create insight-driven decks faster. Turn research notes and metrics into a structured, editable PowerPoint (.pptx) with clear narrative, charts, and executive summaries — free and unlimited with PPTJet.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/ai-presentation-generator-for-analysts",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "PPTJet is a free AI presentation generator for analysts. Convert research notes and metrics into a structured, editable PowerPoint (.pptx) deck with clear flow, executive-friendly headlines, and visual slide layouts."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is PPTJet free for analysts and reporting decks?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet is free and supports unlimited deck generation and exports with no credit card required."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I generate KPI dashboards and performance summaries?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. PPTJet supports structured slide types like KPI dashboards, risks, roadmaps, and comparisons. Export to .pptx and add your real data." 
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I avoid a deck that is just numbers?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Use point-first slide titles, highlight drivers, and end with implications and recommended actions. The goal is insight, not a spreadsheet on slides." 
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Presentation Generator for Analysts</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        Analysts are often asked to do two things at once: be precise and be understandable.
+        The data may be complex, but the deck has to communicate in minutes.
+        PPTJet helps you draft a structure that turns metrics into a narrative: what happened, why it happened, what it means, and what to do next.
+      </p>
+      <p class="mt-3 text-gray-700">
+        PPTJet is <strong>free</strong>, supports <strong>unlimited exports</strong>, and creates an editable <strong>.pptx</strong> deck.
+        Use it for weekly reporting, performance reviews, market research readouts, and stakeholder updates.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Generate an analysis deck
+        </a>
+        <a href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
+          Create KPI dashboard slides
+        </a>
+      </div>
+    </header>
+
+    <section class="mt-10" aria-labelledby="analyst-use-cases">
+      <h2 id="analyst-use-cases" class="text-2xl font-bold text-gray-900">Common Analyst Use Cases</h2>
+      <p class="mt-3 text-gray-700">
+        PPTJet is most useful when you have raw data but need a presentation that people can act on.
+        You can paste bullet notes, metric summaries, or short write-ups and generate a deck that follows a consistent reporting rhythm.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Weekly business reviews</strong>: KPI trends, drivers, and actions.</li>
+        <li><strong>Quarterly performance</strong>: what improved, what declined, and why.</li>
+        <li><strong>Market research readouts</strong>: insights, segments, and implications.</li>
+        <li><strong>Experiment reporting</strong>: hypothesis, method, results, and decision.</li>
+        <li><strong>Ops reporting</strong>: throughput, cycle time, bottlenecks, and mitigations.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you need a leadership-level strategy view, the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a>
+        page can be a better hub.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="analyst-structure">
+      <h2 id="analyst-structure" class="text-2xl font-bold text-gray-900">A Reporting Deck Structure That Drives Decisions</h2>
+      <p class="mt-3 text-gray-700">
+        Stakeholders rarely need every metric.
+        They need the story the metrics tell.
+        Use this structure to transform numbers into a decision-ready narrative.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Executive summary</strong>: 3 headlines (what changed and why it matters).</li>
+        <li><strong>KPI dashboard</strong>: top metrics with trend and target.</li>
+        <li><strong>Drivers</strong>: the 2–4 factors that explain movement.</li>
+        <li><strong>Deep dive</strong>: segment view, funnel view, cohort view, or region view.</li>
+        <li><strong>Risks</strong>: what threatens the plan and mitigations.</li>
+        <li><strong>Recommendations</strong>: 3 actions with expected impact.</li>
+        <li><strong>Next steps</strong>: owners and timeline.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        For risk-focused reporting, explore the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrix generator</a>
+        page.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="what-to-enter">
+      <h2 id="what-to-enter" class="text-2xl font-bold text-gray-900">What to Enter for Better Analyst Output</h2>
+      <p class="mt-3 text-gray-700">
+        The best analyst decks start with three inputs: the audience, the decision, and the key metrics.
+        You can keep the content short as long as it includes the meaning of the numbers.
+        If you paste raw metrics with no commentary, the deck becomes generic.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Audience</strong>: execs, functional leaders, ops, finance, product.</li>
+        <li><strong>Decision context</strong>: approve budget, change priorities, respond to risk.</li>
+        <li><strong>KPIs</strong>: current value, prior value, target, and time window.</li>
+        <li><strong>Drivers</strong>: what you believe caused the change.</li>
+        <li><strong>Segments</strong>: which segments matter most (region, channel, cohort).</li>
+        <li><strong>Actions</strong>: recommended actions with expected impact.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you already have an outline for your readout, use
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_presentation_from_outline_page') }}">generate presentation from outline</a>
+        to preserve your sequence.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="visual-slides">
+      <h2 id="visual-slides" class="text-2xl font-bold text-gray-900">Slide Types That Make Analysis Easier to Scan</h2>
+      <p class="mt-3 text-gray-700">
+        Visual structure helps stakeholders understand quickly.
+        Use structured slide types for summary and decision moments, and keep detail views in the appendix.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>KPI dashboards</strong>: health at a glance.</li>
+        <li><strong>Comparisons</strong>: before/after, A/B variants, or segment differences.</li>
+        <li><strong>Timelines</strong>: progress against milestones or delivery phases.</li>
+        <li><strong>Roadmaps</strong>: what is planned and when impact will arrive.</li>
+        <li><strong>Risk matrices</strong>: focus and prioritization.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        Explore the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a>
+        hub to see the full set of structured slide types.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="presentation-tips">
+      <h2 id="presentation-tips" class="text-2xl font-bold text-gray-900">How to Present Data Without Losing the Room</h2>
+      <p class="mt-3 text-gray-700">
+        Analysts often feel pressure to show everything.
+        But the most useful decks are selective.
+        Lead with the conclusion, show the minimum evidence required to be credible, and move deeper analysis to backup slides.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>One idea per slide</strong> when presenting live.</li>
+        <li><strong>Label the “so what”</strong> directly in the slide title.</li>
+        <li><strong>Use callouts</strong> to highlight the driver, not every number.</li>
+        <li><strong>End with actions</strong>, not a chart.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="recommendations">
+      <h2 id="recommendations" class="text-2xl font-bold text-gray-900">Turn Analysis into Recommendations (Not Just Reporting)</h2>
+      <p class="mt-3 text-gray-700">
+        Stakeholders don’t adopt insights.
+        They adopt decisions.
+        A strong analyst deck makes the implications explicit: what the data suggests, what options exist, and which action is best given constraints.
+        PPTJet can help you draft the narrative scaffolding so your readout ends with a clear plan.
+      </p>
+      <p class="mt-3 text-gray-700">
+        A practical way to write recommendation slides is to include three elements: the action, the expected impact, and the confidence level.
+        When there is uncertainty, propose an experiment or a measurement plan instead of a hard claim.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Action</strong>: what should change (process, spend, priority).</li>
+        <li><strong>Impact</strong>: what will improve (KPI movement and timeline).</li>
+        <li><strong>Proof</strong>: the driver(s) that support the action.</li>
+        <li><strong>Owner</strong>: who will execute and report back.</li>
+      </ul>
+      <p class="mt-3 text-gray-700">
+        Keep deep cuts (full tables, segment lists, query details) in an appendix.
+        That way the main deck stays readable, while your backup slides still protect rigor during Q&A.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is PPTJet good for KPI reporting?</dt>
+          <dd class="mt-2 text-gray-700">Yes. Use it to draft the structure and summary narrative, then add your real metrics and charts after export.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I create a deck from messy notes?</dt>
+          <dd class="mt-2 text-gray-700">Yes. Bullet notes work well. For longer text, start with <a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a>.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Will this replace my BI dashboard?</dt>
+          <dd class="mt-2 text-gray-700">No. PPTJet helps you create a communication deck. Use it to summarize insights, highlight drivers, and recommend actions.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
+      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrix generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a></li>
+      </ul>
+    </section>
+
+    <section class="mt-10">
+      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Turn analysis into action with a clear deck</h2>
+          <p class="mt-1 text-gray-700">Draft the storyline fast, then refine in PowerPoint.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
+          Start Creating for Free
+        </a>
+      </div>
+    </section>
+  </article>
+</main>
+{% endblock %}

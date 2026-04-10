@@ -407,6 +407,42 @@ def ai_presentation_generator_for_teachers_page() -> Any:
     return render_template("ai_presentation_generator_for_teachers.html")
 
 
+
+
+@bp.get("/ai-presentation-generator-for-product-managers")
+
+def ai_presentation_generator_for_product_managers_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_product_managers.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-executives")
+
+def ai_presentation_generator_for_executives_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_executives.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-sales-teams")
+
+def ai_presentation_generator_for_sales_teams_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_sales_teams.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-analysts")
+
+def ai_presentation_generator_for_analysts_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_analysts.html")
+
+
 @bp.get("/free-ai-presentation-generator")
 
 def free_ai_presentation_generator_page() -> Any:
@@ -7611,6 +7647,14 @@ def sitemap_xml_route() -> Any:
         {"loc": url_for('main.ai_presentation_generator_for_consultants_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
         {"loc": url_for('main.ai_presentation_generator_for_teachers_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_product_managers_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_executives_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_sales_teams_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_analysts_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
         {"loc": url_for('main.ai_business_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
