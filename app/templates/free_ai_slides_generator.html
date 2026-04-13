@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Free AI Slides Generator (Unlimited Decks) | PPTJet{% endblock %}
+{% block description %}Use PPTJet’s free AI slides generator to create clean, structured slide decks in seconds. Unlimited generation, editable PowerPoint export, and no credit card required.{% endblock %}
+{% block og_title %}Free AI Slides Generator (Unlimited Decks) | PPTJet{% endblock %}
+{% block og_description %}Use PPTJet’s free AI slides generator to create clean, structured slide decks in seconds. Unlimited generation, editable PowerPoint export, and no credit card required.{% endblock %}
+{% block tw_title %}Free AI Slides Generator (Unlimited Decks) | PPTJet{% endblock %}
+{% block tw_description %}Use PPTJet’s free AI slides generator to create clean, structured slide decks in seconds. Unlimited generation, editable PowerPoint export, and no credit card required.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/free-ai-slides-generator",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "description": "PPTJet is a free AI slides generator that creates structured presentations and exports an editable PowerPoint (.pptx). Free and unlimited."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Is this AI slides generator free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet is free and supports unlimited slide generation and exports. No credit card required."}},
+    {"@type": "Question", "name": "Do I get an editable PowerPoint file?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. You can export a standard .pptx file and edit it in Microsoft PowerPoint."}},
+    {"@type": "Question", "name": "What should I input for the best result?", "acceptedAnswer": {"@type": "Answer", "text": "Short, structured inputs work best: audience, goal, slide count, and 5–10 bullet points. Add any must-include sections like agenda, KPIs, risks, or timeline."}},
+    {"@type": "Question", "name": "Does it only generate bullet slides?", "acceptedAnswer": {"@type": "Answer", "text": "No. PPTJet can generate structured visual slide types such as timelines, roadmaps, impact maps, SWOT, KPIs, and risk matrices."}}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Free AI Slides Generator</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        If you searched for a <strong>free AI slides generator</strong>, you probably need the same thing most people need on a deadline: a clean slide deck draft you can edit.
+        PPTJet generates structured slides in seconds and exports an editable PowerPoint file.
+        Free. Unlimited drafts. No credit card required.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Create your slides instantly</a>
+        <a href="{{ url_for('main.free_ai_slide_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">See the slide generator hub</a>
+      </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited presentations. No credit card required.</p>
+    </header>
+
+    <section class="mt-10" aria-labelledby="what-it-does">
+      <h2 id="what-it-does" class="text-2xl font-bold text-gray-900">What a Free AI Slides Generator Does</h2>
+      <p class="mt-3 text-gray-700">
+        A good slide generator does more than turn text into rectangles.
+        It helps you pick a sequence that makes sense: context, main point, supporting evidence, and a next step.
+        PPTJet takes a topic or bullet notes and drafts a deck with readable headings, concise bullets, and visual structure when it’s useful.
+      </p>
+      <p class="mt-3 text-gray-700">
+        The goal is speed without losing control.
+        You generate the baseline, then refine the final version in PowerPoint: adjust wording, add numbers, include screenshots, and apply your brand theme.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="benefits">
+      <h2 id="benefits" class="text-2xl font-bold text-gray-900">Key Benefits</h2>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Free and unlimited</strong>: iterate until the structure feels right.</li>
+        <li><strong>Fast drafts</strong>: generate a first version in seconds instead of starting from blank slides.</li>
+        <li><strong>Readable output</strong>: point-first headings and compact bullets so the deck scans quickly.</li>
+        <li><strong>Editable export</strong>: download a real .pptx and polish in PowerPoint.</li>
+        <li><strong>Structured slide types</strong>: timelines, roadmaps, KPI dashboards, SWOT, and more.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how-it-works">
+      <h2 id="how-it-works" class="text-2xl font-bold text-gray-900">How It Works</h2>
+      <ol class="mt-3 list-decimal pl-6 text-gray-700">
+        <li><strong>Paste a topic or outline</strong> (or a few bullet points).</li>
+        <li><strong>Add constraints</strong>: audience, tone, and slide count.</li>
+        <li><strong>Generate</strong>: PPTJet drafts the slide flow and layouts.</li>
+        <li><strong>Export to PowerPoint</strong> and edit the deck like any normal presentation.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        If your input is already structured as text, the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_slides_from_text_page') }}">generate slides from text</a>
+        page is a focused option.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="use-cases">
+      <h2 id="use-cases" class="text-2xl font-bold text-gray-900">Use Cases</h2>
+      <p class="mt-3 text-gray-700">A free AI slides generator is most valuable when you need a draft fast and you plan to edit:</p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Students</strong>: classroom presentations, reports, thesis summaries.</li>
+        <li><strong>Business teams</strong>: weekly updates, strategy reviews, KPIs.</li>
+        <li><strong>Sales and marketing</strong>: pitch decks, proposals, narrative decks.</li>
+        <li><strong>Training</strong>: onboarding and internal enablement.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        For persona-specific pages, explore the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_for_executives_page') }}">AI presentation generator for executives</a>
+        and
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_for_product_managers_page') }}">AI presentation generator for product managers</a>.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="comparison">
+      <h2 id="comparison" class="text-2xl font-bold text-gray-900">AI Slide Generation vs Manual Slide Building</h2>
+      <p class="mt-3 text-gray-700">
+        Manual slide building usually fails at the same point: you can’t decide what to include and what to cut.
+        AI is useful when it drafts a structure you can react to.
+        Instead of spending an hour choosing slide order, you start with a baseline and spend time improving the story.
+      </p>
+      <p class="mt-3 text-gray-700">
+        The best workflow is hybrid.
+        Use AI to draft headings and structure, then apply human judgment: add real numbers, delete fluff, and tune the message to your audience.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="prompt-template">
+      <h2 id="prompt-template" class="text-2xl font-bold text-gray-900">A Simple Input Template That Produces Better Slides</h2>
+      <p class="mt-3 text-gray-700">
+        If you want a free AI slides generator to produce a deck you’ll actually use, don’t start with a vague topic.
+        Start with a few constraints.
+        You’ll get tighter slide titles, less repetition, and a flow that matches what a human would build.
+      </p>
+      <p class="mt-3 text-gray-700">
+        A reliable input format looks like this: <strong>audience</strong>, <strong>goal</strong>, <strong>slide count</strong>, and <strong>must-include sections</strong>.
+        Then add 6–12 bullets of source material.
+        For example: “Audience: leadership. Goal: align on Q2 priorities. 10 slides. Must include: KPIs, risks, timeline, next steps.”
+      </p>
+      <p class="mt-3 text-gray-700">
+        If your content is already written out, you’ll usually get the cleanest first draft using
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_slides_from_text_page') }}">generate slides from text</a>
+        and letting the tool compress paragraphs into slide-ready bullets.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="quality-checklist">
+      <h2 id="quality-checklist" class="text-2xl font-bold text-gray-900">Quality Checklist (What to Fix After Export)</h2>
+      <p class="mt-3 text-gray-700">
+        A fast draft is useful only if it’s easy to polish.
+        After you export the .pptx, do a quick pass to make the deck feel intentional and “human.”
+        This usually takes 5–10 minutes and makes a big difference.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Make headings point-first</strong>: each slide title should state a conclusion, not a topic.</li>
+        <li><strong>Cut the slide count</strong>: if two slides say the same thing, merge them.</li>
+        <li><strong>Add one piece of real evidence</strong>: a number, screenshot, or example that proves the claim.</li>
+        <li><strong>Align the “next step”</strong>: end with a decision, ask, or plan so the deck has an outcome.</li>
+        <li><strong>Use the right structure</strong>: timelines for sequencing, comparisons for trade-offs, KPI slides for metrics.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If your intent is specifically exporting to PowerPoint, the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_powerpoint_generator_page') }}">AI PowerPoint generator</a>
+        page explains the workflow from draft to editable .pptx.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is PPTJet really free and unlimited?</dt>
+          <dd class="mt-2 text-gray-700">Yes. You can generate and export unlimited decks with no credit card required.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I edit slides after generating?</dt>
+          <dd class="mt-2 text-gray-700">Yes. Export a standard .pptx and edit it in PowerPoint: fonts, layouts, themes, and content.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">What’s the difference between slides and PowerPoint?</dt>
+          <dd class="mt-2 text-gray-700">Slides are the content; PowerPoint is the file format and editing tool. If your intent is specifically a .pptx export, see <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_powerpoint_generator_page') }}">AI PowerPoint generator</a>.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Will it create visual slides like timelines?</dt>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet supports structured slide types like timelines and roadmaps when content benefits from visual structure.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="cta-bottom">
+      <h2 id="cta-bottom" class="text-2xl font-bold text-gray-900">Generate Your Slide Deck in Seconds</h2>
+      <p class="mt-3 text-gray-700">Start with a free, unlimited draft—then refine in PowerPoint.</p>
+      <div class="mt-5">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-7 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-semibold">Start your free presentation</a>
+      </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited presentations. No credit card required.</p>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="internal-links">
+      <h2 id="internal-links" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.automatic_slide_generator_page') }}">automatic slide generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_deck_generator_page') }}">AI deck generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_ppt_maker_page') }}">AI PPT maker</a></li>
+      </ul>
+    </section>
+  </article>
+</main>
+{% endblock %}
