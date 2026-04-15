@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Slides from Text Free AI (Unlimited) | PPTJet{% endblock %}
+{% block description %}Generate slides from text with free AI in seconds. Paste notes or paragraphs and export an editable PowerPoint (.pptx) — unlimited drafts, no credit card required.{% endblock %}
+{% block og_title %}Generate Slides from Text Free AI (Unlimited) | PPTJet{% endblock %}
+{% block og_description %}Generate slides from text with free AI in seconds. Paste notes or paragraphs and export an editable PowerPoint (.pptx) — unlimited drafts, no credit card required.{% endblock %}
+{% block tw_title %}Generate Slides from Text Free AI (Unlimited) | PPTJet{% endblock %}
+{% block tw_description %}Generate slides from text with free AI in seconds. Paste notes or paragraphs and export an editable PowerPoint (.pptx) — unlimited drafts, no credit card required.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/generate-slides-from-text-free-ai",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "description": "PPTJet is a free AI tool to generate slides from text. Paste paragraphs or notes and export an editable PowerPoint (.pptx) with unlimited drafts."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Can I generate slides from a long document with free AI?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Paste your text and PPTJet will draft slide titles and bullets. You can export to .pptx and refine in PowerPoint."}},
+    {"@type": "Question", "name": "Is it free and unlimited?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet supports unlimited slide generation and exports with no credit card required."}},
+    {"@type": "Question", "name": "Will I get an editable PowerPoint file?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet exports a standard .pptx that you can edit in Microsoft PowerPoint."}},
+    {"@type": "Question", "name": "What format works best?", "acceptedAnswer": {"@type": "Answer", "text": "Short sections with headings and bullets work best, but paragraphs are fine when you include audience, goal, and slide count."}}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Generate Slides from Text (Free AI)</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        If you have a document, memo, article, or long notes, you don’t want to rebuild it slide by slide.
+        With PPTJet you can <strong>generate slides from text</strong> using <strong>free AI</strong>: paste your content, get a structured deck draft, and export an editable PowerPoint.
+      </p>
+      <p class="mt-3 text-gray-700">
+        This workflow is designed for speed and editing.
+        You generate a baseline slide story, then you polish the final version in PowerPoint: tighten titles, cut text, add screenshots, and insert real charts.
+        Unlimited drafts help you find the clearest structure quickly.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Generate your slides from text</a>
+        <a href="{{ url_for('main.generate_slides_from_text_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">See the main text-to-slides page</a>
+      </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited drafts. No credit card required.</p>
+    </header>
+
+    <section class="mt-10" aria-labelledby="what-it-does">
+      <h2 id="what-it-does" class="text-2xl font-bold text-gray-900">What This Text-to-Slides Workflow Does</h2>
+      <p class="mt-3 text-gray-700">
+        Text is dense.
+        Slides should be scannable.
+        This workflow converts text into a presentation format by:
+        grouping ideas into sections, turning paragraphs into slide titles, and condensing supporting points into bullets.
+      </p>
+      <p class="mt-3 text-gray-700">
+        The goal is not to preserve every sentence.
+        The goal is to create a deck that communicates the point clearly to a live audience.
+        You can always move extra detail into an appendix or speaker notes after export.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="benefits">
+      <h2 id="benefits" class="text-2xl font-bold text-gray-900">Key Benefits</h2>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Speed</strong>: draft a slide story in seconds.</li>
+        <li><strong>Clarity</strong>: titles and bullets instead of paragraphs.</li>
+        <li><strong>Unlimited drafts</strong>: try a shorter or longer deck and compare.</li>
+        <li><strong>Editable export</strong>: download a real .pptx and refine in PowerPoint.</li>
+        <li><strong>Better pacing</strong>: use slide count constraints to keep the deck tight.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how-it-works">
+      <h2 id="how-it-works" class="text-2xl font-bold text-gray-900">How It Works (Step-by-Step)</h2>
+      <ol class="mt-3 list-decimal pl-6 text-gray-700">
+        <li><strong>Paste your text</strong>: a memo, report, article, or notes.</li>
+        <li><strong>Add constraints</strong>: audience, goal, tone, slide count.</li>
+        <li><strong>Generate</strong>: get a structured slide flow.</li>
+        <li><strong>Export</strong>: download .pptx and edit in PowerPoint.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        A simple brief improves results: audience + goal + slide count + must-include sections.
+        It tells the generator how to compress the text and what to prioritize.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="prepare">
+      <h2 id="prepare" class="text-2xl font-bold text-gray-900">How to Prepare Your Text for Better Slides</h2>
+      <p class="mt-3 text-gray-700">
+        You can paste raw paragraphs and still get a usable deck, but a bit of preparation helps.
+        The goal is to make the text easy to segment.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Add short headings</strong> for each section, even if they’re rough.</li>
+        <li><strong>Mark key facts</strong>: KPIs, dates, names, and outcomes that must appear.</li>
+        <li><strong>Remove unrelated detail</strong> so the deck doesn’t become a document on slides.</li>
+        <li><strong>Decide the intent</strong>: update, proposal, training, or summary.</li>
+        <li><strong>Choose a slide count</strong> to enforce compression.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you already have a structured outline, you may prefer
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_presentation_from_outline_page') }}">generate presentation from outline</a>
+        to preserve your sequence.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="use-cases">
+      <h2 id="use-cases" class="text-2xl font-bold text-gray-900">Use Cases</h2>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Students</strong>: convert research notes into a short presentation.</li>
+        <li><strong>Managers</strong>: turn a written update into slides.</li>
+        <li><strong>Sales</strong>: convert call notes into a follow-up deck.</li>
+        <li><strong>Training</strong>: turn SOPs into a step-by-step slide flow.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If your audience is leadership, the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_for_executives_page') }}">executive decks</a>
+        page is a good fit.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="cleanup">
+      <h2 id="cleanup" class="text-2xl font-bold text-gray-900">Cleanup Checklist After Export</h2>
+      <p class="mt-3 text-gray-700">
+        After you export the .pptx, a short polish pass makes the deck feel like a real presentation.
+        The objective is scannability: short titles, short bullets, and a clear “so what.”
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Rewrite titles</strong> as conclusions (not section names).</li>
+        <li><strong>Cut bullet length</strong> so each bullet is one line when possible.</li>
+        <li><strong>Move detail to appendix</strong> to keep the main story tight.</li>
+        <li><strong>Add one visual</strong> where it clarifies the text (timeline, table, screenshot).</li>
+        <li><strong>End with next steps</strong>: decision, owner, date.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        If you want a PowerPoint-first workflow, see
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_powerpoint_generator_page') }}">free AI PowerPoint generator</a>.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="input-format">
+      <h2 id="input-format" class="text-2xl font-bold text-gray-900">Best Text Format to Paste (So the Deck Isn’t Messy)</h2>
+      <p class="mt-3 text-gray-700">
+        You can paste raw text, but you’ll get cleaner slides when the input is easy to segment.
+        A simple structure helps the generator decide where slides should start and end.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Use short headings</strong> (even rough ones) for each section.</li>
+        <li><strong>Keep paragraphs short</strong> and separate ideas with blank lines.</li>
+        <li><strong>Mark must-keep facts</strong> like KPIs, dates, names, and outcomes.</li>
+        <li><strong>Add a brief</strong> at the top: audience, goal, and slide count.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you already have bullet points, you can also use the main
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_slides_from_text_page') }}">generate slides from text</a>
+        workflow and then iterate from there.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="shrink">
+      <h2 id="shrink" class="text-2xl font-bold text-gray-900">How to Shrink a Long Document into a Short Deck</h2>
+      <p class="mt-3 text-gray-700">
+        A common mistake is trying to “fit everything” onto slides.
+        A better approach is choosing a slide count and forcing compression.
+        Slides are for the storyline.
+        Extra detail can go into speaker notes or an appendix.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Pick the outcome</strong>: what should the audience decide or do?</li>
+        <li><strong>Pick a slide count</strong>: 8–12 slides is usually enough.</li>
+        <li><strong>Keep only the proof</strong> that supports the key message.</li>
+        <li><strong>Move detail to appendix</strong> if it’s needed for reference.</li>
+      </ol>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Will it preserve my exact structure?</dt>
+          <dd class="mt-2 text-gray-700">It will preserve key ideas, but it may reorganize for readability. If you need strict structure, use an outline format.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I edit the output?</dt>
+          <dd class="mt-2 text-gray-700">Yes. Export a standard .pptx and edit it in PowerPoint like any normal deck.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is it free and unlimited?</dt>
+          <dd class="mt-2 text-gray-700">Yes. Unlimited drafts and exports with no credit card required.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="cta-bottom">
+      <h2 id="cta-bottom" class="text-2xl font-bold text-gray-900">Generate Slides From Your Text Now</h2>
+      <p class="mt-3 text-gray-700">Draft a deck in seconds, then refine in PowerPoint.</p>
+      <div class="mt-5">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-7 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-semibold">Start your free presentation</a>
+      </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited drafts. No credit card required.</p>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="internal-links">
+      <h2 id="internal-links" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_slides_from_text_page') }}">generate slides from text</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.presentation_generator_ai_page') }}">presentation generator AI</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_ppt_maker_page') }}">AI PPT maker</a></li>
+      </ul>
+    </section>
+  </article>
+</main>
+{% endblock %}

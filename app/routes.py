@@ -450,6 +450,111 @@ def free_ai_presentation_generator_page() -> Any:
     return render_template("free_ai_presentation_generator.html")
 
 
+@bp.get("/free-presentation-generator-ai")
+def free_presentation_generator_ai_page() -> Any:
+    return render_template("free_presentation_generator_ai.html")
+
+
+@bp.get("/free-ai-slides-generator")
+def free_ai_slides_generator_page() -> Any:
+    return render_template("free_ai_slides_generator.html")
+
+
+@bp.get("/free-ai-slides-generator-online")
+def free_ai_slides_generator_online_page() -> Any:
+    return render_template("free_ai_slides_generator_online.html")
+
+
+@bp.get("/free-ai-tool-to-create-slides")
+def free_ai_tool_to_create_slides_page() -> Any:
+    return render_template("free_ai_tool_to_create_slides.html")
+
+
+@bp.get("/free-ai-presentation-maker-unlimited")
+def free_ai_presentation_maker_unlimited_page() -> Any:
+    return render_template("free_ai_presentation_maker_unlimited.html")
+
+
+@bp.get("/unlimited-ai-slide-generator")
+def unlimited_ai_slide_generator_page() -> Any:
+    return render_template("unlimited_ai_slide_generator.html")
+
+
+@bp.get("/unlimited-ai-presentation-generator")
+def unlimited_ai_presentation_generator_page() -> Any:
+    return render_template("unlimited_ai_presentation_generator.html")
+
+
+@bp.get("/free-unlimited-ai-presentation-generator")
+def free_unlimited_ai_presentation_generator_page() -> Any:
+    return render_template("free_unlimited_ai_presentation_generator.html")
+
+
+@bp.get("/free-unlimited-slide-generator-ai")
+def free_unlimited_slide_generator_ai_page() -> Any:
+    return render_template("free_unlimited_slide_generator_ai.html")
+
+
+@bp.get("/ai-slide-generator-free-unlimited")
+def ai_slide_generator_free_unlimited_page() -> Any:
+    return render_template("ai_slide_generator_free_unlimited.html")
+
+
+@bp.get("/generate-slides-from-text")
+def generate_slides_from_text_page() -> Any:
+    return render_template("generate_slides_from_text.html")
+
+
+@bp.get("/generate-slides-from-text-free-ai")
+def generate_slides_from_text_free_ai_page() -> Any:
+    return render_template("generate_slides_from_text_free_ai.html")
+
+
+@bp.get("/ai-powerpoint-generator")
+def ai_powerpoint_generator_page() -> Any:
+    return render_template("ai_powerpoint_generator.html")
+
+
+@bp.get("/free-ai-powerpoint-maker-unlimited")
+def free_ai_powerpoint_maker_unlimited_page() -> Any:
+    return render_template("free_ai_powerpoint_maker_unlimited.html")
+
+
+@bp.get("/presentation-generator-ai")
+def presentation_generator_ai_page() -> Any:
+    return render_template("presentation_generator_ai.html")
+
+
+@bp.get("/ai-ppt-maker")
+def ai_ppt_maker_page() -> Any:
+    return render_template("ai_ppt_maker.html")
+
+
+@bp.get("/free-ai-ppt-maker-online")
+def free_ai_ppt_maker_online_page() -> Any:
+    return render_template("free_ai_ppt_maker_online.html")
+
+
+@bp.get("/free-ai-slideshow-generator")
+def free_ai_slideshow_generator_page() -> Any:
+    return render_template("free_ai_slideshow_generator.html")
+
+
+@bp.get("/free-ai-deck-generator")
+def free_ai_deck_generator_page() -> Any:
+    return render_template("free_ai_deck_generator.html")
+
+
+@bp.get("/create-slides-with-ai-free")
+def create_slides_with_ai_free_page() -> Any:
+    return render_template("create_slides_with_ai_free.html")
+
+
+@bp.get("/ai-presentation-builder-free-unlimited")
+def ai_presentation_builder_free_unlimited_page() -> Any:
+    return render_template("ai_presentation_builder_free_unlimited.html")
+
+
 @bp.get("/free-powerpoint-generator")
 
 def free_powerpoint_generator_page() -> Any:
@@ -7681,6 +7786,28 @@ def sitemap_xml_route() -> Any:
         {"loc": url_for('main.risk_matrix_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
         {"loc": url_for('main.architecture_diagram_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.free_presentation_generator_ai_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_slides_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_slides_generator_online_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_tool_to_create_slides_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_presentation_maker_unlimited_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.unlimited_ai_slide_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.unlimited_ai_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_unlimited_ai_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_unlimited_slide_generator_ai_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.ai_slide_generator_free_unlimited_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.generate_slides_from_text_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.generate_slides_from_text_free_ai_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.ai_powerpoint_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_powerpoint_maker_unlimited_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.presentation_generator_ai_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.ai_ppt_maker_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_ppt_maker_online_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_slideshow_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.create_slides_with_ai_free_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.ai_presentation_builder_free_unlimited_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
     ]
 

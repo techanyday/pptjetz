@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Free AI PowerPoint Maker Unlimited | PPTJet{% endblock %}
+{% block description %}Use PPTJet as a free AI PowerPoint maker unlimited to generate an editable .pptx in seconds. Unlimited drafts and exports, no credit card required.{% endblock %}
+{% block og_title %}Free AI PowerPoint Maker Unlimited | PPTJet{% endblock %}
+{% block og_description %}Use PPTJet as a free AI PowerPoint maker unlimited to generate an editable .pptx in seconds. Unlimited drafts and exports, no credit card required.{% endblock %}
+{% block tw_title %}Free AI PowerPoint Maker Unlimited | PPTJet{% endblock %}
+{% block tw_description %}Use PPTJet as a free AI PowerPoint maker unlimited to generate an editable .pptx in seconds. Unlimited drafts and exports, no credit card required.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/free-ai-powerpoint-maker-unlimited",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "description": "PPTJet is a free unlimited AI PowerPoint maker that generates structured decks and exports an editable .pptx file."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Is this AI PowerPoint maker free and unlimited?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet supports unlimited PowerPoint drafts and exports with no credit card required."}},
+    {"@type": "Question", "name": "Do I get a real .pptx file?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet exports a standard .pptx file you can open and edit in Microsoft PowerPoint."}},
+    {"@type": "Question", "name": "How do I get better PowerPoint output?", "acceptedAnswer": {"@type": "Answer", "text": "Use constraints: audience, goal, slide count, and must-include sections like KPIs, risks, timeline, and next steps. Add real nouns such as dates and metrics."}},
+    {"@type": "Question", "name": "Can it create structured visual slides?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet supports timelines, roadmaps, KPI dashboards, comparisons, SWOT, and risk matrices."}}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Free AI PowerPoint Maker (Unlimited)</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        A <strong>free AI PowerPoint maker unlimited</strong> should give you an editable file, not a locked design.
+        PPTJet drafts a structured deck in seconds and exports a real <strong>.pptx</strong>.
+        You can generate unlimited versions, download, and refine the final deck in Microsoft PowerPoint.
+      </p>
+      <p class="mt-3 text-gray-700">
+        Unlimited drafts matter because the first version is rarely the best one.
+        You often need a shorter executive version, a more detailed internal version, or a version with a different storyline.
+        With PPTJet you can iterate quickly and keep the best structure.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Make a PowerPoint for free</a>
+        <a href="{{ url_for('main.free_ai_powerpoint_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">See free AI PowerPoint generator</a>
+      </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited drafts and exports. No credit card required.</p>
+    </header>
+
+    <section class="mt-10" aria-labelledby="what-it-does">
+      <h2 id="what-it-does" class="text-2xl font-bold text-gray-900">What an AI PowerPoint Maker Should Do</h2>
+      <p class="mt-3 text-gray-700">
+        A useful PowerPoint maker drafts slide structure, not paragraphs.
+        It should create a coherent flow, use readable headings and bullets, and export an editable file.
+        PPTJet is designed as a drafting tool: generate the baseline, then polish in PowerPoint.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Storyline draft</strong> aligned to your goal.</li>
+        <li><strong>Point-first titles</strong> that communicate the takeaway.</li>
+        <li><strong>Compact bullets</strong> that support the title.</li>
+        <li><strong>Structured slides</strong> like timelines, roadmaps, KPIs, risks.</li>
+        <li><strong>Editable .pptx export</strong> for final control.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you want a slide-first entry point, see
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_slide_generator_page') }}">free AI slide generator</a>.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how-it-works">
+      <h2 id="how-it-works" class="text-2xl font-bold text-gray-900">How It Works</h2>
+      <ol class="mt-3 list-decimal pl-6 text-gray-700">
+        <li><strong>Paste your input</strong>: topic, outline, or bullets.</li>
+        <li><strong>Add constraints</strong>: audience, goal, tone, slide count.</li>
+        <li><strong>Generate</strong> the structured draft.</li>
+        <li><strong>Export to .pptx</strong> and refine in PowerPoint.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        If your source content is paragraphs, start with
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a>
+        to compress text into slide-ready bullets.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="best-input">
+      <h2 id="best-input" class="text-2xl font-bold text-gray-900">Best Input Template</h2>
+      <p class="mt-3 text-gray-700">
+        You’ll get better output from a short brief than from a long paragraph.
+        Use this template to keep the deck focused.
+      </p>
+      <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-5 text-gray-800">
+        <p><strong>Audience:</strong> [who is it for]</p>
+        <p class="mt-1"><strong>Goal:</strong> [what decision or outcome]</p>
+        <p class="mt-1"><strong>Slide count:</strong> [6–12]</p>
+        <p class="mt-1"><strong>Must include:</strong> [KPIs, timeline, risks, next steps]</p>
+        <p class="mt-1"><strong>Bullets:</strong> [6–12 bullets with real nouns]</p>
+      </div>
+      <p class="mt-4 text-gray-700">
+        For a broader “PowerPoint export” hub, see
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.export_to_pptx_page') }}">export to PPTX</a>.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="polish">
+      <h2 id="polish" class="text-2xl font-bold text-gray-900">How to Polish the Exported .pptx Quickly</h2>
+      <p class="mt-3 text-gray-700">
+        The fastest polish pass usually takes 10 minutes.
+        The goal is to make the deck feel intentional.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Rewrite titles</strong> as conclusions.</li>
+        <li><strong>Cut repetition</strong> and reduce slide count.</li>
+        <li><strong>Add evidence</strong>: one number, chart, or screenshot per key claim.</li>
+        <li><strong>Apply brand</strong>: theme, fonts, colors in PowerPoint.</li>
+        <li><strong>End with next steps</strong>: owner and date.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        If you want the general presentation workflow, see
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_presentation_generator_page') }}">free AI presentation generator</a>.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="slide-plan">
+      <h2 id="slide-plan" class="text-2xl font-bold text-gray-900">A PowerPoint Plan That Prevents Random Slides</h2>
+      <p class="mt-3 text-gray-700">
+        When people say a deck “feels AI-generated,” they usually mean the slides don’t build toward an outcome.
+        Before you generate, decide the destination: a decision, an approval, or a next step.
+        Then ask for a structure that supports that outcome.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Start with context:</strong> why this deck exists now.</li>
+        <li><strong>State the key message early:</strong> what you want the audience to believe.</li>
+        <li><strong>Include proof:</strong> metrics, examples, customer quotes, screenshots.</li>
+        <li><strong>Make the last slide actionable:</strong> recommendation, owner, date.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you’re presenting options, explicitly request a comparison slide.
+        If you’re presenting progress, request KPI and risk slides.
+        This small change in input typically improves the output more than adding more text.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="powerpoint-slide-types">
+      <h2 id="powerpoint-slide-types" class="text-2xl font-bold text-gray-900">PowerPoint Slide Types That Make the Deck Easier to Scan</h2>
+      <p class="mt-3 text-gray-700">
+        You can improve readability by mixing a few structured slide types into the draft.
+        These reduce text and help your audience understand faster.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Timeline / roadmap:</strong> sequence and milestones.</li>
+        <li><strong>Comparison:</strong> option A vs option B with trade-offs.</li>
+        <li><strong>KPI snapshot:</strong> 3–6 metrics with a takeaway.</li>
+        <li><strong>Risks + mitigations:</strong> what could break the plan and how you respond.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you want dedicated slides for these formats, generate them from
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides</a>
+        or a
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrix</a>
+        and drop them into your exported PowerPoint.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="team-workflow">
+      <h2 id="team-workflow" class="text-2xl font-bold text-gray-900">A Simple Team Workflow (So Reviews Go Faster)</h2>
+      <p class="mt-3 text-gray-700">
+        If you’re creating PowerPoints for a team, speed comes from a consistent review loop.
+        Generate the draft, export, then review the .pptx like any normal deck: comments on titles, missing proof, and unclear logic.
+        After one revision, lock the storyline and only then spend time on design polish.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="final-minute">
+      <h2 id="final-minute" class="text-2xl font-bold text-gray-900">One-Minute Final Check</h2>
+      <p class="mt-3 text-gray-700">
+        Before you share the deck, scan for three quick issues: titles that don’t state a point, slides with more than one idea, and missing next steps.
+        Fixing those three items usually makes the deck feel polished without spending extra time on design.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is it really unlimited?</dt>
+          <dd class="mt-2 text-gray-700">Yes. Unlimited drafts and exports with no credit card required.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I edit everything after export?</dt>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet exports a standard .pptx that remains editable in PowerPoint.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">What’s the difference vs a PowerPoint generator?</dt>
+          <dd class="mt-2 text-gray-700">This page focuses on “maker” intent. The <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_powerpoint_generator_page') }}">free AI PowerPoint generator</a> page is a broader hub for .pptx-first workflows.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="cta-bottom">
+      <h2 id="cta-bottom" class="text-2xl font-bold text-gray-900">Create Your PowerPoint Now</h2>
+      <p class="mt-3 text-gray-700">Draft the structure in seconds, then finalize in PowerPoint.</p>
+      <div class="mt-5">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-7 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-semibold">Start your free presentation</a>
+      </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited drafts. No credit card required.</p>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="internal-links">
+      <h2 id="internal-links" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_powerpoint_generator_page') }}">free AI PowerPoint generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_powerpoint_generator_page') }}">AI PowerPoint generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_ppt_maker_page') }}">AI PPT maker</a></li>
+      </ul>
+    </section>
+  </article>
+</main>
+{% endblock %}

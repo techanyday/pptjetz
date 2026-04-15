@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Free AI Deck Generator (Unlimited) | PPTJet{% endblock %}
+{% block description %}Use PPTJet’s free AI deck generator to draft structured slide decks in seconds. Unlimited drafts, editable PowerPoint export, and no credit card required.{% endblock %}
+{% block og_title %}Free AI Deck Generator (Unlimited) | PPTJet{% endblock %}
+{% block og_description %}Use PPTJet’s free AI deck generator to draft structured slide decks in seconds. Unlimited drafts, editable PowerPoint export, and no credit card required.{% endblock %}
+{% block tw_title %}Free AI Deck Generator (Unlimited) | PPTJet{% endblock %}
+{% block tw_description %}Use PPTJet’s free AI deck generator to draft structured slide decks in seconds. Unlimited drafts, editable PowerPoint export, and no credit card required.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/free-ai-deck-generator",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "description": "PPTJet is a free AI deck generator that drafts structured slide decks and exports an editable PowerPoint (.pptx). Unlimited drafts and exports."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Is this AI deck generator free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet is free and supports unlimited deck drafts and exports. No credit card required."}},
+    {"@type": "Question", "name": "Does it export an editable .pptx?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. You can download a standard PowerPoint file and edit it in Microsoft PowerPoint."}},
+    {"@type": "Question", "name": "How do I avoid generic decks?", "acceptedAnswer": {"@type": "Answer", "text": "Use constraints and real nouns: audience, goal, slide count, KPIs, dates, and examples. Then rewrite slide titles as conclusions after export."}},
+    {"@type": "Question", "name": "Can it generate structured business slides?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet supports timelines, roadmaps, KPI dashboards, comparisons, SWOT, and risk matrices."}}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Free AI Deck Generator</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        A <strong>free AI deck generator</strong> should do the hardest part of deck building: structure.
+        PPTJet drafts a coherent slide flow from a topic, outline, or bullet notes.
+        You can generate unlimited versions and export an editable <strong>.pptx</strong> to finish the deck in PowerPoint.
+      </p>
+      <p class="mt-3 text-gray-700">
+        The goal is speed without losing control.
+        You generate a baseline you can react to.
+        Then you improve the final version by adding real numbers, screenshots, and your brand theme.
+        This is how teams ship decks quickly while keeping them credible.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Generate a deck for free</a>
+        <a href="{{ url_for('main.ai_deck_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">See AI deck generator</a>
+      </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited drafts. No credit card required.</p>
+    </header>
+
+    <section class="mt-10" aria-labelledby="what-it-does">
+      <h2 id="what-it-does" class="text-2xl font-bold text-gray-900">What an AI Deck Generator Should Produce</h2>
+      <p class="mt-3 text-gray-700">
+        A deck is a story, not a document.
+        A useful generator produces slide-ready structure: point-first titles, compact bullets, and visual layouts where they clarify information.
+        PPTJet focuses on drafting the storyline so you can polish quickly.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Slide sequence</strong> that supports your goal.</li>
+        <li><strong>Titles that state conclusions</strong> instead of vague topics.</li>
+        <li><strong>Bullets that support the title</strong> in short phrases.</li>
+        <li><strong>Structured slide types</strong>: timelines, roadmaps, KPIs, risks, comparisons.</li>
+        <li><strong>Editable export</strong> to PowerPoint.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how-it-works">
+      <h2 id="how-it-works" class="text-2xl font-bold text-gray-900">How It Works</h2>
+      <ol class="mt-3 list-decimal pl-6 text-gray-700">
+        <li><strong>Paste your input</strong>: topic, outline, or bullet notes.</li>
+        <li><strong>Add constraints</strong>: audience, goal, slide count, must-include sections.</li>
+        <li><strong>Generate</strong> a structured deck draft.</li>
+        <li><strong>Export</strong> to .pptx and refine in PowerPoint.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        If your source is paragraphs, start with
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a>
+        to compress dense text into slide-ready bullets.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="use-cases">
+      <h2 id="use-cases" class="text-2xl font-bold text-gray-900">Use Cases</h2>
+      <p class="mt-3 text-gray-700">
+        A deck generator is most useful when you have a goal and a known structure.
+        Here are common deck patterns where a fast baseline saves time immediately.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Sales decks</strong>: problem, impact, solution, proof, next step. Related: <a class="text-blue-600 hover:underline" href="{{ url_for('main.sales_deck_generator_page') }}">sales deck generator</a>.</li>
+        <li><strong>Pitch decks</strong>: narrative + ask. Related: <a class="text-blue-600 hover:underline" href="{{ url_for('main.pitch_deck_generator_page') }}">pitch deck generator</a>.</li>
+        <li><strong>Status decks</strong>: progress, blockers, owners. Related: <a class="text-blue-600 hover:underline" href="{{ url_for('main.project_status_update_presentation_page') }}">project status update presentation</a>.</li>
+        <li><strong>Roadmap reviews</strong>: milestones and priorities. Related: <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_roadmap_generator_page') }}">AI roadmap generator</a>.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="comparison">
+      <h2 id="comparison" class="text-2xl font-bold text-gray-900">AI Drafting vs Manual Deck Creation</h2>
+      <p class="mt-3 text-gray-700">
+        Manual deck creation is slow because formatting competes with content decisions.
+        AI helps when it drafts structure quickly.
+        You then improve the message and visuals using human judgment.
+      </p>
+      <p class="mt-3 text-gray-700">
+        The best workflow is hybrid.
+        Generate the baseline, export the .pptx, and then add real evidence.
+        That’s how you keep the deck accurate and avoid generic filler.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="deck-structures">
+      <h2 id="deck-structures" class="text-2xl font-bold text-gray-900">Common Deck Structures You Can Generate (Pick One)</h2>
+      <p class="mt-3 text-gray-700">
+        A “deck” can mean a lot of things.
+        Choosing the right structure upfront makes the generated output feel more intentional and saves editing time.
+        Below are a few proven deck structures that work across many business contexts.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Decision deck:</strong> context, options, trade-offs, recommendation, next steps.</li>
+        <li><strong>Update deck:</strong> progress, KPIs, risks, asks, owners, timeline.</li>
+        <li><strong>Sales deck:</strong> problem, impact, solution, proof, pricing/packaging, next step.</li>
+        <li><strong>Pitch deck:</strong> narrative, market, product, traction, business model, ask.</li>
+        <li><strong>Training deck:</strong> objectives, steps, examples, practice, recap.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you’re specifically drafting a pitch, start from
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.pitch_deck_generator_page') }}">pitch deck generator</a>
+        or
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.startup_pitch_deck_generator_page') }}">startup pitch deck generator</a>.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="final-pass">
+      <h2 id="final-pass" class="text-2xl font-bold text-gray-900">Final Pass: Make the Deck Sound Like You</h2>
+      <p class="mt-3 text-gray-700">
+        After export, you can make the deck feel human and brand-consistent with a short “voice” pass.
+        This step is what turns a good draft into a deck you can send to leadership or a customer.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Replace generic words</strong> with your terms (product names, team names, customer segments).</li>
+        <li><strong>Add specifics</strong> where the audience expects them (KPIs, dates, costs, owner names).</li>
+        <li><strong>Keep slides scannable</strong>: 3–5 bullets max per slide.</li>
+        <li><strong>Use consistent structure</strong>: problem → proof → implication → next step.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        For a slide-first workflow, compare with
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_slideshow_generator_page') }}">free AI slideshow generator</a>
+        or the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_slide_generator_page') }}">free AI slide generator</a> hub.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="edit-fast">
+      <h2 id="edit-fast" class="text-2xl font-bold text-gray-900">How to Edit a Generated Deck in 10 Minutes</h2>
+      <p class="mt-3 text-gray-700">
+        You don’t need a full redesign to make a generated deck useful.
+        A quick edit pass focused on clarity and credibility usually gets you 80% of the way there.
+        Use this checklist right after you export the .pptx.
+      </p>
+      <ol class="mt-4 list-decimal pl-6 text-gray-700">
+        <li><strong>Cut filler:</strong> remove slides that repeat the same idea with different words.</li>
+        <li><strong>Strengthen titles:</strong> change “Market Overview” to a claim like “Market is growing, but churn is the risk.”</li>
+        <li><strong>Add one proof slide:</strong> a chart, a customer quote, or a screenshot beats generic bullets.</li>
+        <li><strong>Clarify the ask:</strong> make the final slide a decision with owners and dates.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        Need a specific slide type to drop into your deck?
+        Generate a
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.swot_analysis_generator_page') }}">SWOT analysis</a>
+        or
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.architecture_diagram_generator_page') }}">architecture diagram</a>
+        slide and place it where it supports the narrative.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="tips">
+      <h2 id="tips" class="text-2xl font-bold text-gray-900">Prompt Tips That Improve Deck Quality</h2>
+      <p class="mt-3 text-gray-700">
+        You’ll get better results from a short brief than from a long paragraph.
+        A simple template keeps the deck focused.
+      </p>
+      <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-5 text-gray-800">
+        <p><strong>Audience:</strong> [who is it for]</p>
+        <p class="mt-1"><strong>Goal:</strong> [what decision or outcome]</p>
+        <p class="mt-1"><strong>Slide count:</strong> [6–12]</p>
+        <p class="mt-1"><strong>Must include:</strong> [KPIs, timeline, risks, next steps]</p>
+        <p class="mt-1"><strong>Bullets:</strong> [6–12 bullets with real nouns]</p>
+      </div>
+      <p class="mt-4 text-gray-700">
+        If your keyword intent is “slides,” see
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_slide_generator_page') }}">free AI slide generator</a>.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is it really free?</dt>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet is free with unlimited drafts and exports. No credit card required.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I edit the deck after generating?</dt>
+          <dd class="mt-2 text-gray-700">Yes. Export a standard .pptx and edit it in PowerPoint.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="cta-bottom">
+      <h2 id="cta-bottom" class="text-2xl font-bold text-gray-900">Generate Your Deck Now</h2>
+      <p class="mt-3 text-gray-700">Draft the structure in seconds, then polish in PowerPoint.</p>
+      <div class="mt-5">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-7 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-semibold">Start your free deck</a>
+      </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited drafts. No credit card required.</p>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="internal-links">
+      <h2 id="internal-links" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_deck_generator_page') }}">AI deck generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.automatic_slide_generator_page') }}">automatic slide generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_slides_generator_page') }}">free AI slides generator</a></li>
+      </ul>
+    </section>
+  </article>
+</main>
+{% endblock %}

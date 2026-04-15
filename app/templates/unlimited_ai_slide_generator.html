@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Unlimited AI Slide Generator (Free) | PPTJet{% endblock %}
+{% block description %}Use PPTJet as an unlimited AI slide generator to create structured decks in seconds. Free, unlimited drafts, editable PowerPoint export, and no credit card required.{% endblock %}
+{% block og_title %}Unlimited AI Slide Generator (Free) | PPTJet{% endblock %}
+{% block og_description %}Use PPTJet as an unlimited AI slide generator to create structured decks in seconds. Free, unlimited drafts, editable PowerPoint export, and no credit card required.{% endblock %}
+{% block tw_title %}Unlimited AI Slide Generator (Free) | PPTJet{% endblock %}
+{% block tw_description %}Use PPTJet as an unlimited AI slide generator to create structured decks in seconds. Free, unlimited drafts, editable PowerPoint export, and no credit card required.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PPTJet",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://pptjet.com/unlimited-ai-slide-generator",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "description": "PPTJet is an unlimited AI slide generator. Create structured slides and export editable PowerPoint (.pptx) with free, unlimited drafts."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Is PPTJet an unlimited AI slide generator?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet supports unlimited slide generation and exports with no credit card required."}},
+    {"@type": "Question", "name": "Does it export to PowerPoint?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Export a standard .pptx and edit it in Microsoft PowerPoint."}},
+    {"@type": "Question", "name": "How do I improve the generated slides?", "acceptedAnswer": {"@type": "Answer", "text": "Set a slide count, use point-first titles, add real evidence, and end with next steps. Iterate with new constraints if needed."}},
+    {"@type": "Question", "name": "Can it generate visual slides like timelines and roadmaps?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet supports structured slide types like timelines, roadmaps, comparisons, KPI dashboards, SWOT, and risk matrices."}}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
+    <header>
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Unlimited AI Slide Generator</h1>
+      <p class="mt-4 text-lg text-gray-700">
+        An <strong>unlimited AI slide generator</strong> is valuable for one reason: iteration.
+        Slide work is rarely one-and-done.
+        You draft, you cut, you reorder, and you rewrite until the story is obvious.
+        PPTJet is free, supports unlimited drafts, and exports an editable <strong>.pptx</strong> so you can finish the deck in PowerPoint.
+      </p>
+      <p class="mt-3 text-gray-700">
+        Unlimited generation means you can try different structures without friction.
+        A shorter deck for execs.
+        A longer deck for the team.
+        A version with KPIs first.
+        A version that starts with the decision.
+        You pick the best baseline and polish the final version.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row gap-3">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Generate unlimited slides</a>
+        <a href="{{ url_for('main.free_ai_slide_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">See the free slide generator page</a>
+      </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited drafts. No credit card required.</p>
+    </header>
+
+    <section class="mt-10" aria-labelledby="why-unlimited">
+      <h2 id="why-unlimited" class="text-2xl font-bold text-gray-900">Why Unlimited Drafts Produce Better Decks</h2>
+      <p class="mt-3 text-gray-700">
+        The first draft often reveals what you don’t know yet.
+        You notice missing context, unclear assumptions, and slides that don’t support the main point.
+        Unlimited drafts let you refine structure instead of fighting formatting.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Change one variable</strong>: audience, tone, or slide count.</li>
+        <li><strong>Compare versions</strong> to see which storyline is clearer.</li>
+        <li><strong>Keep the best slides</strong> and delete repetition.</li>
+        <li><strong>Finalize in PowerPoint</strong> with your theme and real evidence.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If your intent is “presentation” rather than “slides,” see
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_presentation_generator_page') }}">free AI presentation generator</a>.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="how-it-works">
+      <h2 id="how-it-works" class="text-2xl font-bold text-gray-900">How It Works</h2>
+      <ol class="mt-3 list-decimal pl-6 text-gray-700">
+        <li><strong>Paste a topic or bullets</strong> and add the audience + goal.</li>
+        <li><strong>Set a slide count</strong> and list must-have sections.</li>
+        <li><strong>Generate</strong> the deck draft with structured slide flow.</li>
+        <li><strong>Export to .pptx</strong> and polish in PowerPoint.</li>
+      </ol>
+      <p class="mt-4 text-gray-700">
+        If you have long text, start with
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a>
+        to compress dense paragraphs into slide-ready bullets.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="use-cases">
+      <h2 id="use-cases" class="text-2xl font-bold text-gray-900">Use Cases That Fit Unlimited Slide Generation</h2>
+      <p class="mt-3 text-gray-700">
+        Unlimited slide generation is most useful when you need repeatable structure.
+        You can generate drafts for each meeting and keep your decks consistent.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Weekly updates</strong>: progress, blockers, next steps. Related: <a class="text-blue-600 hover:underline" href="{{ url_for('main.project_status_update_presentation_page') }}">project status update presentation</a>.</li>
+        <li><strong>Roadmaps</strong>: milestones and sequencing. Related: <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_roadmap_generator_page') }}">AI roadmap generator</a>.</li>
+        <li><strong>KPIs</strong>: snapshot + trend + actions. Related: <a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides generator</a>.</li>
+        <li><strong>Risks</strong>: list, likelihood, mitigation. Related: <a class="text-blue-600 hover:underline" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrix generator</a>.</li>
+      </ul>
+    </section>
+
+    <section class="mt-10" aria-labelledby="quality">
+      <h2 id="quality" class="text-2xl font-bold text-gray-900">A Quick Quality Checklist</h2>
+      <p class="mt-3 text-gray-700">
+        The fastest way to make an AI draft feel professional is a short edit pass.
+        You don’t need hours.
+        You need clarity.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Rewrite slide titles</strong> as conclusions.</li>
+        <li><strong>Cut slide count</strong> by merging overlapping slides.</li>
+        <li><strong>Add proof</strong>: a number, screenshot, or example.</li>
+        <li><strong>Finish with next steps</strong>: owner, date, decision.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        If you need the .pptx-first workflow, see
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_powerpoint_generator_page') }}">free AI PowerPoint generator</a>.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="comparison">
+      <h2 id="comparison" class="text-2xl font-bold text-gray-900">AI Drafting vs Manual Slide Creation</h2>
+      <p class="mt-3 text-gray-700">
+        Manual slide creation is slow because formatting is intertwined with content decisions.
+        AI helps when it drafts structure quickly.
+        You then apply judgment and evidence to produce a credible final deck.
+        Unlimited drafts reduce the cost of trying a better structure.
+      </p>
+      <p class="mt-3 text-gray-700">
+        The best results come from constraints.
+        Tell the generator who the deck is for, what the goal is, and how long it should be.
+        That keeps the output focused.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="input-template">
+      <h2 id="input-template" class="text-2xl font-bold text-gray-900">Input Template (Fast, Specific, Slide-Ready)</h2>
+      <p class="mt-3 text-gray-700">
+        Unlimited drafts are most useful when the input is consistent.
+        Use a short template, generate two versions, then keep the better structure.
+        Concrete nouns and numbers produce more credible slides than abstract instructions.
+      </p>
+      <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-5 text-gray-800">
+        <p><strong>Audience:</strong> [execs, team, customers]</p>
+        <p class="mt-1"><strong>Goal:</strong> [update / decision / proposal]</p>
+        <p class="mt-1"><strong>Slide count:</strong> [8–14]</p>
+        <p class="mt-1"><strong>Must include:</strong> [KPIs, timeline, risks, next steps]</p>
+        <p class="mt-1"><strong>Source bullets:</strong> [6–12 bullets with dates, metrics, owners]</p>
+      </div>
+      <p class="mt-4 text-gray-700">
+        If your source is long text, convert it into bullets first using
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a>
+        so your baseline is already slide-shaped.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="slide-types">
+      <h2 id="slide-types" class="text-2xl font-bold text-gray-900">Slide Types to Request (So the Deck Isn’t Repetitive)</h2>
+      <p class="mt-3 text-gray-700">
+        If every slide is “title + bullets,” the deck can feel repetitive.
+        Ask for 2–3 structured slide types that match your use case.
+      </p>
+      <ul class="mt-4 list-disc pl-6 text-gray-700">
+        <li><strong>Timeline / roadmap</strong> when sequencing matters.</li>
+        <li><strong>KPI snapshot</strong> when you need credibility quickly.</li>
+        <li><strong>Options + trade-offs</strong> when a decision is required.</li>
+        <li><strong>Risks + mitigations</strong> when you need realism.</li>
+      </ul>
+      <p class="mt-4 text-gray-700">
+        You can generate dedicated slides like
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides</a>
+        and drop them into the exported .pptx.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="final-check">
+      <h2 id="final-check" class="text-2xl font-bold text-gray-900">One-Minute Final Check Before You Present</h2>
+      <p class="mt-3 text-gray-700">
+        Before presenting, scan the deck for three issues: titles that don’t state a point, slides that contain more than one idea, and a missing closing slide.
+        Fix those three things and the draft will feel significantly more polished without adding extra content.
+      </p>
+    </section>
+
+    <section class="mt-10" aria-labelledby="faq">
+      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
+      <dl class="mt-5 space-y-6">
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Is it really unlimited?</dt>
+          <dd class="mt-2 text-gray-700">Yes. You can generate and export unlimited decks with no credit card required.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">Can I edit everything?</dt>
+          <dd class="mt-2 text-gray-700">Yes. Export to .pptx and edit it in PowerPoint like any normal deck.</dd>
+        </div>
+        <div>
+          <dt class="text-lg font-semibold text-gray-900">What should I paste?</dt>
+          <dd class="mt-2 text-gray-700">Use audience + goal + slide count + bullets. Add must-have sections like KPIs, risks, timeline, and next steps.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="cta-bottom">
+      <h2 id="cta-bottom" class="text-2xl font-bold text-gray-900">Generate Your Slides Now</h2>
+      <p class="mt-3 text-gray-700">Create a draft in seconds, then polish the final deck in PowerPoint.</p>
+      <div class="mt-5">
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-7 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-semibold">Start your free presentation</a>
+      </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited generation. No credit card required.</p>
+    </section>
+
+    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="internal-links">
+      <h2 id="internal-links" class="text-xl font-bold text-gray-900">Related Pages</h2>
+      <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_slides_generator_page') }}">free AI slides generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_deck_generator_page') }}">AI deck generator</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.automatic_slide_generator_page') }}">automatic slide generator</a></li>
+      </ul>
+    </section>
+  </article>
+</main>
+{% endblock %}

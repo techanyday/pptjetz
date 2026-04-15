@@ -1,0 +1,2 @@
+﻿Total GET routes: 101
+Duplicate GET paths: 0
