@@ -8314,6 +8314,145 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 auto_fit=True,
             )
 
+    def _render_hub_spoke_brainstorming_infographic_4(sl) -> None:
+        title, items, content = _hub_spoke_items(sl, target_n=4)
+        s = prs.slides.add_slide(blank); apply_bg(s)
+
+        primary_rgb = pal.get("primary", (59, 130, 246))
+        secondary_rgb = pal.get("secondary", _blend_rgb(primary_rgb, (255, 255, 255), 0.50))
+        bg_rgb = pal.get("bg", (255, 255, 255))
+        text_rgb = pal.get("text", (30, 30, 30))
+        muted_rgb = pal.get("muted", _shade(text_rgb, 26))
+
+        frame_rgb = _shade(primary_rgb, -8)
+        panel_rgb = _blend_rgb(bg_rgb, (255, 255, 255), 0.10)
+        title_rgb = _blend_rgb(primary_rgb, secondary_rgb, 0.28)
+        if _rgb_dist(title_rgb, panel_rgb) < 70:
+            title_rgb = _shade(title_rgb, -26 if not _is_dark_rgb(panel_rgb) else 26)
+
+        # Keep infographic line colors fixed to match the reference look.
+        top_card_outline = (95, 93, 170)      # purple
+        left_card_outline = (113, 187, 128)   # green
+        mid_card_outline = (238, 76, 83)      # red
+        right_card_outline = (44, 166, 214)   # cyan
+        card_cols = [top_card_outline, left_card_outline, mid_card_outline, right_card_outline]
+        arrow_cols = [left_card_outline, mid_card_outline, right_card_outline]
+
+        raw_topic = re.sub(r"\s+", " ", str(title or "")).strip()
+        top_title = _shorten(raw_topic, 44) if raw_topic else "Brainstorming Infographic"
+        topic_label = _shorten(raw_topic or "this topic", 34)
+
+        heads: List[str] = []
+        bodies: List[str] = []
+        for idx in range(4):
+            head, tail = _split_head_tail(str(items[idx] or ""))
+            heading = (head or str(items[idx] or "")).strip() or f"Main point {idx + 1}"
+            heading = _shorten(heading, 28)
+
+            body = (tail or "").strip()
+            if not body:
+                body = (
+                    f"Focus on {heading.lower()} to strengthen {topic_label.lower()} "
+                    "with practical actions, measurable outcomes, and clear next steps."
+                )
+            words = body.split()
+            if len(words) < 12:
+                body = f"{body.rstrip(' .')} with practical steps and measurable impact."
+                words = body.split()
+            if len(words) > 20:
+                body = " ".join(words[:20]).rstrip(" ,.;:-")
+
+            heads.append(heading)
+            bodies.append(body)
+
+        def _flat(shape) -> None:
+            try:
+                shape.shadow.inherit = False
+                shape.shadow.visible = False
+            except Exception:
+                pass
+
+        frame = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0), Inches(0), Inches(SLIDE_W_IN), Inches(SLIDE_H_IN))
+        frame.fill.solid(); frame.fill.fore_color.rgb = RGBColor(*frame_rgb)
+        frame.line.fill.background(); _flat(frame)
+
+        panel = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.08), Inches(0.08), Inches(SLIDE_W_IN - 0.16), Inches(SLIDE_H_IN - 0.16))
+        panel.fill.solid(); panel.fill.fore_color.rgb = RGBColor(*panel_rgb)
+        panel.line.fill.background(); _flat(panel)
+
+        _add_textbox(
+            s,
+            1.45,
+            0.56,
+            10.45,
+            0.76,
+            top_title,
+            font_size_pt=54,
+            bold=False,
+            color=title_rgb,
+            align="center",
+            word_wrap=False,
+            auto_fit=True,
+        )
+
+        def _card(x: float, y: float, w: float, h: float, border_rgb: Tuple[int, int, int], head: str, body: str) -> None:
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*panel_rgb)
+            card.line.color.rgb = RGBColor(*border_rgb)
+            card.line.width = Pt(4)
+            _flat(card)
+
+            _add_textbox(
+                s,
+                x + 0.30,
+                y + 0.18,
+                w - 0.60,
+                0.34,
+                head,
+                font_size_pt=18,
+                bold=True,
+                color=text_rgb,
+                align="left",
+                word_wrap=False,
+                auto_fit=True,
+            )
+            _add_textbox(
+                s,
+                x + 0.30,
+                y + 0.52,
+                w - 0.60,
+                h - 0.62,
+                body,
+                font_size_pt=11,
+                bold=False,
+                color=muted_rgb,
+                align="left",
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+        top_x, top_y, cw, ch = 5.08, 2.25, 3.20, 1.45
+        _card(top_x, top_y, cw, ch, card_cols[0], heads[0], bodies[0])
+        _card(1.18, 5.10, cw, ch, card_cols[1], heads[1], bodies[1])
+        _card(5.08, 5.10, cw, ch, card_cols[2], heads[2], bodies[2])
+        _card(8.98, 5.10, cw, ch, card_cols[3], heads[3], bodies[3])
+
+        def _arrow(x1: float, y1: float, x2: float, y2: float, rgb: Tuple[int, int, int]) -> None:
+            conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(x1), Inches(y1), Inches(x2), Inches(y2))
+            conn.line.color.rgb = RGBColor(*rgb)
+            conn.line.width = Pt(2.5)
+            try:
+                from pptx.enum.dml import MSO_ARROWHEAD_STYLE  # type: ignore
+                conn.line.end_arrowhead = MSO_ARROWHEAD_STYLE.TRIANGLE
+            except Exception:
+                pass
+            _flat(conn)
+
+        sx, sy = top_x + (cw / 2.0), top_y + ch + 0.22
+        _arrow(sx, sy, 2.78, 4.62, arrow_cols[0])
+        _arrow(sx, sy, 6.68, 4.72, arrow_cols[1])
+        _arrow(sx, sy, 10.58, 4.62, arrow_cols[2])
+
     def _render_hub_spoke_circular_ring(sl) -> None:
         title, items, content = _hub_spoke_items(sl, target_n=6)
         s = prs.slides.add_slide(blank); apply_bg(s)
@@ -10177,6 +10316,14 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 "hub-spoke-diamond-capsules": "diamond_capsules_4",
                 "diamond_capsules": "diamond_capsules_4",
                 "diamond-capsules": "diamond_capsules_4",
+                "brainstorming_infographic_4": "brainstorming_infographic_4",
+                "brainstorming-infographic-4": "brainstorming_infographic_4",
+                "brainstorming_infographic": "brainstorming_infographic_4",
+                "brainstorming-infographic": "brainstorming_infographic_4",
+                "brainstorming": "brainstorming_infographic_4",
+                "brainstorm": "brainstorming_infographic_4",
+                "hub_spoke_brainstorming": "brainstorming_infographic_4",
+                "hub-spoke-brainstorming": "brainstorming_infographic_4",
                 "mind_map_6": "side_by_side_infographic_6",
                 "mind-map-6": "side_by_side_infographic_6",
                 "mind_map": "side_by_side_infographic_6",
@@ -10224,7 +10371,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             }
             forced = variant_map.get(raw_variant)
 
-            eligible: List[str] = ["quadrant_ring_4", "diamond_capsules_4", "side_by_side_infographic_6"]
+            eligible: List[str] = ["quadrant_ring_4", "diamond_capsules_4", "brainstorming_infographic_4", "side_by_side_infographic_6"]
             if forced and forced not in eligible:
                 eligible.append(forced)
 
@@ -10241,6 +10388,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 _render_hub_spoke_quadrant_ring_4(sl)
             elif chosen == "diamond_capsules_4":
                 _render_hub_spoke_diamond_capsules_4(sl)
+            elif chosen == "brainstorming_infographic_4":
+                _render_hub_spoke_brainstorming_infographic_4(sl)
             elif chosen == "infographic_donut_4":
                 _render_hub_spoke_infographic_donut_4(sl)
             elif chosen == "side_by_side_infographic_6":
