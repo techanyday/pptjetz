@@ -42,7 +42,7 @@ def test_impact_map_radial_smoke_no_midword_and_connectors(tmp_path):
             "title": "Impact Map",
             "content": {
                 "infographic_intent": "IMPACT",
-                "impact_map_variant": "classic_circles",
+                "impact_map_variant": "side_by_side_infographic_6",
                 "center_label": "Impact on Communication",
                 "bullets": [
                     "Improve customer experience",

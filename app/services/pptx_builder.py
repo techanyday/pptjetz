@@ -197,7 +197,7 @@ def _choose_impact_map_variant(*, content: Dict[str, Any] | None, has_roles: boo
     raw_variant = str(c.get("impact_map_variant") or c.get("variant") or "").strip().lower()
     variant_map = {
         "classic": "classic",
-        "radial": "radial",
+        "radial": "classic",
         "pyramid": "pyramid",
         "two_sided": "two_sided",
         "two-sided": "two_sided",
@@ -207,7 +207,7 @@ def _choose_impact_map_variant(*, content: Dict[str, Any] | None, has_roles: boo
     }
     forced = variant_map.get(raw_variant)
 
-    pool: List[str] = ["classic", "radial", "pyramid", "two_sided"]
+    pool: List[str] = ["classic", "pyramid", "two_sided"]
     if has_roles:
         pool.append("swimlane")
 
@@ -7315,6 +7315,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         hub = _hub_label(sl, content)
         step_cols = _step_colors()
         core_rgb = pal.get("primary", (59, 130, 246))
+        bg_rgb = pal.get("bg", (255, 255, 255))
 
         cx, cy = SLIDE_W_IN / 2.0, SLIDE_H_IN / 2.0
 
@@ -7632,81 +7633,533 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             y = _node_row_y(i)
             _draw_node(x=right_x, y=y, idx=i + 3, text=items[i + 3], align_left=False)
 
-    def _render_hub_spoke_classic_circles(sl) -> None:
-        title, items, content = _hub_spoke_items(sl, target_n=6)
+    def _render_hub_spoke_quadrant_ring_4(sl) -> None:
+        title, items, content = _hub_spoke_items(sl, target_n=4)
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.45, 11.3, 0.85, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
-
         hub = _hub_label(sl, content)
         step_cols = _step_colors()
-        cx, cy = SLIDE_W_IN / 2.0, 4.25
-        core_d = 1.95
-        core_rgb = pal.get("primary", (59, 130, 246))
+        bg_rgb = pal.get("bg", (255, 255, 255))
+        text_rgb = (24, 28, 76)
+        muted_rgb = (106, 114, 136)
 
-        core = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - core_d / 2), Inches(cy - core_d / 2), Inches(core_d), Inches(core_d))
-        core.fill.solid(); core.fill.fore_color.rgb = RGBColor(*core_rgb)
-        core.line.color.rgb = RGBColor(*_shade(core_rgb, -20))
+        cx, cy = SLIDE_W_IN / 2.0, SLIDE_H_IN / 2.0
+
+        panel_margin_x = 0.06
+        panel_gap_x = 0.28
+        panel_w = (SLIDE_W_IN - 2.0 * panel_margin_x - panel_gap_x) / 2.0
+        panel_h = 3.02
+        top_y = 0.18
+        bottom_y = SLIDE_H_IN - 0.18 - panel_h
+        left_x = panel_margin_x
+        right_x = left_x + panel_w + panel_gap_x
+        letters = ["A", "B", "C", "D"]
+        panel_specs = [
+            (left_x, top_y, 0),
+            (right_x, top_y, 1),
+            (left_x, bottom_y, 2),
+            (right_x, bottom_y, 3),
+        ]
+
+        for idx, (px, py, col_idx) in enumerate(panel_specs):
+            col = step_cols[col_idx % len(step_cols)]
+            head, tail = _split_head_tail(str(items[idx] or ""))
+            heading = (head or str(items[idx] or "")).strip() or f"Section {letters[idx]}"
+            body = (tail or "").strip() or "Make a big impact with professional slides, charts, infographics and more."
+            is_top = idx in (0, 1)
+            words = body.split()
+            if len(words) > (9 if is_top else 11):
+                body = " ".join(words[: (9 if is_top else 11)]).rstrip(" ,.;:-") + "."
+
+            panel = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(px), Inches(py), Inches(panel_w), Inches(panel_h))
+            panel.fill.solid(); panel.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            panel.line.color.rgb = RGBColor(*_shade(col, -8))
+            panel.line.width = Pt(1.6)
+
+            badge_w, badge_h = 0.62, 0.62
+            badge_x = px + 0.08 if idx in (0, 2) else (px + panel_w - badge_w - 0.08)
+            badge_y = py + 0.08 if idx in (0, 1) else (py + panel_h - badge_h - 0.08)
+            badge = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(badge_x), Inches(badge_y), Inches(badge_w), Inches(badge_h))
+            badge.fill.solid(); badge.fill.fore_color.rgb = RGBColor(*col)
+            badge.line.fill.background()
+            btf = badge.text_frame
+            btf.clear(); btf.word_wrap = False; btf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                btf.vertical_anchor = MSO_ANCHOR.MIDDLE
+                btf.margin_left = Pt(0); btf.margin_right = Pt(0)
+                btf.margin_top = Pt(0); btf.margin_bottom = Pt(0)
+            except Exception:
+                pass
+            bp = btf.paragraphs[0]; bp.alignment = PP_ALIGN.CENTER
+            br = bp.add_run(); br.text = letters[idx]
+            br.font.size = Pt(20); br.font.bold = True; br.font.color.rgb = RGBColor(255, 255, 255)
+
+            _add_textbox(
+                s,
+                px + 1.00,
+                py + (0.90 if is_top else 1.55),
+                panel_w - 1.30,
+                0.45,
+                _shorten(heading.upper(), 32),
+                font_size_pt=15,
+                bold=True,
+                color=text_rgb,
+                align="left",
+                word_wrap=True,
+                auto_fit=True,
+            )
+            _add_textbox(
+                s,
+                px + 1.00,
+                py + (1.28 if is_top else 1.98),
+                panel_w - 1.30,
+                (0.48 if is_top else 0.70),
+                body,
+                font_size_pt=12,
+                bold=False,
+                color=muted_rgb,
+                align="left",
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+        outer_d = 3.55
+        ring_line_pt = 22
+        for ridx in range(4):
+            col = step_cols[ridx % len(step_cols)]
+            arc = s.shapes.add_shape(MsoShape.ARC, Inches(cx - outer_d / 2.0), Inches(cy - outer_d / 2.0), Inches(outer_d), Inches(outer_d))
+            arc.fill.background()
+            arc.line.color.rgb = RGBColor(*col)
+            arc.line.width = Pt(ring_line_pt)
+            try:
+                arc.adjustments[0] = 0.0
+                arc.adjustments[1] = 90.0
+            except Exception:
+                pass
+            arc.rotation = 45 + (ridx * 90)
+
+        # Mask out underlying card borders inside the ring hole so no panel
+        # edge lines are visible behind the center label area.
+        ring_inner_d = max(0.4, outer_d - (2.0 * (ring_line_pt / 72.0)) + 0.06)
+        ring_mask = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - ring_inner_d / 2.0), Inches(cy - ring_inner_d / 2.0), Inches(ring_inner_d), Inches(ring_inner_d))
+        ring_mask.fill.solid(); ring_mask.fill.fore_color.rgb = RGBColor(*bg_rgb)
+        ring_mask.line.fill.background()
+
+        core_d = 2.22
+        core = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - core_d / 2.0), Inches(cy - core_d / 2.0), Inches(core_d), Inches(core_d))
+        core.fill.solid(); core.fill.fore_color.rgb = RGBColor(*bg_rgb)
+        core.line.fill.background()
         tfc = core.text_frame
-        tfc.clear()
-        tfc.word_wrap = False
-        tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        tfc.clear(); tfc.word_wrap = False; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
         try:
             tfc.vertical_anchor = MSO_ANCHOR.MIDDLE
-            tfc.margin_left = Pt(0)
-            tfc.margin_right = Pt(0)
-            tfc.margin_top = Pt(0)
-            tfc.margin_bottom = Pt(0)
+            tfc.margin_left = Pt(2)
+            tfc.margin_right = Pt(2)
+            tfc.margin_top = Pt(2)
+            tfc.margin_bottom = Pt(2)
         except Exception:
             pass
         pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
-        wrapped_c, fs_c = _fit_text_no_midword(hub, box_w_in=core_d * 0.90, box_h_in=core_d * 0.80, base_font_pt=18, min_font_pt=12, max_lines=3)
+        center_txt = _shorten(hub.upper(), 28)
+        wrapped_c, fs_c = _fit_text_no_midword(center_txt, box_w_in=core_d * 0.90, box_h_in=core_d * 0.78, base_font_pt=24, min_font_pt=13, max_lines=3)
         rc = pc.add_run(); rc.text = wrapped_c
-        rc.font.size = Pt(fs_c); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
+        rc.font.size = Pt(fs_c)
+        rc.font.bold = True
+        rc.font.color.rgb = RGBColor(*text_rgb)
 
-        node_d = 1.55
-        r_x = 4.15
-        r_y = 2.35
-        angles = [-math.pi / 2.0, -math.pi / 6.0, math.pi / 6.0, math.pi / 2.0, 5.0 * math.pi / 6.0, -5.0 * math.pi / 6.0]
-        for i, raw in enumerate(items):
-            ang = angles[i % len(angles)]
-            nx = cx + r_x * math.cos(ang) - node_d / 2.0
-            ny = cy + r_y * math.sin(ang) - node_d / 2.0
-            nx = max(0.65, min(SLIDE_W_IN - 0.65 - node_d, nx))
-            ny = max(1.05, min(SLIDE_H_IN - 0.30 - node_d, ny))
+        # Intentionally no inner cardinal connector lines; reference layout
+        # keeps the center area clean.
 
-            col = step_cols[i % len(step_cols)]
-            node = s.shapes.add_shape(MsoShape.OVAL, Inches(nx), Inches(ny), Inches(node_d), Inches(node_d))
-            node.fill.solid(); node.fill.fore_color.rgb = RGBColor(*col)
-            node.line.color.rgb = RGBColor(*_shade(col, -20))
-            tf = node.text_frame
-            tf.clear()
-            tf.word_wrap = False
-            tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+    def _render_hub_spoke_infographic_donut_4(sl) -> None:
+        title, items, content = _hub_spoke_items(sl, target_n=4)
+        s = prs.slides.add_slide(blank); apply_bg(s)
+
+        hub = _hub_label(sl, content)
+        primary_rgb = pal.get("primary", (59, 130, 246))
+        bg_rgb = pal.get("bg", (255, 255, 255))
+        frame_rgb = _shade(primary_rgb, -4)
+        panel_rgb = bg_rgb
+        orange_rgb = (247, 97, 0)
+        yellow_rgb = (231, 184, 62)
+        text_rgb = pal.get("text", (30, 30, 30))
+        muted_rgb = pal.get("muted", _shade(text_rgb, 26))
+        teal_rgb = (49, 150, 176)
+        lime_rgb = (194, 198, 0)
+        icon_rgb = teal_rgb
+
+        def _flat(shape) -> None:
             try:
-                tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-                tf.margin_left = Pt(0)
-                tf.margin_right = Pt(0)
-                tf.margin_top = Pt(0)
-                tf.margin_bottom = Pt(0)
+                shape.shadow.inherit = False
+                shape.shadow.visible = False
             except Exception:
                 pass
-            p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-            head, tail = _split_head_tail(str(raw or ""))
-            lab = (head or str(raw or "")).strip()
-            wrapped, fs = _fit_text_no_midword(lab, box_w_in=node_d * 0.92, box_h_in=node_d * 0.78, base_font_pt=13, min_font_pt=9, max_lines=3)
-            rr = p.add_run(); rr.text = wrapped
-            rr.font.size = Pt(fs); rr.font.bold = True; rr.font.color.rgb = RGBColor(255, 255, 255)
 
-            # connector from hub to node
-            tx, ty = nx + node_d / 2.0, ny + node_d / 2.0
-            vx, vy = tx - cx, ty - cy
-            d = (vx * vx + vy * vy) ** 0.5 or 1.0
-            ux, uy = vx / d, vy / d
-            sx, sy = cx + ux * (core_d / 2.0), cy + uy * (core_d / 2.0)
-            ex, ey = tx - ux * (node_d / 2.0), ty - uy * (node_d / 2.0)
-            conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(sx), Inches(sy), Inches(ex), Inches(ey))
-            conn.line.color.rgb = RGBColor(*_shade(core_rgb, -25))
-            conn.line.width = Pt(1.75)
+        frame = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0), Inches(0), Inches(SLIDE_W_IN), Inches(SLIDE_H_IN))
+        frame.fill.solid(); frame.fill.fore_color.rgb = RGBColor(*frame_rgb)
+        frame.line.fill.background()
+        _flat(frame)
+
+        panel = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.30), Inches(0.85), Inches(SLIDE_W_IN - 0.60), Inches(SLIDE_H_IN - 1.05))
+        panel.fill.solid(); panel.fill.fore_color.rgb = RGBColor(*panel_rgb)
+        panel.line.fill.background()
+        _flat(panel)
+
+        tag = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(0.18), Inches(0.46), Inches(4.10), Inches(0.78))
+        tag.fill.solid(); tag.fill.fore_color.rgb = RGBColor(*orange_rgb)
+        tag.line.fill.background()
+        _flat(tag)
+        tft = tag.text_frame
+        tft.clear(); tft.word_wrap = False; tft.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        try:
+            tft.vertical_anchor = MSO_ANCHOR.MIDDLE
+            tft.margin_left = Pt(10); tft.margin_right = Pt(10)
+            tft.margin_top = Pt(0); tft.margin_bottom = Pt(0)
+        except Exception:
+            pass
+        pt = tft.paragraphs[0]; pt.alignment = PP_ALIGN.LEFT
+        rt = pt.add_run(); rt.text = "Infographic"
+        rt.font.size = Pt(22); rt.font.bold = True; rt.font.color.rgb = RGBColor(255, 255, 255)
+        ra = pt.add_run(); ra.text = "   →"
+        ra.font.size = Pt(28); ra.font.bold = True; ra.font.color.rgb = RGBColor(255, 255, 255)
+
+        dot = s.shapes.add_shape(MsoShape.OVAL, Inches(SLIDE_W_IN - 1.15), Inches(0.52), Inches(0.76), Inches(0.76))
+        dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(*yellow_rgb)
+        dot.line.fill.background()
+        _flat(dot)
+        dtf = dot.text_frame
+        dtf.clear(); dtf.word_wrap = False; dtf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        try:
+            dtf.vertical_anchor = MSO_ANCHOR.MIDDLE
+            dtf.margin_left = Pt(0); dtf.margin_right = Pt(0)
+            dtf.margin_top = Pt(0); dtf.margin_bottom = Pt(0)
+        except Exception:
+            pass
+        dp = dtf.paragraphs[0]; dp.alignment = PP_ALIGN.CENTER
+        dr = dp.add_run(); dr.text = "•••"
+        dr.font.size = Pt(14); dr.font.bold = True; dr.font.color.rgb = RGBColor(*frame_rgb)
+
+        cx, cy = SLIDE_W_IN / 2.0, 4.02
+        ring_outer_d = 4.38
+        ring_line_pt = 44
+        seg_cols = [teal_rgb, yellow_rgb, orange_rgb, lime_rgb]
+        for ridx, col in enumerate(seg_cols):
+            arc = s.shapes.add_shape(MsoShape.ARC, Inches(cx - ring_outer_d / 2.0), Inches(cy - ring_outer_d / 2.0), Inches(ring_outer_d), Inches(ring_outer_d))
+            arc.fill.background()
+            arc.line.color.rgb = RGBColor(*col)
+            arc.line.width = Pt(ring_line_pt)
+            try:
+                arc.adjustments[0] = 0.0
+                arc.adjustments[1] = 84.0
+            except Exception:
+                pass
+            arc.rotation = 42 + (ridx * 90)
+            _flat(arc)
+
+        hole_d = 2.90
+        hole = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - hole_d / 2.0), Inches(cy - hole_d / 2.0), Inches(hole_d), Inches(hole_d))
+        hole.fill.solid(); hole.fill.fore_color.rgb = RGBColor(*panel_rgb)
+        hole.line.fill.background()
+        _flat(hole)
+
+        doc = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cx - 0.39), Inches(cy - 0.74), Inches(0.78), Inches(1.26))
+        doc.fill.solid(); doc.fill.fore_color.rgb = RGBColor(*panel_rgb)
+        doc.line.color.rgb = RGBColor(*icon_rgb)
+        doc.line.width = Pt(2)
+        _flat(doc)
+
+        bullet = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(cx - 0.28), Inches(cy - 0.56), Inches(0.28), Inches(0.38))
+        bullet.fill.solid(); bullet.fill.fore_color.rgb = RGBColor(*panel_rgb)
+        bullet.line.color.rgb = RGBColor(*icon_rgb)
+        bullet.line.width = Pt(1)
+        _flat(bullet)
+        for i in range(5):
+            ln = s.shapes.add_connector(
+                MSO_CONNECTOR_TYPE.STRAIGHT,
+                Inches(cx + 0.07), Inches(cy - 0.54 + i * 0.19),
+                Inches(cx + 0.28), Inches(cy - 0.54 + i * 0.19),
+            )
+            ln.line.color.rgb = RGBColor(*icon_rgb)
+            ln.line.width = Pt(1)
+            _flat(ln)
+
+        tick = s.shapes.add_shape(MsoShape.OVAL, Inches(cx + 0.13), Inches(cy + 0.16), Inches(0.60), Inches(0.60))
+        tick.fill.solid(); tick.fill.fore_color.rgb = RGBColor(*panel_rgb)
+        tick.line.color.rgb = RGBColor(*icon_rgb)
+        tick.line.width = Pt(2)
+        _flat(tick)
+        c1 = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(cx + 0.26), Inches(cy + 0.46), Inches(cx + 0.35), Inches(cy + 0.55))
+        c2 = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(cx + 0.34), Inches(cy + 0.55), Inches(cx + 0.53), Inches(cy + 0.36))
+        for c in (c1, c2):
+            c.line.color.rgb = RGBColor(*icon_rgb)
+            c.line.width = Pt(2)
+            _flat(c)
+
+        num_specs = [
+            ("01", 132, RGBColor(255, 255, 255)),
+            ("02", 48, RGBColor(*teal_rgb)),
+            ("03", 228, RGBColor(*teal_rgb)),
+            ("04", 312, RGBColor(255, 255, 255)),
+        ]
+        band_w = ring_line_pt / 72.0
+        num_r_base = (ring_outer_d / 2.0) - (band_w * 0.50)
+        for num, angle_deg, num_col in num_specs:
+            ang = math.radians(angle_deg)
+            tx = cx + (num_r_base * math.cos(ang)) - 0.35
+            ty = cy - (num_r_base * math.sin(ang)) - 0.22
+            _add_textbox(
+                s,
+                tx,
+                ty,
+                0.70,
+                0.44,
+                num,
+                font_size_pt=20,
+                bold=True,
+                color=(num_col[0], num_col[1], num_col[2]),
+                align="center",
+                word_wrap=False,
+                auto_fit=True,
+            )
+
+        callout_specs = [
+            (0.84, 1.78, 3.10, 1.24),
+            (10.02, 1.78, 2.50, 1.24),
+            (0.84, 5.24, 3.10, 1.24),
+            (10.02, 5.24, 2.50, 1.24),
+        ]
+        for x, y, w, h in callout_specs:
+            _add_textbox(
+                s,
+                x,
+                y,
+                w,
+                0.42,
+                "Write a main idea here",
+                font_size_pt=16,
+                bold=True,
+                color=text_rgb,
+                align="left",
+                word_wrap=False,
+                auto_fit=True,
+            )
+            _add_textbox(
+                s,
+                x,
+                y + 0.42,
+                w,
+                h - 0.42,
+                "Lorem ipsum dolor sit amet, consectetur adipiscing elit sed do eiusmod tempor incididunt.",
+                font_size_pt=9,
+                bold=False,
+                color=muted_rgb,
+                align="left",
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+        arrow_specs = [
+            (3.46, 2.10, 0.90, 0.66, teal_rgb, 90, 3.42, 2.15, 0.20, 0.16, 270),
+            (8.96, 2.10, 0.90, 0.66, yellow_rgb, 270, 9.73, 2.15, 0.20, 0.16, 90),
+            (3.46, 5.38, 0.90, 0.66, lime_rgb, 0, 3.42, 5.93, 0.20, 0.16, 270),
+            (8.96, 5.38, 0.90, 0.66, orange_rgb, 180, 9.73, 5.93, 0.20, 0.16, 90),
+        ]
+        for ax, ay, aw, ah, rgb, rot, hx, hy, hw, hh, hrot in arrow_specs:
+            car = s.shapes.add_shape(MsoShape.ARC, Inches(ax), Inches(ay), Inches(aw), Inches(ah))
+            car.fill.background()
+            car.line.color.rgb = RGBColor(*rgb)
+            car.line.width = Pt(4)
+            try:
+                car.adjustments[0] = 0.0
+                car.adjustments[1] = 72.0
+            except Exception:
+                pass
+            car.rotation = rot
+            _flat(car)
+
+            hd = s.shapes.add_shape(MsoShape.ISOSCELES_TRIANGLE, Inches(hx), Inches(hy), Inches(hw), Inches(hh))
+            hd.fill.solid(); hd.fill.fore_color.rgb = RGBColor(*rgb)
+            hd.line.fill.background()
+            hd.rotation = hrot
+            _flat(hd)
+
+    def _render_hub_spoke_diamond_capsules_4(sl) -> None:
+        title, items, content = _hub_spoke_items(sl, target_n=4)
+        s = prs.slides.add_slide(blank); apply_bg(s)
+
+        primary_rgb = pal.get("primary", (59, 130, 246))
+        secondary_rgb = pal.get("secondary", _blend_rgb(primary_rgb, (255, 255, 255), 0.50))
+        bg_rgb = pal.get("bg", (255, 255, 255))
+        frame_rgb = _shade(primary_rgb, -4)
+        panel_rgb = bg_rgb
+        text_rgb = pal.get("text", (30, 30, 30))
+
+        tag_rgb = _blend_rgb(primary_rgb, secondary_rgb, 0.22)
+        tag_text_rgb = _contrast_text(tag_rgb)
+        dot_rgb = _blend_rgb(secondary_rgb, primary_rgb, 0.32)
+        dot_text_rgb = pal.get("muted", _contrast_text(dot_rgb))
+
+        orange_rgb = (247, 97, 0)
+        yellow_rgb = (231, 184, 62)
+        teal_rgb = (49, 150, 176)
+        lime_rgb = (194, 198, 0)
+        topic_label = _shorten((str(title or "").strip() or "this topic"), 34)
+
+        item_heads: List[str] = []
+        item_bodies: List[str] = []
+        for idx in range(4):
+            head, tail = _split_head_tail(str(items[idx] or ""))
+            heading = (head or str(items[idx] or "")).strip() or f"Main idea {idx + 1}"
+            heading = _shorten(heading, 34)
+
+            body = (tail or "").strip()
+            if not body:
+                body = f"Focus on {heading.lower()} to strengthen {topic_label.lower()} outcomes."
+
+            words = body.split()
+            if len(words) > 12:
+                body = " ".join(words[:12]).rstrip(" ,.;:-")
+
+            item_heads.append(heading)
+            item_bodies.append(body)
+
+        def _flat(shape) -> None:
+            try:
+                shape.shadow.inherit = False
+                shape.shadow.visible = False
+            except Exception:
+                pass
+
+        frame = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0), Inches(0), Inches(SLIDE_W_IN), Inches(SLIDE_H_IN))
+        frame.fill.solid(); frame.fill.fore_color.rgb = RGBColor(*frame_rgb)
+        frame.line.fill.background(); _flat(frame)
+
+        panel = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.30), Inches(0.82), Inches(SLIDE_W_IN - 0.60), Inches(SLIDE_H_IN - 0.98))
+        panel.fill.solid(); panel.fill.fore_color.rgb = RGBColor(*panel_rgb)
+        panel.line.fill.background(); _flat(panel)
+
+        tag = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(0.05), Inches(0.42), Inches(4.10), Inches(0.78))
+        tag.fill.solid(); tag.fill.fore_color.rgb = RGBColor(*tag_rgb)
+        tag.line.fill.background(); _flat(tag)
+        tft = tag.text_frame
+        tft.clear(); tft.word_wrap = False; tft.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        try:
+            tft.vertical_anchor = MSO_ANCHOR.MIDDLE
+            tft.margin_left = Pt(10); tft.margin_right = Pt(10)
+            tft.margin_top = Pt(0); tft.margin_bottom = Pt(0)
+        except Exception:
+            pass
+        pt = tft.paragraphs[0]; pt.alignment = PP_ALIGN.LEFT
+        rt = pt.add_run(); rt.text = "Infographic"
+        rt.font.size = Pt(22); rt.font.bold = True; rt.font.color.rgb = RGBColor(*tag_text_rgb)
+        ra = pt.add_run(); ra.text = "   →"
+        ra.font.size = Pt(28); ra.font.bold = True; ra.font.color.rgb = RGBColor(*tag_text_rgb)
+
+        dot = s.shapes.add_shape(MsoShape.OVAL, Inches(SLIDE_W_IN - 1.15), Inches(0.52), Inches(0.76), Inches(0.76))
+        dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(*dot_rgb)
+        dot.line.fill.background(); _flat(dot)
+        dtf = dot.text_frame
+        dtf.clear(); dtf.word_wrap = False; dtf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        try:
+            dtf.vertical_anchor = MSO_ANCHOR.MIDDLE
+            dtf.margin_left = Pt(0); dtf.margin_right = Pt(0)
+            dtf.margin_top = Pt(0); dtf.margin_bottom = Pt(0)
+        except Exception:
+            pass
+        dp = dtf.paragraphs[0]; dp.alignment = PP_ALIGN.CENTER
+        dr = dp.add_run(); dr.text = "•••"
+        dr.font.size = Pt(14); dr.font.bold = True; dr.font.color.rgb = RGBColor(*dot_text_rgb)
+
+        pill_w, pill_h = 2.70, 0.86
+        pill_specs = [
+            (4.44, 2.00, 315, teal_rgb, _shorten(item_heads[0], 22), "✎", "end"),
+            (7.10, 2.40, 45, orange_rgb, _shorten(item_heads[1], 22), "▦", "end"),
+            (3.62, 4.14, 45, lime_rgb, _shorten(item_heads[2], 22), "☼", "start"),
+            (6.42, 4.62, 315, yellow_rgb, _shorten(item_heads[3], 22), "⚙", "start"),
+        ]
+
+        for x, y, rot, col, label, icon_text, icon_pos in pill_specs:
+            pill = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(pill_w), Inches(pill_h))
+            pill.fill.solid(); pill.fill.fore_color.rgb = RGBColor(*col)
+            pill.line.fill.background(); pill.rotation = rot; _flat(pill)
+
+            tfp = pill.text_frame
+            tfp.clear(); tfp.word_wrap = False; tfp.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                tfp.vertical_anchor = MSO_ANCHOR.MIDDLE
+                if icon_pos == "end":
+                    tfp.margin_left = Pt(8); tfp.margin_right = Pt(30)
+                else:
+                    tfp.margin_left = Pt(30); tfp.margin_right = Pt(8)
+                tfp.margin_top = Pt(0); tfp.margin_bottom = Pt(0)
+            except Exception:
+                pass
+            pp = tfp.paragraphs[0]; pp.alignment = PP_ALIGN.CENTER
+            rp = pp.add_run(); rp.text = label
+            rp.font.size = Pt(13); rp.font.bold = True; rp.font.color.rgb = RGBColor(24, 24, 24)
+
+            cxp = x + (pill_w / 2.0)
+            cyp = y + (pill_h / 2.0)
+            rr = math.radians(rot)
+            vx, vy = math.cos(rr), math.sin(rr)
+            d = (pill_w / 2.0) - (pill_h / 2.0) + 0.05
+            if icon_pos == "end":
+                icx, icy = (cxp + vx * d), (cyp + vy * d)
+            else:
+                icx, icy = (cxp - vx * d), (cyp - vy * d)
+
+            ico_d = 0.66
+            ico = s.shapes.add_shape(MsoShape.OVAL, Inches(icx - ico_d / 2.0), Inches(icy - ico_d / 2.0), Inches(ico_d), Inches(ico_d))
+            ico.fill.solid(); ico.fill.fore_color.rgb = RGBColor(245, 248, 252)
+            ico.line.color.rgb = RGBColor(*col); ico.line.width = Pt(1.5); _flat(ico)
+            itf = ico.text_frame
+            itf.clear(); itf.word_wrap = False; itf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                itf.vertical_anchor = MSO_ANCHOR.MIDDLE
+                itf.margin_left = Pt(0); itf.margin_right = Pt(0)
+                itf.margin_top = Pt(0); itf.margin_bottom = Pt(0)
+            except Exception:
+                pass
+            ip = itf.paragraphs[0]; ip.alignment = PP_ALIGN.CENTER
+            ir = ip.add_run(); ir.text = icon_text
+            ir.font.size = Pt(21); ir.font.bold = True; ir.font.color.rgb = RGBColor(*col)
+
+        text_specs = [
+            (0.70, 1.66, 3.55, 1.28),
+            (9.30, 2.08, 3.35, 1.28),
+            (0.70, 5.38, 3.55, 1.28),
+            (9.30, 5.38, 3.35, 1.28),
+        ]
+        for idx, (x, y, w, h) in enumerate(text_specs):
+            heading = item_heads[idx]
+            body = item_bodies[idx]
+
+            _add_textbox(
+                s,
+                x,
+                y,
+                w,
+                0.42,
+                _shorten(heading, 34),
+                font_size_pt=19,
+                bold=True,
+                color=text_rgb,
+                align="center",
+                word_wrap=False,
+                auto_fit=True,
+            )
+            _add_textbox(
+                s,
+                x,
+                y + 0.42,
+                w,
+                h - 0.42,
+                body,
+                font_size_pt=12,
+                bold=False,
+                color=_shade(text_rgb, 10),
+                align="center",
+                word_wrap=True,
+                auto_fit=True,
+            )
 
     def _render_hub_spoke_circular_ring(sl) -> None:
         title, items, content = _hub_spoke_items(sl, target_n=6)
@@ -7913,80 +8366,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             for c in (c1, c2):
                 c.line.color.rgb = RGBColor(*_shade(core_rgb, -25))
                 c.line.width = Pt(1.75)
-
-    def _render_hub_spoke_orbit(sl) -> None:
-        title, items, content = _hub_spoke_items(sl, target_n=6)
-        s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
-
-        hub = _hub_label(sl, content)
-        step_cols = _step_colors()
-        cx, cy = SLIDE_W_IN / 2.0, 4.20
-        core_d = 1.80
-        core_rgb = pal.get("primary", (59, 130, 246))
-
-        core = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - core_d / 2), Inches(cy - core_d / 2), Inches(core_d), Inches(core_d))
-        core.fill.solid(); core.fill.fore_color.rgb = RGBColor(*core_rgb)
-        core.line.color.rgb = RGBColor(*_shade(core_rgb, -20))
-        tfc = core.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-        pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
-        wrapped_c, fs_c = _fit_text_no_midword(hub, box_w_in=core_d * 0.92, box_h_in=core_d * 0.78, base_font_pt=16, min_font_pt=11, max_lines=3)
-        rc = pc.add_run(); rc.text = wrapped_c
-        rc.font.size = Pt(fs_c); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
-
-        orb_d = 1.45
-        r_x = 3.95
-        r_y = 2.05
-        angles = [-math.pi / 2.0, -math.pi / 6.0, math.pi / 6.0, math.pi / 2.0, 5.0 * math.pi / 6.0, -5.0 * math.pi / 6.0]
-        for i, raw in enumerate(items):
-            ang = angles[i % len(angles)]
-            tx = cx + r_x * math.cos(ang)
-            ty = cy + r_y * math.sin(ang)
-            nx, ny = tx - orb_d / 2.0, ty - orb_d / 2.0
-            nx = max(0.65, min(SLIDE_W_IN - 0.65 - orb_d, nx))
-            ny = max(1.95, min(SLIDE_H_IN - 0.70 - orb_d, ny))
-
-            col = step_cols[i % len(step_cols)]
-            spoke = s.shapes.add_shape(MsoShape.OVAL, Inches(nx), Inches(ny), Inches(orb_d), Inches(orb_d))
-            spoke.fill.solid(); spoke.fill.fore_color.rgb = RGBColor(*col)
-            spoke.line.fill.background()
-            tf = spoke.text_frame
-            tf.clear()
-            tf.word_wrap = False
-            tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-            try:
-                tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-                tf.margin_left = Pt(0)
-                tf.margin_right = Pt(0)
-                tf.margin_top = Pt(0)
-                tf.margin_bottom = Pt(0)
-            except Exception:
-                pass
-            p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-            head, _ = _split_head_tail(str(raw or ""))
-            lab = (head or str(raw or "")).strip()
-            wrapped, fs = _fit_text_no_midword(lab, box_w_in=orb_d * 0.92, box_h_in=orb_d * 0.78, base_font_pt=12, min_font_pt=9, max_lines=3)
-            rr = p.add_run(); rr.text = wrapped
-            rr.font.size = Pt(fs); rr.font.bold = True; rr.font.color.rgb = RGBColor(255, 255, 255)
-
-            # arrow-ish connector (line + tiny triangle)
-            txc, tyc = nx + orb_d / 2.0, ny + orb_d / 2.0
-            vx, vy = txc - cx, tyc - cy
-            d = (vx * vx + vy * vy) ** 0.5 or 1.0
-            ux, uy = vx / d, vy / d
-            sx, sy = cx + ux * (core_d / 2.0), cy + uy * (core_d / 2.0)
-            ex, ey = txc - ux * (orb_d / 2.0), tyc - uy * (orb_d / 2.0)
-            conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(sx), Inches(sy), Inches(ex), Inches(ey))
-            conn.line.color.rgb = RGBColor(*_shade(col, -15))
-            conn.line.width = Pt(2.0)
-
-            tri = s.shapes.add_shape(MsoShape.ISOSCELES_TRIANGLE, Inches(ex - 0.08), Inches(ey - 0.06), Inches(0.16), Inches(0.12))
-            tri.fill.solid(); tri.fill.fore_color.rgb = RGBColor(*_shade(col, -15))
-            tri.line.fill.background()
-            try:
-                tri.rotation = int(round((math.degrees(math.atan2(vy, vx))) + 90.0))
-            except Exception:
-                pass
 
     def _render_impact_map_radial(sl) -> None:
         title, items, content = _impact_map_norm_items(sl)
@@ -9618,49 +9997,74 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
             raw_variant = str((content or {}).get("impact_map_variant") or (content or {}).get("variant") or "").strip().lower()
             variant_map = {
-                "ring": "circular_ring",
-                "circular": "circular_ring",
-                "circular_ring": "circular_ring",
-                "circular-ring": "circular_ring",
-                "classic": "lr_boxes",
-                "radial": "classic_circles",
-                "pyramid": "orbit",
-                "two_sided": "lr_boxes",
-                "two-sided": "lr_boxes",
-                "before_after": "lr_boxes",
-                "before-after": "lr_boxes",
-                "swimlane": "lr_boxes",
-                "hub_spoke": "classic_circles",
-                "hub-spoke": "classic_circles",
-                "hub_spoke_classic": "classic_circles",
-                "hub-spoke-classic": "classic_circles",
-                "hub_spoke_classic_circles": "classic_circles",
-                "hub-spoke-classic-circles": "classic_circles",
-                "hub_spoke_lr": "lr_boxes",
-                "hub-spoke-lr": "lr_boxes",
-                "hub_spoke_lr_boxes": "lr_boxes",
-                "hub-spoke-lr-boxes": "lr_boxes",
-                "hub_spoke_circular_ring": "circular_ring",
-                "hub-spoke-circular-ring": "circular_ring",
-                "hub_spoke_orbit": "orbit",
-                "hub-spoke-orbit": "orbit",
-                "side_by_side": "side_by_side_6",
-                "side-by-side": "side_by_side_6",
-                "side_by_side_6": "side_by_side_6",
-                "side-by-side-6": "side_by_side_6",
+                "ring": "quadrant_ring_4",
+                "circular": "quadrant_ring_4",
+                "circular_ring": "quadrant_ring_4",
+                "circular-ring": "quadrant_ring_4",
+                "quadrant_ring_4": "quadrant_ring_4",
+                "quadrant_ring": "quadrant_ring_4",
+                "quadrant-ring": "quadrant_ring_4",
+                "quad_ring": "quadrant_ring_4",
+                "quad-ring": "quadrant_ring_4",
+                "four_panel": "quadrant_ring_4",
+                "four-panel": "quadrant_ring_4",
+                "4_panel": "quadrant_ring_4",
+                "4-panel": "quadrant_ring_4",
+                "business_infographic": "quadrant_ring_4",
+                "business-infographic": "quadrant_ring_4",
+                "infographic_donut_4": "quadrant_ring_4",
+                "infographic-donut-4": "quadrant_ring_4",
+                "donut_callout_4": "quadrant_ring_4",
+                "donut-callout-4": "quadrant_ring_4",
+                "donut_callouts": "quadrant_ring_4",
+                "donut-callouts": "quadrant_ring_4",
+                "diamond_capsules_4": "diamond_capsules_4",
+                "diamond-capsules-4": "diamond_capsules_4",
+                "hub_spoke_diamond_capsules": "diamond_capsules_4",
+                "hub-spoke-diamond-capsules": "diamond_capsules_4",
+                "diamond_capsules": "diamond_capsules_4",
+                "diamond-capsules": "diamond_capsules_4",
+                "classic": "side_by_side_infographic_6",
+                "lr_boxes": "side_by_side_infographic_6",
+                "lr-boxes": "side_by_side_infographic_6",
+                "radial": "side_by_side_infographic_6",
+                "pyramid": "side_by_side_infographic_6",
+                "two_sided": "side_by_side_infographic_6",
+                "two-sided": "side_by_side_infographic_6",
+                "before_after": "side_by_side_infographic_6",
+                "before-after": "side_by_side_infographic_6",
+                "swimlane": "side_by_side_infographic_6",
+                "hub_spoke": "side_by_side_infographic_6",
+                "hub-spoke": "side_by_side_infographic_6",
+                "hub_spoke_classic": "side_by_side_infographic_6",
+                "hub-spoke-classic": "side_by_side_infographic_6",
+                "hub_spoke_classic_circles": "side_by_side_infographic_6",
+                "hub-spoke-classic-circles": "side_by_side_infographic_6",
+                "hub_spoke_lr": "side_by_side_infographic_6",
+                "hub-spoke-lr": "side_by_side_infographic_6",
+                "hub_spoke_lr_boxes": "side_by_side_infographic_6",
+                "hub-spoke-lr-boxes": "side_by_side_infographic_6",
+                "hub_spoke_circular_ring": "quadrant_ring_4",
+                "hub-spoke-circular-ring": "quadrant_ring_4",
+                "hub_spoke_orbit": "side_by_side_infographic_6",
+                "hub-spoke-orbit": "side_by_side_infographic_6",
+                "side_by_side": "side_by_side_infographic_6",
+                "side-by-side": "side_by_side_infographic_6",
+                "side_by_side_6": "side_by_side_infographic_6",
+                "side-by-side-6": "side_by_side_infographic_6",
                 "side_by_side_infographic": "side_by_side_infographic_6",
                 "side-by-side-infographic": "side_by_side_infographic_6",
                 "side_by_side_infographic_6": "side_by_side_infographic_6",
                 "side-by-side-infographic-6": "side_by_side_infographic_6",
                 "infographic_side_by_side": "side_by_side_infographic_6",
                 "infographic-side-by-side": "side_by_side_infographic_6",
-                "side": "side_by_side_6",
-                "side6": "side_by_side_6",
-                "spokes": "classic_circles",
+                "side": "side_by_side_infographic_6",
+                "side6": "side_by_side_infographic_6",
+                "spokes": "side_by_side_infographic_6",
             }
             forced = variant_map.get(raw_variant)
 
-            eligible: List[str] = ["classic_circles", "circular_ring", "lr_boxes", "orbit", "side_by_side_6", "side_by_side_infographic_6"]
+            eligible: List[str] = ["quadrant_ring_4", "diamond_capsules_4", "side_by_side_infographic_6"]
             if forced and forced not in eligible:
                 eligible.append(forced)
 
@@ -9673,18 +10077,16 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 IMPACT_MAP_VARIANT_INDEX = 0
             IMPACT_MAP_VARIANT_INDEX += 1
 
-            if chosen == "circular_ring":
-                _render_hub_spoke_circular_ring(sl)
-            elif chosen == "lr_boxes":
-                _render_hub_spoke_lr_boxes(sl)
-            elif chosen == "orbit":
-                _render_hub_spoke_orbit(sl)
-            elif chosen == "side_by_side_6":
-                _render_hub_spoke_side_by_side_6(sl)
+            if chosen == "quadrant_ring_4":
+                _render_hub_spoke_quadrant_ring_4(sl)
+            elif chosen == "diamond_capsules_4":
+                _render_hub_spoke_diamond_capsules_4(sl)
+            elif chosen == "infographic_donut_4":
+                _render_hub_spoke_infographic_donut_4(sl)
             elif chosen == "side_by_side_infographic_6":
                 _render_hub_spoke_side_by_side_infographic_6(sl)
             else:
-                _render_hub_spoke_classic_circles(sl)
+                _render_hub_spoke_side_by_side_infographic_6(sl)
 
         # Deterministic selection rules based on intent and density
         if t == "key_takeaways" or ("key takeaways" in str(title or "").strip().lower()):

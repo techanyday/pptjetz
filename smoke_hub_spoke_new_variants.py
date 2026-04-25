@@ -62,7 +62,7 @@ def main() -> None:
     out_dir = os.path.join(os.getcwd(), "tmp_previews", deck_id)
     os.makedirs(out_dir, exist_ok=True)
 
-    variants = ["classic_circles", "circular_ring", "lr_boxes", "orbit", "side_by_side_6"]
+    variants = ["quadrant_ring_4", "diamond_capsules_4", "side_by_side_infographic_6"]
     out_paths = []
 
     for v in variants:
