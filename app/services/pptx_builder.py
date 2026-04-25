@@ -8021,6 +8021,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             item_heads.append(heading)
             item_bodies.append(body)
 
+        raw_topic = re.sub(r"\s+", " ", str(title or "")).strip()
+        blocked_topics = {"", "hub & spoke", "hub and spoke", "impact map", "infographic", "overview"}
+        topic_key = raw_topic.lower()
+        if topic_key in blocked_topics:
+            raw_topic = ""
+
+        tag_title = _shorten(raw_topic, 26) if raw_topic else ""
+        if not tag_title:
+            fallback_title = " / ".join([h for h in item_heads[:2] if h])
+            tag_title = _shorten(fallback_title, 26) if fallback_title else "Infographic"
+
         def _flat(shape) -> None:
             try:
                 shape.shadow.inherit = False
@@ -8048,7 +8059,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         except Exception:
             pass
         pt = tft.paragraphs[0]; pt.alignment = PP_ALIGN.LEFT
-        rt = pt.add_run(); rt.text = "Infographic"
+        rt = pt.add_run(); rt.text = tag_title
         rt.font.size = Pt(22); rt.font.bold = True; rt.font.color.rgb = RGBColor(*tag_text_rgb)
         ra = pt.add_run(); ra.text = "   →"
         ra.font.size = Pt(28); ra.font.bold = True; ra.font.color.rgb = RGBColor(*tag_text_rgb)
@@ -8156,6 +8167,148 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 font_size_pt=12,
                 bold=False,
                 color=_shade(text_rgb, 10),
+                align="center",
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+    def _render_hub_spoke_mind_map_6(sl) -> None:
+        title, items, content = _hub_spoke_items(sl, target_n=6)
+        s = prs.slides.add_slide(blank); apply_bg(s)
+
+        primary_rgb = pal.get("primary", (59, 130, 246))
+        secondary_rgb = pal.get("secondary", _blend_rgb(primary_rgb, (255, 255, 255), 0.50))
+        bg_rgb = pal.get("bg", (255, 255, 255))
+        text_rgb = pal.get("text", (30, 30, 30))
+
+        side_rgb = _blend_rgb(primary_rgb, _shade(primary_rgb, -18 if not _is_dark_rgb(bg_rgb) else 18), 0.30)
+        if _rgb_dist(side_rgb, bg_rgb) < 90:
+            side_rgb = _shade(side_rgb, -26 if not _is_dark_rgb(bg_rgb) else 26)
+        center_rgb = _blend_rgb(bg_rgb, secondary_rgb, 0.35)
+        if _rgb_dist(center_rgb, side_rgb) < 75:
+            center_rgb = _shade(center_rgb, 20 if _is_dark_rgb(side_rgb) else -20)
+
+        side_text_rgb = _contrast_text(side_rgb)
+        body_text_rgb = _blend_rgb(text_rgb, side_text_rgb, 0.25 if _is_dark_rgb(side_rgb) else 0.55)
+        if _rgb_dist(body_text_rgb, side_rgb) < 120:
+            body_text_rgb = _contrast_text(side_rgb)
+        border_rgb = _blend_rgb((255, 255, 255), bg_rgb, 0.20)
+
+        h0, l0, s0 = _rgb_to_hls(primary_rgb)
+        sat = max(0.58, min(0.85, s0 + 0.20))
+        light = 0.58 if not _is_dark_rgb(bg_rgb) else 0.64
+        spoke_cols: List[Tuple[int, int, int]] = []
+        for idx in range(6):
+            hh = (h0 + (idx / 6.0)) % 1.0
+            ll = max(0.42, min(0.72, light + (0.04 if idx % 2 == 0 else -0.02)))
+            spoke_cols.append(_blend_rgb(_hls_to_rgb(hh, ll, sat), primary_rgb, 0.16))
+
+        raw_topic = re.sub(r"\s+", " ", str(title or "")).strip()
+        vertical_title = raw_topic or "Mind Map"
+        topic_label = _shorten(raw_topic or "this topic", 34)
+
+        item_heads: List[str] = []
+        item_bodies: List[str] = []
+        for idx in range(6):
+            head, tail = _split_head_tail(str(items[idx] or ""))
+            heading = (head or str(items[idx] or "")).strip() or f"Idea {idx + 1}"
+            heading = _shorten(heading, 24)
+
+            body = (tail or "").strip()
+            if not body:
+                body = f"Focus on {heading.lower()} to support {topic_label.lower()}."
+            words = body.split()
+            if len(words) > 10:
+                body = " ".join(words[:10]).rstrip(" ,.;:-")
+
+            item_heads.append(heading)
+            item_bodies.append(body)
+
+        def _flat(shape) -> None:
+            try:
+                shape.shadow.inherit = False
+                shape.shadow.visible = False
+            except Exception:
+                pass
+
+        bg = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0), Inches(0), Inches(SLIDE_W_IN), Inches(SLIDE_H_IN))
+        bg.fill.solid(); bg.fill.fore_color.rgb = RGBColor(*side_rgb)
+        bg.line.fill.background(); _flat(bg)
+
+        center_x = 3.68
+        center_w = 5.98
+        center_panel = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(center_x), Inches(0), Inches(center_w), Inches(SLIDE_H_IN))
+        center_panel.fill.solid(); center_panel.fill.fore_color.rgb = RGBColor(*center_rgb)
+        center_panel.line.fill.background(); _flat(center_panel)
+
+        title_w, title_h = 5.95, 1.02
+        title_box = s.shapes.add_textbox(Inches(0.28), Inches((SLIDE_H_IN - title_h) / 2.0), Inches(title_w), Inches(title_h))
+        ttf = title_box.text_frame
+        ttf.clear(); ttf.word_wrap = False
+        try:
+            ttf.vertical_anchor = MSO_ANCHOR.MIDDLE
+            ttf.margin_left = Pt(0); ttf.margin_right = Pt(0)
+            ttf.margin_top = Pt(0); ttf.margin_bottom = Pt(0)
+        except Exception:
+            pass
+        tp = ttf.paragraphs[0]; tp.alignment = PP_ALIGN.CENTER
+        tr = tp.add_run(); tr.text = vertical_title
+        _, fs_v = _fit_text_no_midword(vertical_title, box_w_in=title_w * 0.92, box_h_in=title_h * 0.92, base_font_pt=58, min_font_pt=24, max_lines=1)
+        tr.font.size = Pt(fs_v); tr.font.bold = True; tr.font.color.rgb = RGBColor(*side_text_rgb)
+        try:
+            title_box.rotation = 270
+        except Exception:
+            pass
+
+        cx, cy = 6.66, SLIDE_H_IN / 2.0
+        spoke_w, spoke_h = 4.05, 0.92
+        for idx in range(6):
+            col = spoke_cols[idx % len(spoke_cols)]
+            spoke = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cx - spoke_w / 2.0), Inches(cy - spoke_h / 2.0), Inches(spoke_w), Inches(spoke_h))
+            spoke.fill.solid(); spoke.fill.fore_color.rgb = RGBColor(*col)
+            spoke.line.color.rgb = RGBColor(*border_rgb)
+            spoke.line.width = Pt(3)
+            spoke.rotation = idx * 60
+            _flat(spoke)
+
+        core_d = 0.78
+        core = s.shapes.add_shape(MsoShape.DIAMOND, Inches(cx - core_d / 2.0), Inches(cy - core_d / 2.0), Inches(core_d), Inches(core_d))
+        core.fill.solid(); core.fill.fore_color.rgb = RGBColor(*_blend_rgb(primary_rgb, text_rgb, 0.45))
+        core.line.fill.background(); _flat(core)
+
+        text_specs = [
+            (1.98, 0.96, 1.58, 1.52),
+            (10.00, 0.96, 2.86, 1.52),
+            (1.98, 3.08, 1.58, 1.52),
+            (10.00, 3.08, 2.86, 1.52),
+            (1.98, 5.22, 1.58, 1.52),
+            (10.00, 5.22, 2.86, 1.52),
+        ]
+        for idx, (x, y, w, h) in enumerate(text_specs):
+            _add_textbox(
+                s,
+                x,
+                y,
+                w,
+                0.48,
+                item_heads[idx],
+                font_size_pt=19,
+                bold=True,
+                color=side_text_rgb,
+                align="center",
+                word_wrap=False,
+                auto_fit=True,
+            )
+            _add_textbox(
+                s,
+                x,
+                y + 0.48,
+                w,
+                h - 0.48,
+                item_bodies[idx],
+                font_size_pt=12,
+                bold=False,
+                color=body_text_rgb,
                 align="center",
                 word_wrap=True,
                 auto_fit=True,
@@ -10024,6 +10177,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 "hub-spoke-diamond-capsules": "diamond_capsules_4",
                 "diamond_capsules": "diamond_capsules_4",
                 "diamond-capsules": "diamond_capsules_4",
+                "mind_map_6": "side_by_side_infographic_6",
+                "mind-map-6": "side_by_side_infographic_6",
+                "mind_map": "side_by_side_infographic_6",
+                "mind-map": "side_by_side_infographic_6",
+                "mindmap": "side_by_side_infographic_6",
+                "hub_spoke_mind_map": "side_by_side_infographic_6",
+                "hub-spoke-mind-map": "side_by_side_infographic_6",
                 "classic": "side_by_side_infographic_6",
                 "lr_boxes": "side_by_side_infographic_6",
                 "lr-boxes": "side_by_side_infographic_6",
