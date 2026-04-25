@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.services.slide_finalizer import finalize_slides
-from app.services.ai_content import choose_slide_count, build_slide_type_plan
+from app.services.ai_content import choose_slide_count, build_slide_type_plan, enforce_slide_count_postprocess
 
 
 def test_finalize_slides_enforces_known_types_and_render_exact_and_fallback_metadata():
@@ -92,8 +92,8 @@ def test_finalize_slides_merges_short_bullet_fragments():
 
 
 def test_choose_slide_count_clamps_user_request_to_min_max():
-    assert choose_slide_count("Topic", user_requested_count=1, content_signal="") == 11
-    assert choose_slide_count("Topic", user_requested_count=10, content_signal="") == 11
+    assert choose_slide_count("Topic", user_requested_count=1, content_signal="") == 13
+    assert choose_slide_count("Topic", user_requested_count=10, content_signal="") == 13
     assert choose_slide_count("Topic", user_requested_count=15, content_signal="") == 15
     assert choose_slide_count("Topic", user_requested_count=99, content_signal="") == 15
 
@@ -102,20 +102,20 @@ def test_choose_slide_count_infers_from_topic_length():
     short = "A brief update on Q1 results"
     medium = " ".join(["word"] * 140)
     long = " ".join(["word"] * 400)
-    assert 11 <= choose_slide_count(short, user_requested_count=None, content_signal=short) <= 12
-    assert 12 <= choose_slide_count(medium, user_requested_count=None, content_signal=medium) <= 14
+    assert choose_slide_count(short, user_requested_count=None, content_signal=short) == 13
+    assert 13 <= choose_slide_count(medium, user_requested_count=None, content_signal=medium) <= 14
     assert choose_slide_count(long, user_requested_count=None, content_signal=long) == 15
 
 
 def test_build_slide_type_plan_enforces_length_and_anchors_and_rotation():
     topic = "Executive Briefing"
     input_text = "Discuss strategy, timeline, KPIs, and risks."
-    plan, meta = build_slide_type_plan(topic=topic, input_text=input_text, slide_count=12, theme_name="SLEEK")
-    assert len(plan) == 12
+    plan, meta = build_slide_type_plan(topic=topic, input_text=input_text, slide_count=13, theme_name="SLEEK")
+    assert len(plan) == 13
     assert plan[0] == "title"
     assert plan[1] == "agenda"
     assert plan[-1] == "thank_you"
-    # Coverage: should have at least 8 distinct types for 12 slides
+    # Coverage: should have at least 8 distinct types for 13 slides
     assert meta.get("distinct_types") >= 8
     # Avoid long runs (no 3-in-a-row)
     for i in range(2, len(plan)):
@@ -125,14 +125,118 @@ def test_build_slide_type_plan_enforces_length_and_anchors_and_rotation():
 def test_build_slide_type_plan_matrix_gating_includes_matrix_only_with_evidence():
     topic = "Prioritization"
     no_ev = "Summary of key findings and recommendations"
-    plan1, meta1 = build_slide_type_plan(topic=topic, input_text=no_ev, slide_count=12, theme_name="SLEEK")
+    plan1, meta1 = build_slide_type_plan(topic=topic, input_text=no_ev, slide_count=13, theme_name="SLEEK")
     assert meta1.get("allow_matrix") is False
     assert "impact_effort_matrix" not in plan1
 
     yes_ev = "Build a 2x2 impact vs effort prioritization matrix for initiatives"
-    plan2, meta2 = build_slide_type_plan(topic=topic, input_text=yes_ev, slide_count=12, theme_name="SLEEK")
+    plan2, meta2 = build_slide_type_plan(topic=topic, input_text=yes_ev, slide_count=13, theme_name="SLEEK")
     assert meta2.get("allow_matrix") is True
     assert "impact_effort_matrix" in plan2
+
+
+def test_enforce_slide_count_postprocess_backfills_when_fill_call_fails():
+    class _FailingClient:
+        class _Chat:
+            class _Completions:
+                @staticmethod
+                def create(*args, **kwargs):
+                    raise RuntimeError("fill failed")
+
+            completions = _Completions()
+
+        chat = _Chat()
+
+    plan = [
+        "title",
+        "agenda",
+        "one_idea",
+        "timeline",
+        "comparison",
+        "kpi",
+        "key_takeaways",
+        "infographic",
+        "cards",
+        "double_column",
+        "roadmap",
+        "risk_matrix",
+        "thank_you",
+    ]
+    slides = [
+        {"type": "title", "title": "Deck", "content": {}},
+        {"type": "agenda", "title": "Agenda", "content": {"bullets": ["A", "B"]}},
+        {"type": "one_idea", "title": "One Idea", "content": {"bullets": ["A", "B", "C", "D"]}},
+        {"type": "timeline", "title": "Timeline", "content": {"timeline": [{"label": "P1", "description": "D1"}, {"label": "P2", "description": "D2"}, {"label": "P3", "description": "D3"}, {"label": "P4", "description": "D4"}]}},
+        {"type": "comparison", "title": "Compare", "content": {"table": {"left": {"heading": "L", "points": ["a", "b"]}, "right": {"heading": "R", "points": ["c", "d"]}}}},
+        {"type": "kpi", "title": "KPIs", "content": {"metrics": [{"label": "Adoption", "value": "42%"}, {"label": "Growth", "value": "15%"}]}},
+        {"type": "key_takeaways", "title": "Key Takeaways", "content": {"bullets": ["x", "y", "z", "w"]}},
+        {"type": "thank_you", "title": "Thank You", "content": {}},
+    ]
+
+    out = enforce_slide_count_postprocess(
+        client=_FailingClient(),
+        system_msg="system",
+        deck_title="Deck",
+        input_text="Input",
+        slides=slides,
+        slide_type_plan=plan,
+        chosen_n=13,
+        deck_id="deck",
+        user_id="user",
+    )
+
+    assert len(out) == 13
+    assert out[0].get("type") == "title"
+    assert out[-1].get("type") in {"thank_you", "cta", "infographic", "risk_matrix"}
+
+
+def test_enforce_slide_count_postprocess_accepts_partial_fill_then_backfills_rest():
+    class _PartialClient:
+        class _Chat:
+            class _Completions:
+                @staticmethod
+                def create(*args, **kwargs):
+                    class _Msg:
+                        content = '[{"type":"cards","title":"Extra","content":{"cards":["a","b","c","d"]}}]'
+
+                    class _Choice:
+                        message = _Msg()
+
+                    class _Resp:
+                        choices = [_Choice()]
+
+                    return _Resp()
+
+            completions = _Completions()
+
+        chat = _Chat()
+
+    plan = ["title", "agenda", "one_idea", "timeline", "comparison", "kpi", "key_takeaways", "infographic", "cards", "double_column", "roadmap", "risk_matrix", "thank_you"]
+    slides = [
+        {"type": "title", "title": "Deck", "content": {}},
+        {"type": "agenda", "title": "Agenda", "content": {"bullets": ["A", "B"]}},
+        {"type": "one_idea", "title": "One Idea", "content": {"bullets": ["A", "B", "C", "D"]}},
+        {"type": "timeline", "title": "Timeline", "content": {"timeline": [{"label": "P1", "description": "D1"}, {"label": "P2", "description": "D2"}, {"label": "P3", "description": "D3"}, {"label": "P4", "description": "D4"}]}},
+        {"type": "comparison", "title": "Compare", "content": {"table": {"left": {"heading": "L", "points": ["a", "b"]}, "right": {"heading": "R", "points": ["c", "d"]}}}},
+        {"type": "kpi", "title": "KPIs", "content": {"metrics": [{"label": "Adoption", "value": "42%"}, {"label": "Growth", "value": "15%"}]}},
+        {"type": "key_takeaways", "title": "Key Takeaways", "content": {"bullets": ["x", "y", "z", "w"]}},
+        {"type": "thank_you", "title": "Thank You", "content": {}},
+    ]
+
+    out = enforce_slide_count_postprocess(
+        client=_PartialClient(),
+        system_msg="system",
+        deck_title="Deck",
+        input_text="Input",
+        slides=slides,
+        slide_type_plan=plan,
+        chosen_n=13,
+        deck_id="deck",
+        user_id="user",
+    )
+
+    assert len(out) == 13
+    assert any(str(s.get("title") or "") == "Extra" for s in out if isinstance(s, dict))
 
 
 def test_finalize_slides_removes_to_be_refined_placeholders_everywhere():

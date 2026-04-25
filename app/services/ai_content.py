@@ -28,7 +28,7 @@ ENABLE_LLM_HARMONIZE = os.getenv("ENABLE_LLM_HARMONIZE", "1") == "1"
 ENABLE_LLM_QUALITY_ENHANCER = os.getenv("ENABLE_LLM_QUALITY_ENHANCER", "1") == "1"
 QUALITY_MAX_RETRIES = int(os.getenv("QUALITY_MAX_RETRIES", "2"))
 
-MIN_SLIDES = 11
+MIN_SLIDES = 13
 MAX_SLIDES = 15
 
 
@@ -65,7 +65,7 @@ def choose_slide_count(
         return int(max(MIN_SLIDES, min(MAX_SLIDES, req)))
 
     base = (content_signal or topic or "").strip()
-    # Word-count heuristic (no deps); maps to 10/12-13/14-15
+    # Word-count heuristic (no deps); maps to 13/14/15 under current bounds
     words = [w for w in base.replace("\n", " ").split(" ") if w.strip()]
     wc = len(words)
     # Extra signal: how many line breaks / separators suggests multi-part request
@@ -332,6 +332,176 @@ def enforce_slide_count_postprocess(
         return trimmed[:want]
 
     if len(arr) < want:
+        def _local_fill_slide(stype: str, idx: int) -> Dict[str, Any]:
+            t = str(stype or "infographic").strip().lower() or "infographic"
+            topic = str(deck_title or input_text or "Presentation").strip() or "Presentation"
+            short_topic = " ".join(topic.split()[:6]).strip() or "Presentation"
+            ttl = f"{short_topic} — {idx}"
+
+            if t == "title":
+                return {"type": "title", "title": topic, "subtitle": "", "content": {}}
+            if t == "agenda":
+                return {
+                    "type": "agenda",
+                    "title": "Agenda",
+                    "content": {"bullets": [
+                        "Context and objectives",
+                        "Current state",
+                        "Key insights",
+                        "Recommendations",
+                        "Next steps",
+                    ]},
+                }
+            if t in {"thank_you", "cta"}:
+                return {"type": "thank_you", "title": "Thank You", "content": {}}
+            if t in {"cards", "card", "card_style", "process_timeline_alt"}:
+                return {"type": "cards", "title": ttl, "content": {"cards": [
+                    "Define goal",
+                    "Assess baseline",
+                    "Execute actions",
+                    "Track outcomes",
+                ]}}
+            if t in {"double_column", "deep_dive"}:
+                return {
+                    "type": "double_column",
+                    "title": ttl,
+                    "content": {
+                        "left_points": ["Current challenge", "Root causes", "Constraints", "Dependencies"],
+                        "right_points": ["Target state", "Action plan", "Owners and timing", "Success metrics"],
+                    },
+                }
+            if t in {"comparison", "table"}:
+                return {
+                    "type": "comparison",
+                    "title": ttl,
+                    "content": {
+                        "table": {
+                            "left": {"heading": "Current", "points": ["Manual", "Slower", "Higher variance"]},
+                            "right": {"heading": "Target", "points": ["Automated", "Faster", "More consistent"]},
+                        }
+                    },
+                }
+            if t == "timeline":
+                return {
+                    "type": "timeline",
+                    "title": ttl,
+                    "content": {
+                        "timeline": [
+                            {"label": "Phase 1", "description": "Define scope"},
+                            {"label": "Phase 2", "description": "Prepare rollout"},
+                            {"label": "Phase 3", "description": "Execute"},
+                            {"label": "Phase 4", "description": "Optimize"},
+                        ]
+                    },
+                }
+            if t == "roadmap":
+                return {
+                    "type": "roadmap",
+                    "title": ttl,
+                    "content": {
+                        "phases": [
+                            {"label": "Q1", "description": "Foundations"},
+                            {"label": "Q2", "description": "Pilot"},
+                            {"label": "Q3", "description": "Scale"},
+                            {"label": "Q4", "description": "Refine"},
+                        ]
+                    },
+                }
+            if t == "swot":
+                return {
+                    "type": "swot",
+                    "title": ttl,
+                    "content": {
+                        "strengths": {"points": ["Differentiated value", "Execution capability"]},
+                        "weaknesses": {"points": ["Resource constraints", "Coverage gaps"]},
+                        "opportunities": {"points": ["Market demand", "Strategic partnerships"]},
+                        "threats": {"points": ["Competitive pressure", "Regulatory change"]},
+                    },
+                }
+            if t == "kpi":
+                return {
+                    "type": "kpi",
+                    "title": ttl,
+                    "content": {
+                        "metrics": [
+                            {"label": "Adoption", "value": "42%", "caption": "Current utilization"},
+                            {"label": "Efficiency", "value": "+18%", "caption": "Operational uplift"},
+                        ]
+                    },
+                }
+            if t == "risk_matrix":
+                return {
+                    "type": "risk_matrix",
+                    "title": ttl,
+                    "content": {
+                        "low_likelihood_low_impact": {"points": ["Minor delays"]},
+                        "low_likelihood_high_impact": {"points": ["Vendor outage"]},
+                        "high_likelihood_low_impact": {"points": ["Scope changes"]},
+                        "high_likelihood_high_impact": {"points": ["Resource shortfall"]},
+                    },
+                }
+            if t == "before_after":
+                return {
+                    "type": "before_after",
+                    "title": ttl,
+                    "content": {
+                        "before": {"heading": "Before", "points": ["Fragmented process", "Long cycle time", "Manual tracking"]},
+                        "after": {"heading": "After", "points": ["Standardized workflow", "Faster delivery", "Automated tracking"]},
+                    },
+                }
+            if t == "architecture":
+                return {
+                    "type": "architecture",
+                    "title": ttl,
+                    "content": {
+                        "boxes": ["Input", "Processing", "Control", "Output"],
+                        "connections": ["Input -> Processing", "Processing -> Output"],
+                    },
+                }
+            if t == "pricing":
+                return {
+                    "type": "pricing",
+                    "title": ttl,
+                    "content": {
+                        "plans": [
+                            {"name": "Standard", "price": "$49", "features": ["Core features", "Email support"]},
+                            {"name": "Pro", "price": "$99", "features": ["Advanced analytics", "Priority support"]},
+                        ]
+                    },
+                }
+            if t in {"impact_effort_matrix", "impact_matrix", "prioritization_matrix"}:
+                return {
+                    "type": "impact_effort_matrix",
+                    "title": ttl,
+                    "content": {
+                        "quick_easy_wins": ["Automate repetitive tasks"],
+                        "major_projects": ["Platform modernization"],
+                        "fill_in": ["Improve documentation"],
+                        "thankless_tasks": ["Manual reconciliation"],
+                    },
+                }
+            if t in {"one_idea", "infographic", "key_takeaways", "bullets"}:
+                return {
+                    "type": "infographic" if t == "bullets" else t,
+                    "title": ttl,
+                    "content": {"bullets": [
+                        "Define the objective and scope",
+                        "Highlight critical insights",
+                        "Prioritize actions and ownership",
+                        "Track results and iterate",
+                    ]},
+                }
+            return {
+                "type": "infographic",
+                "title": ttl,
+                "content": {"bullets": [
+                    "Define objective",
+                    "Assess current state",
+                    "Implement actions",
+                    "Measure impact",
+                ]},
+            }
+
         missing_k = want - len(arr)
         # Remaining plan types for the missing indices
         remaining_types = plan[len(arr) : len(arr) + missing_k]
@@ -373,11 +543,21 @@ def enforce_slide_count_postprocess(
             )
             raw = (resp.choices[0].message.content or "").strip()
             more, err = _parse_json_array(raw)
-            if not err and isinstance(more, list) and len(more) == missing_k:
-                arr2 = arr + more
-                return arr2[:want]
+            if not err and isinstance(more, list) and more:
+                arr2 = arr + more[:missing_k]
+                if len(arr2) >= want:
+                    return arr2[:want]
+                arr = arr2
         except Exception:
             pass
+        still_missing = want - len(arr)
+        if still_missing > 0:
+            backfill_types = plan[len(arr) : len(arr) + still_missing]
+            if len(backfill_types) < still_missing:
+                backfill_types = backfill_types + ["infographic"] * (still_missing - len(backfill_types))
+            for i, st in enumerate(backfill_types, start=1):
+                arr.append(_local_fill_slide(st, len(arr) + i))
+            return arr[:want]
     return arr[:want]
 
 
