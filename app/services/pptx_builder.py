@@ -8462,15 +8462,16 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         bg_rgb = pal.get("bg", (255, 255, 255))
         text_rgb = pal.get("text", (30, 30, 30))
         muted_rgb = pal.get("muted", _shade(text_rgb, 26))
+        center_outline = (95, 93, 170)
 
         frame_rgb = _shade(primary_rgb, -8)
         panel_rgb = _blend_rgb(bg_rgb, (255, 255, 255), 0.10)
-        card_fill_rgb = _blend_rgb((255, 255, 255), panel_rgb, 0.15)
+        card_fill_rgb = (255, 255, 255)
+        card_border_rgb = _blend_rgb(center_outline, (255, 255, 255), 0.72)
         title_rgb = _blend_rgb(primary_rgb, secondary_rgb, 0.28)
         if _rgb_dist(title_rgb, panel_rgb) < 70:
             title_rgb = _shade(title_rgb, -26 if not _is_dark_rgb(panel_rgb) else 26)
 
-        center_outline = (95, 93, 170)
         col_a = (238, 76, 83)
         col_b = (44, 166, 214)
         col_c = (113, 187, 128)
@@ -8493,6 +8494,31 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         outer_labels = ["A", "B", "C", "D", "E"]
         outer_cols = [col_a, col_b, col_c, col_d, col_e]
         outer_bodies: List[str] = []
+
+        def _clean_fragment(txt: str) -> str:
+            t = re.sub(r"\s+", " ", str(txt or "")).strip(" ,.;:-")
+            t = re.sub(r"^(and|or|but|with|for|to|of|in|on|by)\s+", "", t, flags=re.I)
+            return t.strip()
+
+        def _outer_body(head: str, tail: str, raw_outer: str) -> str:
+            cand = _clean_fragment(tail)
+            head_clean = _clean_fragment(head)
+            raw_clean = _clean_fragment(raw_outer)
+
+            # If tail is too short/fragmentary, synthesize a meaningful sentence from the head/raw text.
+            words = cand.split()
+            if (not cand) or (len(words) < 4):
+                seed = head_clean or raw_clean or "this area"
+                seed_words = seed.split()
+                if len(seed_words) > 5:
+                    seed = " ".join(seed_words[:5])
+                cand = f"Strengthen {seed.lower()} to improve {topic_label.lower()} adoption and execution."
+
+            words2 = cand.split()
+            if len(words2) > 13:
+                cand = " ".join(words2[:13]).rstrip(" ,.;:-")
+            return cand
+
         outer_items = list(items[1:6])
         if len(outer_items) < 5:
             outer_items = (outer_items + [items[-1]] * (5 - len(outer_items)))[:5]
@@ -8501,12 +8527,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             heading = (head or str(raw_outer or "")).strip()
             if not heading:
                 heading = f"Point {idx}"
-            body = (tail or "").strip()
-            if not body:
-                body = f"Focus on {heading.lower()} to strengthen {topic_label.lower()} outcomes and execution."
-            words = body.split()
-            if len(words) > 13:
-                body = " ".join(words[:13]).rstrip(" ,.;:-")
+            body = _outer_body(head, tail, str(raw_outer or ""))
             outer_bodies.append(body)
 
         def _flat(shape) -> None:
@@ -8543,8 +8564,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
             card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*card_fill_rgb)
             try:
-                card.line.color.rgb = RGBColor(*_blend_rgb(panel_rgb, (255, 255, 255), 0.60))
-                card.line.width = Pt(1.2)
+                card.line.color.rgb = RGBColor(*card_border_rgb)
+                card.line.width = Pt(1.6)
             except Exception:
                 card.line.fill.background()
             _flat(card)
