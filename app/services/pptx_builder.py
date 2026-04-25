@@ -8356,20 +8356,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         for idx in range(4):
             head, tail = _split_head_tail(str(items[idx] or ""))
             heading = (head or str(items[idx] or "")).strip() or f"Main point {idx + 1}"
-            heading = _shorten(heading, 28)
+            heading = _shorten(heading, 36)
 
             body = (tail or "").strip()
             if not body:
                 body = (
                     f"Focus on {heading.lower()} to strengthen {topic_label.lower()} "
-                    "with practical actions, measurable outcomes, and clear next steps."
+                    "with clear actions and measurable impact."
                 )
             words = body.split()
-            if len(words) < 12:
-                body = f"{body.rstrip(' .')} with practical steps and measurable impact."
-                words = body.split()
-            if len(words) > 20:
-                body = " ".join(words[:20]).rstrip(" ,.;:-")
+            if len(words) > 14:
+                body = " ".join(words[:14]).rstrip(" ,.;:-")
 
             heads.append(heading)
             bodies.append(body)
@@ -8416,23 +8413,23 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 x + 0.30,
                 y + 0.18,
                 w - 0.60,
-                0.34,
+                0.42,
                 head,
-                font_size_pt=18,
+                font_size_pt=17,
                 bold=True,
                 color=text_rgb,
                 align="left",
-                word_wrap=False,
+                word_wrap=True,
                 auto_fit=True,
             )
             _add_textbox(
                 s,
                 x + 0.30,
-                y + 0.52,
+                y + 0.66,
                 w - 0.60,
-                h - 0.62,
+                h - 0.82,
                 body,
-                font_size_pt=11,
+                font_size_pt=10,
                 bold=False,
                 color=muted_rgb,
                 align="left",
@@ -8449,18 +8446,51 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         def _arrow(x1: float, y1: float, x2: float, y2: float, rgb: Tuple[int, int, int]) -> None:
             conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(x1), Inches(y1), Inches(x2), Inches(y2))
             conn.line.color.rgb = RGBColor(*rgb)
-            conn.line.width = Pt(2.5)
+            conn.line.width = Pt(2.4)
             try:
-                from pptx.enum.dml import MSO_ARROWHEAD_STYLE  # type: ignore
+                from pptx.enum.dml import MSO_ARROWHEAD_LENGTH, MSO_ARROWHEAD_STYLE, MSO_ARROWHEAD_WIDTH  # type: ignore
                 conn.line.end_arrowhead = MSO_ARROWHEAD_STYLE.TRIANGLE
+                conn.line.end_arrowhead_length = MSO_ARROWHEAD_LENGTH.LARGE
+                conn.line.end_arrowhead_width = MSO_ARROWHEAD_WIDTH.LARGE
             except Exception:
-                pass
+                try:
+                    from pptx.enum.dml import MSO_ARROWHEAD_STYLE  # type: ignore
+                    conn.line.end_arrowhead = MSO_ARROWHEAD_STYLE.TRIANGLE
+                except Exception:
+                    pass
+
+            # Explicit chevron head fallback so arrow tips remain visible across viewers.
+            vx = x2 - x1
+            vy = y2 - y1
+            mag = max(0.001, float((vx * vx + vy * vy) ** 0.5))
+            ux = vx / mag
+            uy = vy / mag
+            back_x = -ux
+            back_y = -uy
+            spread = math.radians(28)
+            head_len = 0.16
+            for sign in (-1.0, 1.0):
+                ang = spread * sign
+                hx = back_x * math.cos(ang) - back_y * math.sin(ang)
+                hy = back_x * math.sin(ang) + back_y * math.cos(ang)
+                seg = s.shapes.add_connector(
+                    MSO_CONNECTOR_TYPE.STRAIGHT,
+                    Inches(x2),
+                    Inches(y2),
+                    Inches(x2 + head_len * hx),
+                    Inches(y2 + head_len * hy),
+                )
+                try:
+                    seg.line.color.rgb = RGBColor(*rgb)
+                    seg.line.width = Pt(2.2)
+                except Exception:
+                    pass
             _flat(conn)
 
-        sx, sy = top_x + (cw / 2.0), top_y + ch + 0.22
-        _arrow(sx, sy, 2.78, 4.62, arrow_cols[0])
-        _arrow(sx, sy, 6.68, 4.72, arrow_cols[1])
-        _arrow(sx, sy, 10.58, 4.62, arrow_cols[2])
+        # Independent anchors on top-card edge; keep side arrows shorter per reference.
+        _arrow(top_x + 0.62, top_y + ch + 0.14, 4.25, 4.34, arrow_cols[0])
+        _arrow(top_x + (cw / 2.0), top_y + ch + 0.16, 6.68, 4.40, arrow_cols[1])
+        _arrow(top_x + cw - 0.62, top_y + ch + 0.14, 9.11, 4.34, arrow_cols[2])
 
     def _render_hub_spoke_brainstorming_infographic_5(sl) -> None:
         title, items, content = _hub_spoke_items(sl, target_n=6)
