@@ -5031,9 +5031,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         chev_w = (band_w + (n - 1) * overlap) / n
 
         # Text and icon placement (alternating, like reference)
-        top_text_y, top_text_h = 2.45, 0.95
+        top_text_y, top_text_h = 3.50, 0.95
         bot_text_y, bot_text_h = 5.20, 0.95
-        top_ring_y = 3.25
+        top_ring_y = 2.50
         ring_d = 1.20
         bot_ring_y = 5.95
         letter_d = 0.42
@@ -5058,18 +5058,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             col = STEP_COLS[i % len(STEP_COLS)]
             letter = chr(ord("A") + i)
 
-            # Letter node on ribbon
-            l_x = cx - letter_d / 2
-            l_y = cy - letter_d / 2
-            node = s.shapes.add_shape(MsoShape.OVAL, Inches(l_x), Inches(l_y), Inches(letter_d), Inches(letter_d))
-            node.fill.solid(); node.fill.fore_color.rgb = RGBColor(*col)
-            node.line.color.rgb = RGBColor(255, 255, 255)
-            node.line.width = Pt(1.5)
-            ntf = node.text_frame
-            ntf.clear(); ntf.word_wrap = False; ntf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-            np = ntf.paragraphs[0]; np.alignment = PP_ALIGN.CENTER
-            nr = np.add_run(); nr.text = letter; nr.font.size = Pt(14); nr.font.bold = True; nr.font.color.rgb = RGBColor(255, 255, 255)
-
             # Alternate: text on one side, icon ring on the opposite side
             text_top = (i % 2 == 0)
             ring_y = bot_ring_y if text_top else top_ring_y
@@ -5088,13 +5076,34 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             ico.line.color.rgb = RGBColor(*col)
             ico.line.width = Pt(2)
 
-            # Stem from letter node to ring
-            stem = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(cx), Inches(cy), Inches(cx), Inches(ring_y + ring_d / 2))
+            # Stem from letter node edge to ring edge (keep center letters unobstructed)
+            ring_cy = ring_y + ring_d / 2
+            if ring_cy >= cy:
+                stem_y0 = cy + (letter_d / 2) + 0.02
+                stem_y1 = ring_cy - (ring_d / 2) - 0.04
+            else:
+                stem_y0 = cy - (letter_d / 2) - 0.02
+                stem_y1 = ring_cy + (ring_d / 2) + 0.04
+            if abs(stem_y1 - stem_y0) < 0.06:
+                stem_y0, stem_y1 = cy, ring_cy
+            stem = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(cx), Inches(stem_y0), Inches(cx), Inches(stem_y1))
             try:
                 stem.line.color.rgb = RGBColor(*col)
                 stem.line.width = Pt(3)
             except Exception:
                 pass
+
+            # Letter node on ribbon (drawn after stem so label stays on top)
+            l_x = cx - letter_d / 2
+            l_y = cy - letter_d / 2
+            node = s.shapes.add_shape(MsoShape.OVAL, Inches(l_x), Inches(l_y), Inches(letter_d), Inches(letter_d))
+            node.fill.solid(); node.fill.fore_color.rgb = RGBColor(*col)
+            node.line.color.rgb = RGBColor(255, 255, 255)
+            node.line.width = Pt(1.5)
+            ntf = node.text_frame
+            ntf.clear(); ntf.word_wrap = False; ntf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            np = ntf.paragraphs[0]; np.alignment = PP_ALIGN.CENTER
+            nr = np.add_run(); nr.text = letter; nr.font.size = Pt(14); nr.font.bold = True; nr.font.color.rgb = RGBColor(255, 255, 255)
 
             head, tail = _split_head_tail(txt)
             head = (head or txt).strip()
