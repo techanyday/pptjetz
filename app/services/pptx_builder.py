@@ -3641,13 +3641,67 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         title = (str(sl.get("title") or "").strip() or str(content.get("title") or "").strip() or "Architecture Diagram")
         boxes = content.get("boxes", [])
         connections = content.get("connections", [])
+
+        def _parse_loose_obj(x: Any) -> Any:
+            if isinstance(x, dict):
+                return x
+            if not isinstance(x, str):
+                return None
+            s = x.strip()
+            if not (s.startswith("{") and s.endswith("}")):
+                return None
+            try:
+                return json.loads(s)
+            except Exception:
+                try:
+                    return ast.literal_eval(s)
+                except Exception:
+                    return None
+
+        box_list_raw = boxes if isinstance(boxes, list) else []
+        box_list: List[Dict[str, str]] = []
+        for it in box_list_raw[:8]:
+            if isinstance(it, dict):
+                obj = it
+            else:
+                parsed = _parse_loose_obj(it)
+                obj = parsed if isinstance(parsed, dict) else {}
+            if isinstance(obj, dict) and obj:
+                lbl = str(obj.get("label") or obj.get("name") or obj.get("title") or "").strip()
+                dsc = str(obj.get("description") or obj.get("desc") or obj.get("details") or "").strip()
+            else:
+                lbl = str(it or "").strip()
+                dsc = ""
+            if lbl:
+                box_list.append({"label": lbl[:30], "description": dsc[:60]})
+
+        conn_list_raw = connections if isinstance(connections, list) else []
+        conn_list: List[Dict[str, str]] = []
+        for it in conn_list_raw:
+            if isinstance(it, dict):
+                obj = it
+            else:
+                parsed = _parse_loose_obj(it)
+                obj = parsed if isinstance(parsed, dict) else {}
+            from_label = ""
+            to_label = ""
+            if isinstance(obj, dict) and obj:
+                from_label = str(obj.get("from_box") or obj.get("from") or obj.get("source") or "").strip()
+                to_label = str(obj.get("to_box") or obj.get("to") or obj.get("target") or "").strip()
+            if (not from_label or not to_label) and isinstance(it, str):
+                s = it.strip()
+                if "->" in s:
+                    a, b = s.split("->", 1)
+                    from_label = from_label or a.strip()
+                    to_label = to_label or b.strip()
+            if from_label and to_label:
+                conn_list.append({"from_box": from_label[:30], "to_box": to_label[:30]})
         
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
         
         # Create box positions in a centered grid layout (no overflow)
         box_positions = {}
-        box_list = boxes if isinstance(boxes, list) else []
         n_boxes = min(8, len(box_list))
         if n_boxes <= 0:
             return
@@ -3680,15 +3734,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             x = start_x + col * (box_w + gap_x)
             y = start_y + row * (box_h + gap_y)
 
-            box_label = str(box.get("label", ""))[:30]
-            desc = str(box.get("description", ""))[:60]
+            box_label = str((box or {}).get("label", ""))[:30]
+            desc = str((box or {}).get("description", ""))[:60]
+            if not box_label:
+                continue
             box_positions[box_label] = (x, y, box_w, box_h)
             draw_boxes.append((x, y, box_w, box_h, box_label, desc))
         
         # Draw connections first so they sit behind the boxes.
-        for conn in connections:
-            from_label = str(conn.get("from_box", ""))[:30]
-            to_label = str(conn.get("to_box", ""))[:30]
+        for conn in conn_list:
+            from_label = str((conn or {}).get("from_box", ""))[:30]
+            to_label = str((conn or {}).get("to_box", ""))[:30]
             
             if from_label in box_positions and to_label in box_positions:
                 from_x, from_y, from_w, from_h = box_positions[from_label]
@@ -6736,14 +6792,19 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             "table": "table",
             "side_by_side_table": "table",
             "side-by-side-table": "table",
-            "cards": "cards",
-            "pros_cons_cards": "cards",
-            "pros-cons": "cards",
-            "pros_cons": "cards",
+            "cards": "table",
+            "pros_cons_cards": "table",
+            "pros-cons": "table",
+            "pros_cons": "table",
+            "matrix": "matrix",
+            "comparison_matrix": "matrix",
+            "factor_matrix": "matrix",
+            "factors": "matrix",
+            "phishing_pretexting": "matrix",
         }
         forced = variant_map.get(variant_raw)
 
-        eligible = ["table", "cards"]
+        eligible = ["table", "matrix"]
         chosen = choose_variant("comparison", eligible, forced=forced)
         _debug_variant(family="comparison", chosen=chosen, eligible=eligible, forced=forced)
 
@@ -6800,12 +6861,140 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     if not ptxt:
                         p.font.color.rgb = RGBColor(*muted_rgb)
 
+        def _render_comparison_matrix(slide, headers_in: List[str], lp: List[str], rp: List[str], cobj: Dict[str, Any]) -> None:
+            sub = str(cobj.get("subtitle") or "").strip()
+            takeaway = str(cobj.get("key_takeaway") or cobj.get("takeaway") or cobj.get("summary") or "").strip()
+
+            factor_candidates = cobj.get("factors")
+            factors = [str(x).strip() for x in (factor_candidates or []) if str(x).strip()] if isinstance(factor_candidates, list) else []
+
+            left_vals = [str(x).strip() for x in (lp or []) if str(x).strip()]
+            right_vals = [str(x).strip() for x in (rp or []) if str(x).strip()]
+
+            row_n = max(len(left_vals), len(right_vals), len(factors), 4)
+            max_rows = 8
+            if takeaway and sub:
+                max_rows = 7
+            row_n = max(3, min(row_n, max_rows))
+
+            left_pad: List[str] = []
+            right_pad: List[str] = []
+            fact_pad: List[str] = []
+            for i in range(row_n):
+                li = left_vals[i] if i < len(left_vals) else ""
+                ri = right_vals[i] if i < len(right_vals) else ""
+                fi = factors[i] if i < len(factors) else ""
+
+                if not fi:
+                    li_colon = li.find(":")
+                    ri_colon = ri.find(":")
+                    if li_colon > 0:
+                        fi = li[:li_colon].strip()
+                        li = li[li_colon + 1 :].strip()
+                        if ri_colon > 0:
+                            ri = ri[ri_colon + 1 :].strip()
+                    elif ri_colon > 0:
+                        fi = ri[:ri_colon].strip()
+                        ri = ri[ri_colon + 1 :].strip()
+                        if li_colon > 0:
+                            li = li[li_colon + 1 :].strip()
+                    else:
+                        fi = f"Factor {i + 1}"
+
+                fact_pad.append(fi)
+                left_pad.append(li)
+                right_pad.append(ri)
+
+            grid_x = 0.85
+            grid_y = 1.95 if not sub else 2.18
+            gap = 0.25
+            left_w = 2.25
+            col_w = (SLIDE_W_IN - grid_x * 2 - left_w - gap * 2)
+            col_w = col_w / 2.0
+            x_factor = grid_x
+            x_l = x_factor + left_w + gap
+            x_r = x_l + col_w + gap
+
+            bottom_margin = 0.25
+            takeaway_gap = 0.18 if takeaway else 0.0
+            takeaway_h = 0.62 if takeaway else 0.0
+            grid_h = max(3.2, SLIDE_H_IN - grid_y - bottom_margin - takeaway_gap - takeaway_h)
+
+            hdr_h = min(0.64, max(0.50, grid_h * 0.14))
+            body_h = max(2.4, grid_h - hdr_h)
+            row_h = body_h / max(row_n, 1)
+
+            primary_rgb = pal.get("primary", (49, 116, 251))
+            secondary_raw = pal.get("secondary", primary_rgb)
+            text_rgb = pal.get("text", (24, 24, 27))
+            bg_rgb = pal.get("bg", (245, 247, 252))
+            panel_fill = _blend_rgb(bg_rgb, pal.get("secondary", bg_rgb), 0.28)
+            row_alt = _blend_rgb(panel_fill, bg_rgb, 0.45)
+            border_rgb = _blend_rgb(panel_fill, text_rgb, 0.18)
+
+            right_hdr_rgb = secondary_raw
+            if _rgb_dist(primary_rgb, right_hdr_rgb) < 80:
+                right_hdr_rgb = _shade(primary_rgb, -26 if _is_dark_rgb(primary_rgb) else 26)
+            if not _is_dark_rgb(right_hdr_rgb):
+                right_hdr_rgb = _shade(right_hdr_rgb, -84)
+            if _rgb_dist(right_hdr_rgb, panel_fill) < 70:
+                right_hdr_rgb = _shade(primary_rgb, -34 if not _is_dark_rgb(primary_rgb) else 34)
+
+            factor_hdr_rgb = _shade(primary_rgb, -18 if not _is_dark_rgb(primary_rgb) else 18)
+            left_hdr_rgb = primary_rgb
+
+            if sub:
+                _add_textbox(slide, 1.0, 1.40, 11.3, 0.45, sub, font_size_pt=16, bold=False, color=pal.get("muted", (71, 85, 105)), word_wrap=True, auto_fit=True)
+                acc = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(1.0), Inches(1.82), Inches(0.62), Inches(0.05))
+                acc.fill.solid(); acc.fill.fore_color.rgb = RGBColor(*left_hdr_rgb)
+                acc.line.fill.background()
+
+            for x0, w0 in [(x_factor, left_w), (x_l, col_w), (x_r, col_w)]:
+                panel = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(grid_y), Inches(w0), Inches(grid_h))
+                panel.fill.solid(); panel.fill.fore_color.rgb = RGBColor(*panel_fill)
+                panel.line.color.rgb = RGBColor(*border_rgb)
+
+            for x0, w0, hdr, hcol in [
+                (x_factor, left_w, "Comparison Factors", factor_hdr_rgb),
+                (x_l, col_w, headers_in[0] if headers_in else "Option A", left_hdr_rgb),
+                (x_r, col_w, headers_in[1] if len(headers_in) > 1 else "Option B", right_hdr_rgb),
+            ]:
+                hdr_shape = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x0), Inches(grid_y), Inches(w0), Inches(hdr_h))
+                hdr_shape.fill.solid(); hdr_shape.fill.fore_color.rgb = RGBColor(*hcol)
+                hdr_shape.line.fill.background()
+                _add_textbox(slide, x0 + 0.12, grid_y + 0.08, w0 - 0.24, max(0.20, hdr_h - 0.16), hdr, font_size_pt=15, bold=True, color=_contrast_text(hcol), word_wrap=True, auto_fit=True)
+
+            for i in range(row_n):
+                y0 = grid_y + hdr_h + row_h * i
+                fill = row_alt if (i % 2 == 1) else panel_fill
+                for x0, w0 in [(x_factor, left_w), (x_l, col_w), (x_r, col_w)]:
+                    row_rect = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(x0), Inches(y0), Inches(w0), Inches(row_h))
+                    row_rect.fill.solid(); row_rect.fill.fore_color.rgb = RGBColor(*fill)
+                    row_rect.line.color.rgb = RGBColor(*border_rgb)
+
+                y_pad = max(0.02, min(0.06, row_h * 0.10))
+                box_h = max(0.14, row_h - 2 * y_pad)
+                factor_font = 12 if row_n >= 7 else 13
+                value_font = 11 if row_n >= 7 else 12
+                _add_textbox(slide, x_factor + 0.12, y0 + y_pad, left_w - 0.24, box_h, fact_pad[i], font_size_pt=factor_font, bold=True, color=text_rgb, word_wrap=True, auto_fit=True)
+                _add_textbox(slide, x_l + 0.12, y0 + y_pad, col_w - 0.24, box_h, left_pad[i], font_size_pt=value_font, bold=False, color=text_rgb, word_wrap=True, auto_fit=True)
+                _add_textbox(slide, x_r + 0.12, y0 + y_pad, col_w - 0.24, box_h, right_pad[i], font_size_pt=value_font, bold=False, color=text_rgb, word_wrap=True, auto_fit=True)
+
+            if takeaway:
+                t_y = grid_y + grid_h + takeaway_gap
+                t_h = takeaway_h
+                t_shape = slide.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(grid_x), Inches(t_y), Inches(SLIDE_W_IN - grid_x * 2), Inches(t_h))
+                t_shape.fill.solid(); t_shape.fill.fore_color.rgb = RGBColor(*_blend_rgb(panel_fill, bg_rgb, 0.35))
+                t_shape.line.color.rgb = RGBColor(*_blend_rgb(border_rgb, text_rgb, 0.15))
+                _add_textbox(slide, grid_x + 0.25, t_y + 0.18, 1.45, 0.34, "Key Takeaway:", font_size_pt=14, bold=True, color=left_hdr_rgb, word_wrap=True, auto_fit=True)
+                _add_textbox(slide, grid_x + 1.78, t_y + 0.16, SLIDE_W_IN - grid_x * 2 - 2.05, 0.40, takeaway, font_size_pt=14, bold=False, color=text_rgb, word_wrap=True, auto_fit=True)
+
         # Title uses the provided slide title (topic-aligned)
         comp_title = sl.get("title") or "Comparison"
         _add_textbox(s, 1.0, 0.9, 11.3, 1.0, comp_title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
 
-        if chosen == "cards":
-            _render_comparison_cards(s, headers, left_pts, right_pts)
+        if chosen == "matrix":
+            _render_comparison_matrix(s, headers, left_pts, right_pts, c)
             return
         body_rows = max(3, min(max(len(left_pts), len(right_pts)), 6))
         table = _add_table(s, 1.6665, 2.2, 10.0, 3.0, rows=body_rows + 1, cols=2)
@@ -8351,22 +8540,31 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         top_title = _shorten(raw_topic, 44) if raw_topic else "Brainstorming Infographic"
         topic_label = _shorten(raw_topic or "this topic", 34)
 
+        def _clean_fragment(txt: str) -> str:
+            t = re.sub(r"\([^)]*\)", "", str(txt or ""))
+            t = re.sub(r"\s+", " ", t).strip(" ,.;:-")
+            t = re.sub(r"^(and|or|but|with|for|to|of|in|on|by)\s+", "", t, flags=re.I)
+            t = re.sub(r"\s+(and|or|but|with|for|to|of|in|on|by)$", "", t, flags=re.I)
+            return t.strip()
+
         heads: List[str] = []
         bodies: List[str] = []
         for idx in range(4):
-            head, tail = _split_head_tail(str(items[idx] or ""))
-            heading = (head or str(items[idx] or "")).strip() or f"Main point {idx + 1}"
+            raw_item = str(items[idx] or "")
+            head, tail = _split_head_tail(raw_item)
+            heading = _clean_fragment(head or raw_item) or f"Main point {idx + 1}"
             heading = _shorten(heading, 36)
 
-            body = (tail or "").strip()
-            if not body:
+            body = _clean_fragment(tail)
+            if len(body.split()) < 6:
+                seed = _clean_fragment(head or raw_item) or heading
                 body = (
-                    f"Focus on {heading.lower()} to strengthen {topic_label.lower()} "
-                    "with clear actions and measurable impact."
+                    f"Focus on {seed.lower()} to strengthen {topic_label.lower()} "
+                    "with clear actions, measurable outcomes, and practical next steps."
                 )
             words = body.split()
-            if len(words) > 14:
-                body = " ".join(words[:14]).rstrip(" ,.;:-")
+            if len(words) > 18:
+                body = " ".join(words[:18]).rstrip(" ,.;:-")
 
             heads.append(heading)
             bodies.append(body)
@@ -8411,11 +8609,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             _add_textbox(
                 s,
                 x + 0.30,
-                y + 0.18,
+                y + 0.17,
                 w - 0.60,
-                0.42,
+                0.45,
                 head,
-                font_size_pt=17,
+                font_size_pt=16,
                 bold=True,
                 color=text_rgb,
                 align="left",
@@ -8425,9 +8623,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             _add_textbox(
                 s,
                 x + 0.30,
-                y + 0.66,
+                y + 0.62,
                 w - 0.60,
-                h - 0.82,
+                h - 0.76,
                 body,
                 font_size_pt=10,
                 bold=False,
@@ -10876,24 +11074,186 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             "horizontal": "strip",
             "list": "list",
             "stacked": "list",
+            "story": "story",
+            "story_rows": "story",
+            "rows": "story",
+            "infographic": "story",
         }
         forced = variant_map.get(variant_raw)
 
         metrics = content.get("metrics") or []
         n = len(metrics) if isinstance(metrics, list) else 0
-        eligible = ["grid", "strip", "list"]
+        eligible = ["grid", "strip", "list", "story"]
         if n < 4:
-            eligible = ["grid"]
+            eligible = ["grid", "story"]
 
         chosen = choose_variant("kpi", eligible, forced=forced)
         _debug_variant(family="kpi", chosen=chosen, eligible=eligible, forced=forced)
 
-        if chosen == "strip":
+        if chosen == "story":
+            _render_kpi_story_rows(sl)
+        elif chosen == "strip":
             _render_kpi_strip(sl)
         elif chosen == "list":
             _render_kpi_list(sl)
         else:
             _render_kpi(sl)
+
+    def _kpi_progress_value(metric: Dict[str, Any]) -> float:
+        raw = metric.get("progress")
+        if raw is not None:
+            try:
+                return max(0.0, min(1.0, float(raw) / 100.0 if float(raw) > 1.0 else float(raw)))
+            except Exception:
+                pass
+        value_txt = str(metric.get("value") or "")
+        m = re.search(r"(-?\d+(?:\.\d+)?)\s*%", value_txt)
+        if m:
+            try:
+                return max(0.0, min(1.0, abs(float(m.group(1))) / 100.0))
+            except Exception:
+                pass
+        score = re.search(r"(\d{1,3})\s*/\s*100", value_txt)
+        if score:
+            try:
+                return max(0.0, min(1.0, float(score.group(1)) / 100.0))
+            except Exception:
+                pass
+        return 0.62
+
+    def _kpi_basis_text(metric: Dict[str, Any]) -> str:
+        basis = str(metric.get("basis") or metric.get("comparison") or "").strip()
+        caption = str(metric.get("caption") or "").strip()
+        if basis:
+            return basis[:72]
+        if caption:
+            return caption[:72]
+        return "context not provided"
+
+    def _kpi_period_text(metric: Dict[str, Any]) -> str:
+        period = str(metric.get("period") or metric.get("timeframe") or "").strip()
+        if period:
+            return period[:48]
+        return "latest reporting period"
+
+    def _kpi_scope_text(metric: Dict[str, Any]) -> str:
+        scope = str(
+            metric.get("scope")
+            or metric.get("population_scope")
+            or metric.get("geography")
+            or metric.get("region")
+            or ""
+        ).strip()
+        if scope:
+            return scope[:28]
+        return ""
+
+    def _render_kpi_story_rows(sl) -> None:
+        content = _content(sl)
+        title = str(content.get("title") or "Key Metrics").strip() or "Key Metrics"
+        subtitle = str(content.get("subtitle") or "Measuring impact across adoption, efficiency, cost, and data quality.").strip()
+        metrics = content.get("metrics") or []
+        if not isinstance(metrics, list):
+            metrics = []
+        metrics = [m for m in metrics if isinstance(m, dict)][:4]
+
+        accents = [
+            (37, 99, 235),
+            (20, 184, 166),
+            (234, 179, 8),
+            (124, 58, 237),
+        ]
+        icon_tokens = ["A", "T", "C", "Q"]
+
+        s = prs.slides.add_slide(blank); apply_bg(s)
+        _add_textbox(s, 0.9, 0.45, 6.4, 0.55, title, font_size_pt=31, bold=True, color=TITLE_COL)
+        _add_textbox(s, 0.9, 1.05, 11.2, 0.35, subtitle, font_size_pt=12, color=pal.get("muted", pal.get("text", (71, 85, 105))), word_wrap=True)
+
+        row_x = 0.75
+        row_w = 11.85
+        row_h = 1.27
+        row_gap = 0.20
+        row_y0 = 1.55
+
+        for i, metric in enumerate(metrics):
+            accent = accents[i % len(accents)]
+            token = icon_tokens[i % len(icon_tokens)]
+            y = row_y0 + i * (row_h + row_gap)
+
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(row_x), Inches(y), Inches(row_w), Inches(row_h))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(255, 255, 255)
+            card.line.color.rgb = RGBColor(227, 232, 240)
+            try:
+                card.shadow.inherit = False; card.shadow.visible = True; card.shadow.blur = 7; card.shadow.distance = 2
+            except Exception:
+                pass
+
+            rail = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(row_x), Inches(y), Inches(0.055), Inches(row_h))
+            rail.fill.solid(); rail.fill.fore_color.rgb = RGBColor(*accent)
+            rail.line.fill.background()
+
+            orb = s.shapes.add_shape(MsoShape.OVAL, Inches(row_x + 0.23), Inches(y + 0.2), Inches(0.65), Inches(0.65))
+            orb.fill.solid(); orb.fill.fore_color.rgb = RGBColor(*_blend_rgb(accent, (255, 255, 255), 0.80))
+            orb.line.fill.background()
+            _add_textbox(s, row_x + 0.23, y + 0.27, 0.65, 0.30, token, font_size_pt=16, bold=True, align="center", color=accent)
+
+            divider = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(row_x + row_w - 4.08), Inches(y + 0.22), Inches(row_x + row_w - 4.08), Inches(y + row_h - 0.22))
+            try:
+                divider.line.color.rgb = RGBColor(221, 226, 236)
+                divider.line.width = Pt(1)
+                divider.line.dash_style = MSO_LINE_DASH_STYLE.DASH
+            except Exception:
+                pass
+
+            label = str(metric.get("label") or "").strip()[:74]
+            caption = str(metric.get("caption") or "").strip()[:130]
+            value = str(metric.get("value") or "").strip()[:30]
+            basis = _kpi_basis_text(metric)
+            period = _kpi_period_text(metric)
+            trend = str(metric.get("trend") or "").strip().lower()
+
+            _add_textbox(s, row_x + 1.02, y + 0.20, row_w - 5.5, 0.30, label, font_size_pt=17, bold=True, color=pal.get("text", (24, 24, 27)), word_wrap=True)
+            _add_textbox(s, row_x + 1.02, y + 0.52, row_w - 5.5, 0.27, caption, font_size_pt=10.5, color=pal.get("muted", pal.get("text", (71, 85, 105))), word_wrap=True)
+
+            ratio = _kpi_progress_value(metric)
+            track_x = row_x + 1.02
+            track_y = y + 0.90
+            track_w = row_w - 6.35
+            track_h = 0.10
+            track = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(track_x), Inches(track_y), Inches(track_w), Inches(track_h))
+            track.fill.solid(); track.fill.fore_color.rgb = RGBColor(226, 232, 240)
+            track.line.fill.background()
+            fill_w = max(0.28, track_w * ratio)
+            fill = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(track_x), Inches(track_y), Inches(fill_w), Inches(track_h))
+            fill.fill.solid(); fill.fill.fore_color.rgb = RGBColor(*accent)
+            fill.line.fill.background()
+
+            arrow = ""
+            if trend in {"up", "increase", "improved", "higher"}:
+                arrow = " ▲"
+            elif trend in {"down", "decrease", "reduced", "lower"}:
+                arrow = " ▼"
+
+            right_col_x = row_x + row_w - 3.58
+            right_col_w = 2.42
+            basis_core = str(basis or "").strip()
+            if basis_core.lower().startswith("of "):
+                basis_core = basis_core[3:].strip()
+            if basis_core.lower().startswith("vs "):
+                basis_line = basis_core[:54]
+            else:
+                basis_line = f"vs {basis_core[:50]}"
+            scope = _kpi_scope_text(metric)
+            period_core = str(period or "").strip()
+            if scope and period_core:
+                period_line = f"{period_core[:24]} • {scope[:18]}"
+            elif scope:
+                period_line = scope[:34]
+            else:
+                period_line = period_core[:34]
+            _add_textbox(s, right_col_x, y + 0.22, right_col_w, 0.38, f"{value}{arrow}", font_size_pt=20, bold=True, color=accent, word_wrap=True, auto_fit=True)
+            _add_textbox(s, right_col_x, y + 0.64, right_col_w, 0.25, basis_line, font_size_pt=9.2, color=pal.get("text", (24, 24, 27)), word_wrap=True, auto_fit=True)
+            _add_textbox(s, right_col_x, y + 0.94, right_col_w, 0.17, period_line, font_size_pt=8.6, color=pal.get("muted", pal.get("text", (71, 85, 105))), word_wrap=True, auto_fit=True)
 
     def _render_kpi_strip(sl) -> None:
         content = _content(sl)
