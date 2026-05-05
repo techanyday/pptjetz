@@ -9,6 +9,7 @@ from app.models import LLMCall, Pricing
 import os
 import logging
 import uuid
+import requests
 
 
 MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "800"))
@@ -150,6 +151,257 @@ def swot_evidence_detector(text: str) -> tuple[bool, str]:
     return False, "no_swot_evidence"
 
 
+def kpi_evidence_detector(topic: str, text: str) -> tuple[bool, str]:
+    import re
+
+    blob = re.sub(r"\s+", " ", f"{topic or ''} {text or ''}".strip()).lower()
+    if not blob:
+        return False, "empty"
+
+    explicit = [
+        "kpi",
+        "key metrics",
+        "metrics",
+        "dashboard",
+        "scorecard",
+        "measure",
+        "performance",
+        "benchmark",
+        "target",
+        "roi",
+        "adoption rate",
+        "cycle time",
+        "cost-to-serve",
+        "conversion",
+        "churn",
+        "uptime",
+        "sla",
+        "throughput",
+        "data quality",
+    ]
+    if any(k in blob for k in explicit):
+        return True, "kpi_terms_present"
+
+    return False, "no_kpi_evidence"
+
+
+def _normalize_kpi_metrics(metrics: Any) -> List[Dict[str, Any]]:
+    if not isinstance(metrics, list):
+        return []
+
+    out: List[Dict[str, Any]] = []
+    for raw in metrics:
+        if not isinstance(raw, dict):
+            continue
+        label = str(raw.get("label") or raw.get("name") or raw.get("metric") or "").strip()
+        value = str(raw.get("value") or raw.get("display_value") or "").strip()
+        if not label or not value:
+            continue
+
+        m: Dict[str, Any] = {
+            "label": label[:90],
+            "value": value[:36],
+        }
+        caption = str(raw.get("caption") or raw.get("description") or "").strip()
+        basis = str(raw.get("basis") or raw.get("comparison") or raw.get("vs") or "").strip()
+        period = str(raw.get("period") or raw.get("timeframe") or raw.get("reporting_period") or "").strip()
+        scope = str(raw.get("scope") or raw.get("population_scope") or raw.get("geography") or raw.get("region") or "").strip()
+        trend = str(raw.get("trend") or "").strip().lower()
+        progress = raw.get("progress")
+
+        if caption:
+            m["caption"] = caption[:180]
+        if basis:
+            m["basis"] = basis[:100]
+        if period:
+            m["period"] = period[:60]
+        if scope:
+            m["scope"] = scope[:32]
+        if trend in {"up", "down", "flat", "increase", "decrease", "improved", "lower", "higher"}:
+            m["trend"] = trend
+        if progress is not None:
+            try:
+                m["progress"] = float(progress)
+            except Exception:
+                pass
+
+        out.append(m)
+        if len(out) >= 4:
+            break
+    return out
+
+
+def _fetch_managed_kpi_metrics(*, topic: str, input_text: str, deck_id: str | None, user_id: str | None) -> List[Dict[str, Any]]:
+    url = str(settings.MANAGED_KPI_API_URL or "").strip()
+    if not url:
+        return []
+
+    timeout_s = int(getattr(settings, "MANAGED_KPI_API_TIMEOUT_SECONDS", 12) or 12)
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    api_key = str(getattr(settings, "MANAGED_KPI_API_KEY", "") or "").strip()
+    auth_header = str(getattr(settings, "MANAGED_KPI_API_AUTH_HEADER", "Authorization") or "Authorization").strip() or "Authorization"
+    if api_key:
+        if auth_header.lower() == "authorization" and not api_key.lower().startswith("bearer "):
+            headers[auth_header] = f"Bearer {api_key}"
+        else:
+            headers[auth_header] = api_key
+
+    payload = {
+        "topic": str(topic or "").strip(),
+        "input_text": str(input_text or "").strip(),
+        "deck_id": str(deck_id or "").strip(),
+        "user_id": str(user_id or "").strip(),
+    }
+
+    try:
+        resp = requests.post(url, json=payload, headers=headers, timeout=timeout_s)
+        if resp.status_code >= 400:
+            return []
+        obj = resp.json()
+    except Exception:
+        return []
+
+    metrics: Any = None
+    if isinstance(obj, dict):
+        metrics = obj.get("metrics")
+        if not isinstance(metrics, list):
+            data_obj = obj.get("data") if isinstance(obj.get("data"), dict) else {}
+            metrics = data_obj.get("metrics") or obj.get("kpis") or data_obj.get("kpis")
+    elif isinstance(obj, list):
+        metrics = obj
+
+    return _normalize_kpi_metrics(metrics)
+
+
+def _kpi_to_infographic_fallback(slide: Dict[str, Any], *, reason: str) -> Dict[str, Any]:
+    s = dict(slide or {})
+    title = str(s.get("title") or "Key Metrics").strip() or "Key Metrics"
+    s["type"] = "infographic"
+    s["_fallback_from"] = s.get("_fallback_from") or "kpi"
+    s["_fallback_to"] = "infographic"
+    s["_fallback_reason"] = reason
+    c = s.get("content") if isinstance(s.get("content"), dict) else {}
+    bullets = c.get("bullets") if isinstance(c.get("bullets"), list) else []
+    if not bullets:
+        bullets = [
+            f"{title}: KPI data is currently unavailable from the managed KPI API.",
+            "Include KPI-focused topic language to request metrics automatically.",
+            "Retry generation after KPI API data is refreshed.",
+        ]
+    s["content"] = {"bullets": [str(x) for x in bullets if str(x).strip()][:6]}
+    return s
+
+
+def _pricing_to_infographic_fallback(slide: Dict[str, Any], *, reason: str) -> Dict[str, Any]:
+    s = dict(slide or {})
+    title = str(s.get("title") or "Pricing Overview").strip() or "Pricing Overview"
+    s["type"] = "infographic"
+    s["_fallback_from"] = s.get("_fallback_from") or "pricing"
+    s["_fallback_to"] = "infographic"
+    s["_fallback_reason"] = reason
+
+    c = s.get("content") if isinstance(s.get("content"), dict) else {}
+    bullets = c.get("bullets") if isinstance(c.get("bullets"), list) else []
+    if not bullets:
+        plans = c.get("plans") if isinstance(c.get("plans"), list) else []
+        derived: List[str] = []
+        for p in plans[:4]:
+            if not isinstance(p, dict):
+                continue
+            nm = str(p.get("name") or "").strip()
+            pr = str(p.get("price") or "").strip()
+            if nm and pr:
+                derived.append(f"{nm}: {pr}")
+            elif nm:
+                derived.append(nm)
+            elif pr:
+                derived.append(pr)
+        bullets = derived
+    if not bullets:
+        bullets = [
+            f"{title}: pricing slide type is disabled.",
+            "Use comparison or infographic to explain options and tradeoffs.",
+            "Include qualitative differences and selection criteria.",
+        ]
+    s["content"] = {"bullets": [str(x) for x in bullets if str(x).strip()][:6]}
+    return s
+
+
+def _apply_disabled_pricing_policy(slides: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    arr = list(slides or [])
+    if not arr:
+        return arr
+
+    out: List[Dict[str, Any]] = []
+    for s in arr:
+        if isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "pricing":
+            out.append(_pricing_to_infographic_fallback(s, reason="pricing_disabled"))
+        else:
+            out.append(s)
+    return out
+
+
+def _apply_managed_kpi_policy(
+    slides: List[Dict[str, Any]],
+    *,
+    topic: str,
+    input_text: str,
+    deck_id: str | None,
+    user_id: str | None,
+) -> List[Dict[str, Any]]:
+    arr = list(slides or [])
+    if not arr:
+        return arr
+
+    has_kpi = any(isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "kpi" for s in arr)
+    if not has_kpi:
+        return arr
+
+    # KPI slide type is disabled for generation. Convert any KPI slide to infographic.
+    out_disabled: List[Dict[str, Any]] = []
+    for s in arr:
+        if isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "kpi":
+            out_disabled.append(_kpi_to_infographic_fallback(s, reason="kpi_disabled"))
+        else:
+            out_disabled.append(s)
+    return out_disabled
+
+    allow_kpi, _ = kpi_evidence_detector(topic or "", input_text or "")
+    if not allow_kpi:
+        out: List[Dict[str, Any]] = []
+        for s in arr:
+            if isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "kpi":
+                out.append(_kpi_to_infographic_fallback(s, reason="kpi_topic_not_relevant"))
+            else:
+                out.append(s)
+        return out
+
+    metrics = _fetch_managed_kpi_metrics(topic=topic, input_text=input_text, deck_id=deck_id, user_id=user_id)
+    if len(metrics) < 2:
+        out2: List[Dict[str, Any]] = []
+        for s in arr:
+            if isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "kpi":
+                out2.append(_kpi_to_infographic_fallback(s, reason="kpi_api_no_data"))
+            else:
+                out2.append(s)
+        return out2
+
+    out3: List[Dict[str, Any]] = []
+    for s in arr:
+        if not (isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "kpi"):
+            out3.append(s)
+            continue
+        ss = dict(s)
+        content = ss.get("content") if isinstance(ss.get("content"), dict) else {}
+        content = dict(content)
+        content["metrics"] = metrics
+        if not str(content.get("subtitle") or "").strip():
+            content["subtitle"] = "Metrics sourced from managed KPI API."
+        ss["content"] = content
+        out3.append(ss)
+    return out3
+
+
 def build_slide_type_plan(
     *,
     topic: str,
@@ -198,11 +450,9 @@ def build_slide_type_plan(
     # Optional pool (rotated)
     optional = [
         "cards",
-        "kpi",
         "risk_matrix",
         "before_after",
         "architecture",
-        "pricing",
         "roadmap",
     ]
     if allow_swot:
@@ -460,12 +710,14 @@ def enforce_slide_count_postprocess(
                 }
             if t == "pricing":
                 return {
-                    "type": "pricing",
+                    "type": "infographic",
                     "title": ttl,
                     "content": {
-                        "plans": [
-                            {"name": "Standard", "price": "$49", "features": ["Core features", "Email support"]},
-                            {"name": "Pro", "price": "$99", "features": ["Advanced analytics", "Priority support"]},
+                        "bullets": [
+                            "Option A: baseline scope and support",
+                            "Option B: expanded capability and service levels",
+                            "Tradeoffs: cost, speed, and operational complexity",
+                            "Selection criteria aligned to team priorities",
                         ]
                     },
                 }
@@ -704,7 +956,6 @@ def build_prompt(
                 "SWOT / Risk / Before-After",
                 "KPIs / Metrics",
                 "Architecture / System Diagram",
-                "Pricing / Plans",
                 "Prioritization Matrix (Impact vs Effort) when explicitly requested or when the goal is to prioritize initiatives",
                 "Double Column Bullet (2–3 variations max)",
                 "Infographic / Visual Summary",
@@ -734,7 +985,6 @@ def build_prompt(
                             "risk_matrix",
                             "before_after",
                             "architecture",
-                            "pricing",
                             "infographic",
                             "key_takeaways",
                             "impact_effort_matrix",
@@ -824,7 +1074,7 @@ def build_prompt(
             "Matrix gating: Only use type impact_effort_matrix if input_text explicitly implies a 2x2 quadrant prioritization matrix (impact vs effort). If slide_type_plan contains impact_effort_matrix, you must populate all four quadrants with 3-5 items each. If slide_type_plan does NOT contain impact_effort_matrix, you must NOT output it.",
             "Bullets must be non-duplicative, 4–14 words, informative, and TOPIC-SPECIFIC. Avoid generic boilerplate such as 'leveraging X to improve KPIs'.",
             "Write executive-ready content: specific mechanisms, impacts, and tradeoffs. Avoid vague claims (e.g., 'critical', 'accelerated', 'important') unless you add a short 'because/so-what' clause.",
-            "For slides after the Agenda, prefer rich visual types (cards, comparison/table, infographic, timeline, roadmap, swot, kpi, risk_matrix, before_after, architecture, pricing) over plain bullets.",
+            "For slides after the Agenda, prefer rich visual types (cards, comparison/table, infographic, timeline, roadmap, swot, risk_matrix, before_after, architecture) over plain bullets.",
             "Use type 'bullets' ONLY for the Agenda slide and as a last-resort fallback when no other slide type fits.",
             "COHERENCE & ORDER: All slides after the agenda MUST map to the agenda bullets in sequence (1 slide per agenda bullet; do not group multiple slides under one bullet).",
             "TITLE PARAPHRASING: Each mapped slide's TITLE must closely paraphrase its agenda bullet (share key terms); do not use generic labels.",
@@ -852,11 +1102,11 @@ def build_prompt(
             "Timeline intent: labels must be named phases (not '1', '2', '3'). Each description must explain what changes and why it matters.",
             "Roadmap: use content.phases = [{label, description, date_range?}] with 4-6 items (or content.timeline in the same structure if you already used that key).",
             "SWOT: use content.strengths/weaknesses/opportunities/threats each as {points:[...]} with 2-4 points per quadrant when possible; points must clearly match the quadrant intent.",
-            "KPI: use content.metrics = [{label, value, caption?}] with 2-4 items.",
+            "Do NOT output slides of type 'kpi'. Use infographic or comparison instead when discussing metrics.",
+            "Do NOT output slides of type 'pricing'. Use comparison or infographic instead when discussing plans or costs.",
             "Risk Matrix: use content.low_likelihood_low_impact/low_likelihood_high_impact/high_likelihood_low_impact/high_likelihood_high_impact each as {points:[...]} with at least 2 non-empty quadrants.",
             "Before/After: use content.before and content.after each as {heading, points:[...]} with >=3 points per side.",
             "Architecture: use content.boxes=[{label, description?}] (4-8) and content.connections=[{from_box,to_box,label?}] referencing existing box labels.",
-            "Pricing: use content.plans=[{name, price?, features:[...]}] with 2-4 plans.",
             "Variety: avoid using the same slide type twice in a row. Use at most 2 double_column slides total.",
             "If (and ONLY if) the user explicitly requests an 'impact vs effort' matrix / 'effort vs impact' matrix / 'prioritization matrix' (2x2) OR the input_text clearly asks to prioritize initiatives/features by impact and effort, include exactly one slide of type 'impact_effort_matrix' and populate content arrays: quick_easy_wins, major_projects, fill_in, thankless_tasks (3–5 items each).",
             "Do NOT use 'impact_effort_matrix' for feature comparison tables or option comparisons. For comparisons, use type 'comparison' or 'table' and provide a real two-column comparison.",
@@ -1073,6 +1323,22 @@ def create_deck_slides(
         pass
 
     try:
+        slides = _apply_managed_kpi_policy(
+            slides,
+            topic=title or "",
+            input_text=input_text or "",
+            deck_id=deck_id,
+            user_id=user_id,
+        )
+    except Exception:
+        pass
+
+    try:
+        slides = _apply_disabled_pricing_policy(slides)
+    except Exception:
+        pass
+
+    try:
         slides = _sync_agenda_to_slide_titles(slides)
     except Exception:
         pass
@@ -1140,6 +1406,22 @@ def create_deck_slides(
         pass
     try:
         slides = _clamp_slide_content(slides)
+    except Exception:
+        pass
+
+    try:
+        slides = _apply_managed_kpi_policy(
+            slides,
+            topic=title or "",
+            input_text=input_text or "",
+            deck_id=deck_id,
+            user_id=user_id,
+        )
+    except Exception:
+        pass
+
+    try:
+        slides = _apply_disabled_pricing_policy(slides)
     except Exception:
         pass
 
@@ -1230,6 +1512,20 @@ def create_deck_slides(
                         deck_id=deck_id,
                         user_id=user_id,
                     )
+                except Exception:
+                    pass
+                try:
+                    fixed = _apply_managed_kpi_policy(
+                        fixed,
+                        topic=title or "",
+                        input_text=input_text or "",
+                        deck_id=deck_id,
+                        user_id=user_id,
+                    )
+                except Exception:
+                    pass
+                try:
+                    fixed = _apply_disabled_pricing_policy(fixed)
                 except Exception:
                     pass
                 fixed = _attach_deck_id(fixed, deck_id=deck_id)

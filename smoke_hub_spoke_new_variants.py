@@ -8,6 +8,7 @@ from app.services.pptx_builder import build_pptx_from_slides
 
 def _spokes_for_topic(topic: str) -> list[str]:
     t = (topic or "").strip().lower()
+    label = (topic or "").strip() or "the topic"
     if "5g" in t:
         return [
             "mmWave spectrum",
@@ -17,13 +18,22 @@ def _spokes_for_topic(topic: str) -> list[str]:
             "Edge computing",
             "Security",
         ]
+    if "sap" in t and "s/4hana" in t:
+        return [
+            "Business process standardization",
+            "Data migration and quality readiness",
+            "Integration and extensibility model",
+            "Role-based security and compliance",
+            "Change management and adoption",
+            "Value realization and KPI tracking",
+        ]
     return [
-        "Definition",
-        "Key benefits",
-        "Use cases",
-        "Architecture",
-        "Risks",
-        "Next steps",
+        f"Strategic priorities for {label}",
+        f"Operating model for {label}",
+        f"Execution roadmap for {label}",
+        f"Risk controls for {label}",
+        f"Adoption plan for {label}",
+        f"KPIs and outcomes for {label}",
     ]
 
 

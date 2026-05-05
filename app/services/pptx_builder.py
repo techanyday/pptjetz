@@ -2362,7 +2362,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     TAKEAWAYS_STYLE_GEN_INDEX += 1
 
     global COMPARISON_STYLE_GEN_INDEX
-    comparison_style_idx = COMPARISON_STYLE_GEN_INDEX % 2
+    comparison_style_idx = COMPARISON_STYLE_GEN_INDEX % 3
     COMPARISON_STYLE_GEN_INDEX += 1
 
     # Seed comparison variant family index so consecutive exports start with a
@@ -6801,10 +6801,16 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             "factor_matrix": "matrix",
             "factors": "matrix",
             "phishing_pretexting": "matrix",
+            "versus": "versus",
+            "vs": "versus",
+            "faceoff": "versus",
+            "head_to_head": "versus",
+            "head-to-head": "versus",
+            "battle": "versus",
         }
         forced = variant_map.get(variant_raw)
 
-        eligible = ["table", "matrix"]
+        eligible = ["table", "matrix", "versus"]
         chosen = choose_variant("comparison", eligible, forced=forced)
         _debug_variant(family="comparison", chosen=chosen, eligible=eligible, forced=forced)
 
@@ -6989,12 +6995,134 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 _add_textbox(slide, grid_x + 0.25, t_y + 0.18, 1.45, 0.34, "Key Takeaway:", font_size_pt=14, bold=True, color=left_hdr_rgb, word_wrap=True, auto_fit=True)
                 _add_textbox(slide, grid_x + 1.78, t_y + 0.16, SLIDE_W_IN - grid_x * 2 - 2.05, 0.40, takeaway, font_size_pt=14, bold=False, color=text_rgb, word_wrap=True, auto_fit=True)
 
+        def _render_comparison_versus(slide, headers_in: List[str], lp: List[str], rp: List[str], cobj: Dict[str, Any]) -> None:
+            factor_candidates = cobj.get("factors")
+            factors = [str(x).strip() for x in (factor_candidates or []) if str(x).strip()] if isinstance(factor_candidates, list) else []
+            left_vals = [str(x).strip() for x in (lp or []) if str(x).strip()]
+            right_vals = [str(x).strip() for x in (rp or []) if str(x).strip()]
+
+            row_n = max(len(left_vals), len(right_vals), len(factors), 4)
+            row_n = max(3, min(row_n, 8))
+
+            left_pad: List[str] = []
+            right_pad: List[str] = []
+            fact_pad: List[str] = []
+            for i in range(row_n):
+                li = left_vals[i] if i < len(left_vals) else ""
+                ri = right_vals[i] if i < len(right_vals) else ""
+                fi = factors[i] if i < len(factors) else ""
+
+                if not fi:
+                    li_colon = li.find(":")
+                    ri_colon = ri.find(":")
+                    if li_colon > 0:
+                        fi = li[:li_colon].strip()
+                        li = li[li_colon + 1 :].strip()
+                        if ri_colon > 0:
+                            ri = ri[ri_colon + 1 :].strip()
+                    elif ri_colon > 0:
+                        fi = ri[:ri_colon].strip()
+                        ri = ri[ri_colon + 1 :].strip()
+                        if li_colon > 0:
+                            li = li[li_colon + 1 :].strip()
+                    else:
+                        fi = f"Factor {i + 1}"
+
+                left_pad.append(li)
+                right_pad.append(ri)
+                fact_pad.append(fi.upper())
+
+            bg_rgb = pal.get("bg", (245, 247, 252))
+            text_rgb = pal.get("text", (24, 24, 27))
+            primary_rgb = pal.get("primary", (16, 151, 154))
+            secondary_rgb = pal.get("secondary", primary_rgb)
+            left_hdr_rgb = primary_rgb
+            right_hdr_rgb = secondary_rgb
+            if _rgb_dist(left_hdr_rgb, right_hdr_rgb) < 75:
+                right_hdr_rgb = _shade(left_hdr_rgb, -46 if not _is_dark_rgb(left_hdr_rgb) else 46)
+            if not _is_dark_rgb(right_hdr_rgb):
+                right_hdr_rgb = _shade(right_hdr_rgb, -70)
+
+            vs_hdr_rgb = _blend_rgb(text_rgb, primary_rgb, 0.35)
+            if not _is_dark_rgb(vs_hdr_rgb):
+                vs_hdr_rgb = _shade(vs_hdr_rgb, -88)
+
+            panel_fill = _blend_rgb(bg_rgb, pal.get("secondary", bg_rgb), 0.16)
+            line_rgb = _blend_rgb(text_rgb, bg_rgb, 0.80)
+            side_line_rgb = _blend_rgb(left_hdr_rgb, bg_rgb, 0.55)
+
+            grid_x = 0.20
+            grid_y = 1.95
+            gap = 0.10
+            factor_w = 2.90
+            avail_w = SLIDE_W_IN - 2 * grid_x - 2 * gap
+            side_w = max(3.9, (avail_w - factor_w) / 2.0)
+            x_l = grid_x
+            x_c = x_l + side_w + gap
+            x_r = x_c + factor_w + gap
+
+            hdr_h = 1.05
+            bottom_margin = 0.22
+            body_h = max(3.8, SLIDE_H_IN - grid_y - hdr_h - bottom_margin)
+            row_h = body_h / max(row_n, 1)
+
+            # Header bars
+            left_hdr = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(x_l), Inches(grid_y), Inches(side_w), Inches(hdr_h))
+            left_hdr.fill.solid(); left_hdr.fill.fore_color.rgb = RGBColor(*left_hdr_rgb)
+            left_hdr.line.fill.background()
+            right_hdr = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(x_r), Inches(grid_y), Inches(side_w), Inches(hdr_h))
+            right_hdr.fill.solid(); right_hdr.fill.fore_color.rgb = RGBColor(*right_hdr_rgb)
+            right_hdr.line.fill.background()
+            vs_hdr = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(x_c), Inches(grid_y + 0.06), Inches(factor_w), Inches(hdr_h - 0.10))
+            vs_hdr.fill.solid(); vs_hdr.fill.fore_color.rgb = RGBColor(*vs_hdr_rgb)
+            vs_hdr.line.fill.background()
+
+            # Notch cuts to mimic angled tops
+            cut_w = 0.22
+            cut_h = 0.18
+            l_cut = slide.shapes.add_shape(MsoShape.ISOSCELES_TRIANGLE, Inches(x_l + side_w - cut_w), Inches(grid_y), Inches(cut_w), Inches(cut_h))
+            l_cut.fill.solid(); l_cut.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            l_cut.line.fill.background(); l_cut.rotation = 90
+            r_cut = slide.shapes.add_shape(MsoShape.ISOSCELES_TRIANGLE, Inches(x_r), Inches(grid_y), Inches(cut_w), Inches(cut_h))
+            r_cut.fill.solid(); r_cut.fill.fore_color.rgb = RGBColor(*bg_rgb)
+            r_cut.line.fill.background(); r_cut.rotation = 270
+
+            _add_textbox(slide, x_l + 0.80, grid_y + 0.26, side_w - 0.95, 0.48, headers_in[0] if headers_in else "Option A", font_size_pt=22, bold=True, color=_contrast_text(left_hdr_rgb), word_wrap=True, auto_fit=True)
+            _add_textbox(slide, x_r + 0.80, grid_y + 0.26, side_w - 0.95, 0.48, headers_in[1] if len(headers_in) > 1 else "Option B", font_size_pt=22, bold=True, color=_contrast_text(right_hdr_rgb), word_wrap=True, auto_fit=True)
+            _add_textbox(slide, x_c + 0.20, grid_y + 0.30, factor_w - 0.40, 0.40, "VS", font_size_pt=30, bold=True, color=_contrast_text(vs_hdr_rgb), word_wrap=True, auto_fit=True)
+
+            # Body columns and rows
+            body_y = grid_y + hdr_h
+            for x0, w0, line_col in [(x_l, side_w, side_line_rgb), (x_c, factor_w, line_rgb), (x_r, side_w, side_line_rgb)]:
+                panel = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(x0), Inches(body_y), Inches(w0), Inches(body_h))
+                panel.fill.solid(); panel.fill.fore_color.rgb = RGBColor(*panel_fill)
+                panel.line.color.rgb = RGBColor(*line_col)
+
+            for i in range(row_n):
+                y0 = body_y + row_h * i
+                for x0, w0, line_col in [(x_l, side_w, side_line_rgb), (x_c, factor_w, line_rgb), (x_r, side_w, side_line_rgb)]:
+                    row = slide.shapes.add_shape(MsoShape.RECTANGLE, Inches(x0), Inches(y0), Inches(w0), Inches(row_h))
+                    row.fill.solid(); row.fill.fore_color.rgb = RGBColor(*panel_fill)
+                    row.line.color.rgb = RGBColor(*line_col)
+
+                y_pad = max(0.02, min(0.06, row_h * 0.10))
+                box_h = max(0.14, row_h - 2 * y_pad)
+                factor_font = 13 if row_n <= 6 else 12
+                body_font = 13 if row_n <= 6 else 12
+
+                _add_textbox(slide, x_l + 0.14, y0 + y_pad, side_w - 0.28, box_h, left_pad[i], font_size_pt=body_font, bold=False, color=text_rgb, word_wrap=True, auto_fit=True)
+                _add_textbox(slide, x_c + 0.12, y0 + y_pad, factor_w - 0.24, box_h, fact_pad[i], font_size_pt=factor_font, bold=True, color=text_rgb, word_wrap=True, auto_fit=True)
+                _add_textbox(slide, x_r + 0.14, y0 + y_pad, side_w - 0.28, box_h, right_pad[i], font_size_pt=body_font, bold=False, color=text_rgb, word_wrap=True, auto_fit=True)
+
         # Title uses the provided slide title (topic-aligned)
         comp_title = sl.get("title") or "Comparison"
         _add_textbox(s, 1.0, 0.9, 11.3, 1.0, comp_title, font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
 
         if chosen == "matrix":
             _render_comparison_matrix(s, headers, left_pts, right_pts, c)
+            return
+        if chosen == "versus":
+            _render_comparison_versus(s, headers, left_pts, right_pts, c)
             return
         body_rows = max(3, min(max(len(left_pts), len(right_pts)), 6))
         table = _add_table(s, 1.6665, 2.2, 10.0, 3.0, rows=body_rows + 1, cols=2)

@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 import os
 import logging
+import json
+import ast
+import re
 
 
 logger = logging.getLogger(__name__)
@@ -25,7 +28,55 @@ def _is_placeholder_text(text: str) -> bool:
         return True
     if t in _PLACEHOLDER_PHRASES:
         return True
+    if re.match(r"^(slide|point|item|step|metric|indicator)\s*[a-z0-9]+$", t):
+        return True
+    if re.match(r"^(company|org|organization|product|solution)\s*[a-z0-9]+$", t):
+        return True
+    if re.match(r"^(left|right|option)\s*[ab12]$", t):
+        return True
     return any(p in t for p in _PLACEHOLDER_PHRASES)
+
+
+def _coerce_text_item(x: Any) -> str:
+    if isinstance(x, dict):
+        h = x.get("heading") or x.get("title") or x.get("label") or x.get("name") or x.get("step")
+        d = x.get("description") or x.get("desc") or x.get("details") or x.get("detail") or x.get("body") or x.get("text")
+        hs = str(h or "").strip()
+        ds = str(d or "").strip()
+        if hs and ds:
+            return f"{hs} — {ds}"
+        return hs or ds
+
+    if isinstance(x, str):
+        s = x.strip()
+        if s.startswith("{") and s.endswith("}") and (
+            "title" in s or "heading" in s or "label" in s or "description" in s
+        ):
+            parsed: Any = None
+            try:
+                parsed = json.loads(s)
+            except Exception:
+                try:
+                    parsed = ast.literal_eval(s)
+                except Exception:
+                    parsed = None
+            if isinstance(parsed, dict):
+                return _coerce_text_item(parsed)
+
+        if "title" in s or "heading" in s or "label" in s or "description" in s:
+            h_match = re.search(r"(?:'|\")?(?:heading|title|label)(?:'|\")?\s*:\s*(?:'|\")([^'\"]+)", s, flags=re.IGNORECASE)
+            d_match = re.search(r"(?:'|\")?(?:description|desc|details|detail|text|body)(?:'|\")?\s*:\s*(?:'|\")([^'\"]+)", s, flags=re.IGNORECASE)
+            hs = str(h_match.group(1) if h_match else "").strip()
+            ds = str(d_match.group(1) if d_match else "").strip()
+            if hs and ds:
+                return f"{hs} — {ds}"
+            if hs:
+                return hs
+            if ds:
+                return ds
+        return s
+
+    return str(x or "").strip()
 
 
 def _clean_list_text(items: Any, *, max_n: int | None = None) -> List[str]:
@@ -33,7 +84,7 @@ def _clean_list_text(items: Any, *, max_n: int | None = None) -> List[str]:
         return []
     out: List[str] = []
     for x in items:
-        s = str(x or "").strip()
+        s = _coerce_text_item(x)
         if not s:
             continue
         if _is_placeholder_text(s):
@@ -782,6 +833,69 @@ def finalize_slides(slides: List[Dict[str, Any]] | None, *, stage: str = "final"
                 insert_at = len(out_wo)
             out_wo.insert(insert_at, base)
             out = out_wo
+    except Exception:
+        pass
+
+    # Mitigate repeated body slides (same type + same title/content), while preserving count.
+    try:
+        stable: List[Dict[str, Any]] = []
+        protected_types = {"title", "agenda", "thank_you", "cta", "one_idea"}
+        seen_title: set[tuple[str, str]] = set()
+        seen_content: set[tuple[str, str]] = set()
+
+        def _content_sig(c: Any) -> str:
+            if not isinstance(c, dict):
+                return ""
+            try:
+                return json.dumps(c, sort_keys=True, ensure_ascii=True, separators=(",", ":"))[:600]
+            except Exception:
+                return str(c)[:600]
+
+        for s in out:
+            if not isinstance(s, dict):
+                stable.append(s)
+                continue
+
+            t = str(s.get("type") or "").strip().lower()
+            ttl = str(s.get("title") or "").strip().lower()
+            sig_title = (t, ttl)
+            sig_content = (t, _content_sig(s.get("content")))
+            is_dup = (
+                t not in protected_types
+                and ((ttl and sig_title in seen_title) or (sig_content[1] and sig_content in seen_content))
+            )
+
+            if not is_dup:
+                if ttl:
+                    seen_title.add(sig_title)
+                if sig_content[1]:
+                    seen_content.add(sig_content)
+                stable.append(s)
+                continue
+
+            repl = dict(s)
+            repl["_fallback_from"] = repl.get("_fallback_from") or t
+            repl["_fallback_reason"] = repl.get("_fallback_reason") or "duplicate_slide"
+            repl["_fallback_to"] = "infographic"
+            repl["type"] = "infographic"
+
+            c = repl.get("content")
+            c2 = dict(c) if isinstance(c, dict) else {}
+            bullets = _clean_list_text(c2.get("bullets"), max_n=12)
+            if len(bullets) < 4:
+                bullets = _top_up_from_title(title=str(repl.get("title") or "Overview"), min_n=4, existing=bullets)
+            repl["content"] = {"bullets": bullets[:12]}
+            repl = normalize_slide(repl)
+            repl = _ensure_nonempty_slide_content(repl)
+            repl["_render_exact"] = True
+
+            stable.append(repl)
+            seen_title.add(("infographic", str(repl.get("title") or "").strip().lower()))
+            sig_repl = _content_sig(repl.get("content"))
+            if sig_repl:
+                seen_content.add(("infographic", sig_repl))
+
+        out = stable
     except Exception:
         pass
 

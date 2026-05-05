@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Free AI Slides Generator (Unlimited Decks) | PPTJet{% endblock %}
-{% block description %}Use PPTJet’s free AI slides generator to create clean, structured slide decks in seconds. Unlimited generation, editable PowerPoint export, and no credit card required.{% endblock %}
-{% block og_title %}Free AI Slides Generator (Unlimited Decks) | PPTJet{% endblock %}
-{% block og_description %}Use PPTJet’s free AI slides generator to create clean, structured slide decks in seconds. Unlimited generation, editable PowerPoint export, and no credit card required.{% endblock %}
-{% block tw_title %}Free AI Slides Generator (Unlimited Decks) | PPTJet{% endblock %}
-{% block tw_description %}Use PPTJet’s free AI slides generator to create clean, structured slide decks in seconds. Unlimited generation, editable PowerPoint export, and no credit card required.{% endblock %}
+{% block title %}Free AI Slides Generator (Editable PPTX) | PPTJet{% endblock %}
+{% block description %}Free AI slides generator for clean, structured decks in seconds. Unlimited drafts, editable PowerPoint export, and no credit card.{% endblock %}
+{% block og_title %}Free AI Slides Generator (Editable PPTX) | PPTJet{% endblock %}
+{% block og_description %}Free AI slides generator for clean, structured decks in seconds. Unlimited drafts, editable PowerPoint export, and no credit card.{% endblock %}
+{% block tw_title %}Free AI Slides Generator (Editable PPTX) | PPTJet{% endblock %}
+{% block tw_description %}Free AI slides generator for clean, structured decks in seconds. Unlimited drafts, editable PowerPoint export, and no credit card.{% endblock %}
 
 {% block head_extra %}
 <script type="application/ld+json">
@@ -32,6 +32,47 @@
   ]
 }
 </script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Free AI Slides Generator (Unlimited Decks)",
+  "description": "Use PPTJet as a free AI slides generator to draft structured decks in seconds with unlimited generation and editable PowerPoint export.",
+  "author": {
+    "@type": "Organization",
+    "name": "PPTJet"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "PPTJet",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://pptjet.com/static/images/logo.png"
+    }
+  },
+  "mainEntityOfPage": "https://pptjet.com/free-ai-slides-generator"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": "https://pptjet.com/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Free AI Slides Generator",
+      "item": "https://pptjet.com/free-ai-slides-generator"
+    }
+  ]
+}
+</script>
 {% endblock %}
 
 {% block content %}
@@ -43,6 +84,14 @@
         If you searched for a <strong>free AI slides generator</strong>, you probably need the same thing most people need on a deadline: a clean slide deck draft you can edit.
         PPTJet generates structured slides in seconds and exports an editable PowerPoint file.
         Free. Unlimited drafts. No credit card required.
+      </p>
+      <p class="mt-3 text-sm text-gray-600">Last updated: April 30, 2026</p>
+      <p class="mt-3 text-gray-700">
+        If your broader intent is a free AI presentation maker, compare this with our
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_presentation_maker_page') }}">free AI presentation maker</a>
+        and
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_presentation_maker_unlimited_page') }}">free AI presentation maker unlimited</a>
+        pages.
       </p>
       <div class="mt-6 flex flex-col sm:flex-row gap-3">
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Create your slides instantly</a>
@@ -194,6 +243,8 @@
     <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="internal-links">
       <h2 id="internal-links" class="text-xl font-bold text-gray-900">Related Pages</h2>
       <ul class="mt-3 list-disc pl-6 text-gray-700">
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_presentation_maker_page') }}">free AI presentation maker</a></li>
+        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_presentation_generator_page') }}">free AI presentation generator</a></li>
         <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.create_slides_with_ai_free_page') }}">automatic slide generator</a></li>
         <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_deck_generator_page') }}">AI deck generator</a></li>
         <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_ppt_maker_page') }}">AI PPT maker</a></li>
