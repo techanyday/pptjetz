@@ -103,19 +103,40 @@ def _top_up_from_title(*, title: str, min_n: int, existing: List[str] | None = N
     """
 
     base = str(title or "").strip() or "Overview"
+    topic = re.sub(r"\s*\([^)]*\)\s*$", "", base).strip() or base
     seed = base
     existing2 = [str(x).strip() for x in (existing or []) if str(x).strip() and (not _is_placeholder_text(str(x)))]
     seen = {x.lower() for x in existing2}
 
-    templates = [
-        "Definition and scope (what it covers)",
-        "Why it matters (impact on outcomes and stakeholders)",
-        "Key drivers and contributing factors",
-        "Common pitfalls, risks, and constraints",
-        "Practical next steps and near-term actions",
-        "Metrics to track progress and success",
-        "Tradeoffs and decisions to make explicit",
-    ]
+    low_base = base.lower()
+    risk_like = (
+        "risk" in low_base
+        or "likelihood" in low_base
+        or "impact" in low_base
+        or "cyber" in low_base
+        or "threat" in low_base
+    )
+
+    if risk_like:
+        templates = [
+            "Highest-priority risks affecting {t}",
+            "Potential impact if {t} risks materialize",
+            "Likelihood signals and early warning indicators",
+            "Current controls and mitigation actions for {t}",
+            "Risk owners, escalation paths, and response timing",
+            "Residual risks to monitor and review cadence",
+            "Immediate next steps for high-risk areas in {t}",
+        ]
+    else:
+        templates = [
+            "Definition and scope of {t}",
+            "Why {t} matters to outcomes and stakeholders",
+            "Key drivers shaping {t}",
+            "Common challenges and constraints in {t}",
+            "Practical next steps to advance {t}",
+            "Metrics to track progress in {t}",
+            "Tradeoffs and decisions to clarify for {t}",
+        ]
 
     # Rotate templates deterministically based on the title.
     start = abs(hash(seed)) % len(templates)
@@ -124,7 +145,7 @@ def _top_up_from_title(*, title: str, min_n: int, existing: List[str] | None = N
     for tmpl in order:
         if len(out) >= min_n:
             break
-        cand = tmpl.format(t=base).strip()
+        cand = tmpl.format(t=topic).strip()
         if not cand or _is_placeholder_text(cand):
             continue
         low = cand.lower()

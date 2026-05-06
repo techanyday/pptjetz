@@ -6814,6 +6814,66 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         chosen = choose_variant("comparison", eligible, forced=forced)
         _debug_variant(family="comparison", chosen=chosen, eligible=eligible, forced=forced)
 
+        def _collect_factor_labels(cobj: Dict[str, Any]) -> List[str]:
+            labels: List[str] = []
+            candidate_keys = (
+                "factors",
+                "factor_labels",
+                "row_labels",
+                "scopes",
+                "scope",
+                "criteria",
+                "aspects",
+                "dimensions",
+            )
+
+            for key in candidate_keys:
+                raw = cobj.get(key)
+                if isinstance(raw, list):
+                    for item in raw:
+                        if isinstance(item, dict):
+                            for k in ("factor", "scope", "label", "name", "criterion", "aspect", "dimension", "title"):
+                                v = str(item.get(k) or "").strip()
+                                if v:
+                                    labels.append(v)
+                                    break
+                        else:
+                            v = str(item or "").strip()
+                            if v:
+                                labels.append(v)
+                elif isinstance(raw, str):
+                    v = raw.strip()
+                    if v:
+                        labels.append(v)
+
+            return labels
+
+        def _split_factor_prefix(text: str) -> Tuple[str, str]:
+            t = str(text or "").strip()
+            if not t:
+                return "", ""
+            for sep in (":", " - ", " — ", " – ", " | "):
+                if sep in t:
+                    head, tail = t.split(sep, 1)
+                    head = head.strip()
+                    tail = tail.strip()
+                    if head and tail and len(head) <= 44:
+                        return head, tail
+            return "", t
+
+        def _scope_from_text(text: str) -> str:
+            t = str(text or "").strip()
+            if not t:
+                return ""
+            t = re.sub(r"^[\s\-•\d\.)\(]+", "", t).strip()
+            t = t.split(",", 1)[0].split(";", 1)[0].strip()
+            words = t.split()
+            if len(words) > 5:
+                t = " ".join(words[:5])
+            if len(t) > 40:
+                t = t[:37].rstrip() + "..."
+            return t
+
         def _render_comparison_cards(slide, headers_in: List[str], lp: List[str], rp: List[str]) -> None:
             dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
             head_rgb = (255, 255, 255) if dark_bg else pal.get("text", (24, 24, 27))
@@ -6871,8 +6931,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             sub = str(cobj.get("subtitle") or "").strip()
             takeaway = str(cobj.get("key_takeaway") or cobj.get("takeaway") or cobj.get("summary") or "").strip()
 
-            factor_candidates = cobj.get("factors")
-            factors = [str(x).strip() for x in (factor_candidates or []) if str(x).strip()] if isinstance(factor_candidates, list) else []
+            factors = _collect_factor_labels(cobj)
 
             left_vals = [str(x).strip() for x in (lp or []) if str(x).strip()]
             right_vals = [str(x).strip() for x in (rp or []) if str(x).strip()]
@@ -6892,20 +6951,22 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 fi = factors[i] if i < len(factors) else ""
 
                 if not fi:
-                    li_colon = li.find(":")
-                    ri_colon = ri.find(":")
-                    if li_colon > 0:
-                        fi = li[:li_colon].strip()
-                        li = li[li_colon + 1 :].strip()
-                        if ri_colon > 0:
-                            ri = ri[ri_colon + 1 :].strip()
-                    elif ri_colon > 0:
-                        fi = ri[:ri_colon].strip()
-                        ri = ri[ri_colon + 1 :].strip()
-                        if li_colon > 0:
-                            li = li[li_colon + 1 :].strip()
+                    li_factor, li_clean = _split_factor_prefix(li)
+                    ri_factor, ri_clean = _split_factor_prefix(ri)
+                    if li_factor:
+                        fi = li_factor
+                        li = li_clean
+                        if ri_factor:
+                            ri = ri_clean
+                    elif ri_factor:
+                        fi = ri_factor
+                        ri = ri_clean
+                        if li_factor:
+                            li = li_clean
                     else:
-                        fi = f"Factor {i + 1}"
+                        li_scope = _scope_from_text(li)
+                        ri_scope = _scope_from_text(ri)
+                        fi = li_scope or ri_scope or f"Scope {i + 1}"
 
                 fact_pad.append(fi)
                 left_pad.append(li)
@@ -6996,8 +7057,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 _add_textbox(slide, grid_x + 1.78, t_y + 0.16, SLIDE_W_IN - grid_x * 2 - 2.05, 0.40, takeaway, font_size_pt=14, bold=False, color=text_rgb, word_wrap=True, auto_fit=True)
 
         def _render_comparison_versus(slide, headers_in: List[str], lp: List[str], rp: List[str], cobj: Dict[str, Any]) -> None:
-            factor_candidates = cobj.get("factors")
-            factors = [str(x).strip() for x in (factor_candidates or []) if str(x).strip()] if isinstance(factor_candidates, list) else []
+            factors = _collect_factor_labels(cobj)
             left_vals = [str(x).strip() for x in (lp or []) if str(x).strip()]
             right_vals = [str(x).strip() for x in (rp or []) if str(x).strip()]
 
@@ -7013,20 +7073,22 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 fi = factors[i] if i < len(factors) else ""
 
                 if not fi:
-                    li_colon = li.find(":")
-                    ri_colon = ri.find(":")
-                    if li_colon > 0:
-                        fi = li[:li_colon].strip()
-                        li = li[li_colon + 1 :].strip()
-                        if ri_colon > 0:
-                            ri = ri[ri_colon + 1 :].strip()
-                    elif ri_colon > 0:
-                        fi = ri[:ri_colon].strip()
-                        ri = ri[ri_colon + 1 :].strip()
-                        if li_colon > 0:
-                            li = li[li_colon + 1 :].strip()
+                    li_factor, li_clean = _split_factor_prefix(li)
+                    ri_factor, ri_clean = _split_factor_prefix(ri)
+                    if li_factor:
+                        fi = li_factor
+                        li = li_clean
+                        if ri_factor:
+                            ri = ri_clean
+                    elif ri_factor:
+                        fi = ri_factor
+                        ri = ri_clean
+                        if li_factor:
+                            li = li_clean
                     else:
-                        fi = f"Factor {i + 1}"
+                        li_scope = _scope_from_text(li)
+                        ri_scope = _scope_from_text(ri)
+                        fi = li_scope or ri_scope or f"Scope {i + 1}"
 
                 left_pad.append(li)
                 right_pad.append(ri)
@@ -8353,10 +8415,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         if topic_key in blocked_topics:
             raw_topic = ""
 
-        tag_title = _shorten(raw_topic, 26) if raw_topic else ""
+        tag_title = raw_topic if raw_topic else ""
         if not tag_title:
             fallback_title = " / ".join([h for h in item_heads[:2] if h])
-            tag_title = _shorten(fallback_title, 26) if fallback_title else "Infographic"
+            tag_title = _shorten(fallback_title, 52) if fallback_title else "Infographic"
 
         def _flat(shape) -> None:
             try:
@@ -8373,11 +8435,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         panel.fill.solid(); panel.fill.fore_color.rgb = RGBColor(*panel_rgb)
         panel.line.fill.background(); _flat(panel)
 
-        tag = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(0.05), Inches(0.42), Inches(4.10), Inches(0.78))
+        tag_x = 0.05
+        tag_w = max(4.10, min(6.80, (SLIDE_W_IN - 1.15) - tag_x - 0.18))
+        tag = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(tag_x), Inches(0.42), Inches(tag_w), Inches(0.78))
         tag.fill.solid(); tag.fill.fore_color.rgb = RGBColor(*tag_rgb)
         tag.line.fill.background(); _flat(tag)
         tft = tag.text_frame
-        tft.clear(); tft.word_wrap = False; tft.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        tft.clear(); tft.word_wrap = True; tft.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
         try:
             tft.vertical_anchor = MSO_ANCHOR.MIDDLE
             tft.margin_left = Pt(10); tft.margin_right = Pt(10)
@@ -8386,9 +8450,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             pass
         pt = tft.paragraphs[0]; pt.alignment = PP_ALIGN.LEFT
         rt = pt.add_run(); rt.text = tag_title
-        rt.font.size = Pt(22); rt.font.bold = True; rt.font.color.rgb = RGBColor(*tag_text_rgb)
+        rt.font.size = Pt(20); rt.font.bold = True; rt.font.color.rgb = RGBColor(*tag_text_rgb)
         ra = pt.add_run(); ra.text = "   →"
-        ra.font.size = Pt(28); ra.font.bold = True; ra.font.color.rgb = RGBColor(*tag_text_rgb)
+        ra.font.size = Pt(24); ra.font.bold = True; ra.font.color.rgb = RGBColor(*tag_text_rgb)
 
         dot = s.shapes.add_shape(MsoShape.OVAL, Inches(SLIDE_W_IN - 1.15), Inches(0.52), Inches(0.76), Inches(0.76))
         dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(*dot_rgb)
@@ -8405,12 +8469,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         dr = dp.add_run(); dr.text = "•••"
         dr.font.size = Pt(14); dr.font.bold = True; dr.font.color.rgb = RGBColor(*dot_text_rgb)
 
-        pill_w, pill_h = 2.70, 0.86
+        pill_w, pill_h = 3.10, 0.86
         pill_specs = [
-            (4.44, 2.00, 315, teal_rgb, _shorten(item_heads[0], 22), "✎", "end"),
-            (7.10, 2.40, 45, orange_rgb, _shorten(item_heads[1], 22), "▦", "end"),
-            (3.62, 4.14, 45, lime_rgb, _shorten(item_heads[2], 22), "☼", "start"),
-            (6.42, 4.62, 315, yellow_rgb, _shorten(item_heads[3], 22), "⚙", "start"),
+            (4.44, 2.00, 315, teal_rgb, item_heads[0], "✎", "end"),
+            (7.10, 2.40, 45, orange_rgb, item_heads[1], "▦", "end"),
+            (3.62, 4.14, 45, lime_rgb, item_heads[2], "☼", "start"),
+            (6.42, 4.62, 315, yellow_rgb, item_heads[3], "⚙", "start"),
         ]
 
         for x, y, rot, col, label, icon_text, icon_pos in pill_specs:
@@ -8418,26 +8482,27 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             pill.fill.solid(); pill.fill.fore_color.rgb = RGBColor(*col)
             pill.line.fill.background(); pill.rotation = rot; _flat(pill)
 
+            pill_label = _shorten(str(label or "").strip(), 24)
             tfp = pill.text_frame
-            tfp.clear(); tfp.word_wrap = False; tfp.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            tfp.clear(); tfp.word_wrap = True; tfp.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
             try:
                 tfp.vertical_anchor = MSO_ANCHOR.MIDDLE
                 if icon_pos == "end":
-                    tfp.margin_left = Pt(8); tfp.margin_right = Pt(30)
+                    tfp.margin_left = Pt(10); tfp.margin_right = Pt(44)
                 else:
-                    tfp.margin_left = Pt(30); tfp.margin_right = Pt(8)
+                    tfp.margin_left = Pt(44); tfp.margin_right = Pt(10)
                 tfp.margin_top = Pt(0); tfp.margin_bottom = Pt(0)
             except Exception:
                 pass
             pp = tfp.paragraphs[0]; pp.alignment = PP_ALIGN.CENTER
-            rp = pp.add_run(); rp.text = label
-            rp.font.size = Pt(13); rp.font.bold = True; rp.font.color.rgb = RGBColor(24, 24, 24)
+            rp = pp.add_run(); rp.text = pill_label
+            rp.font.size = Pt(11); rp.font.bold = True; rp.font.color.rgb = RGBColor(24, 24, 24)
 
             cxp = x + (pill_w / 2.0)
             cyp = y + (pill_h / 2.0)
             rr = math.radians(rot)
             vx, vy = math.cos(rr), math.sin(rr)
-            d = (pill_w / 2.0) - (pill_h / 2.0) + 0.05
+            d = (pill_w / 2.0) - (pill_h / 2.0) + 0.13
             if icon_pos == "end":
                 icx, icy = (cxp + vx * d), (cyp + vy * d)
             else:
