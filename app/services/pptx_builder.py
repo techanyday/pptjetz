@@ -3957,9 +3957,23 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             "ring": "orbital_frame",
             "rings": "orbital_frame",
             "framed": "orbital_frame",
+            "left_accent": "left_accent_compact",
+            "left-accent": "left_accent_compact",
+            "accent_left": "left_accent_compact",
+            "accent-left": "left_accent_compact",
+            "compact": "left_accent_compact",
+            "compact_card": "left_accent_compact",
+            "compact-card": "left_accent_compact",
+            "corner_frame": "corner_frame_compact",
+            "corner-frame": "corner_frame_compact",
+            "corner": "corner_frame_compact",
+            "frame_corner": "corner_frame_compact",
+            "frame-corner": "corner_frame_compact",
+            "corner_compact": "corner_frame_compact",
+            "corner-compact": "corner_frame_compact",
         }
         forced_norm = forced_map.get(raw_forced) if raw_forced else None
-        pool = ["classic", "orbital_frame"]
+        pool = ["classic", "orbital_frame", "left_accent_compact", "corner_frame_compact"]
         chosen = choose_variant("one_idea", pool, forced=forced_norm)
         _debug_variant(family="one_idea", chosen=chosen, eligible=pool, forced=forced_norm)
 
@@ -3968,6 +3982,152 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         text_col = pal.get("text", (33, 37, 41))
         primary = pal.get("primary", (59, 130, 246))
         muted = pal.get("muted", text_col)
+
+        if chosen == "left_accent_compact":
+            h, l, sat = _rgb_to_hls(primary)
+            accent = _hls_to_rgb(h + 0.22, min(0.64, l + 0.05), max(0.16, sat * 0.75))
+            if _rgb_dist(accent, bg) < 70:
+                accent = _shade(accent, -22 if not _is_dark_rgb(bg) else 22)
+
+            rail_main = _shade(primary, -16 if not dark_bg else 18)
+            rail_accent = _blend_rgb(accent, bg, 0.10)
+            headline_color = (255, 255, 255) if dark_bg else rail_main
+            paragraph_color = _blend_rgb(text_col, muted, 0.40)
+            micro_dot = _blend_rgb(primary, bg, 0.62)
+
+            left_rail = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.00), Inches(0.00), Inches(0.42), Inches(SLIDE_H_IN))
+            left_rail.fill.solid(); left_rail.fill.fore_color.rgb = RGBColor(*rail_main)
+            left_rail.line.fill.background()
+
+            inner_rail = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.44), Inches(0.00), Inches(0.06), Inches(SLIDE_H_IN))
+            inner_rail.fill.solid(); inner_rail.fill.fore_color.rgb = RGBColor(*rail_accent)
+            inner_rail.line.fill.background()
+
+            dot_w = 0.032
+            for col_i in range(3):
+                for row_i in range(22):
+                    x = 12.82 + col_i * 0.10
+                    y = 0.78 + row_i * 0.125
+                    d = s.shapes.add_shape(MsoShape.OVAL, Inches(x), Inches(y), Inches(dot_w), Inches(dot_w))
+                    d.fill.solid(); d.fill.fore_color.rgb = RGBColor(*micro_dot)
+                    d.line.fill.background()
+
+            _add_textbox(
+                s,
+                0.88,
+                0.78,
+                8.25,
+                1.86,
+                headline,
+                font_size_pt=34,
+                bold=True,
+                align="left",
+                color=headline_color,
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+            divider1 = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.88), Inches(2.76), Inches(1.46), Inches(0.042))
+            divider1.fill.solid(); divider1.fill.fore_color.rgb = RGBColor(*rail_main)
+            divider1.line.fill.background()
+            divider2 = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(2.35), Inches(2.76), Inches(0.70), Inches(0.042))
+            divider2.fill.solid(); divider2.fill.fore_color.rgb = RGBColor(*accent)
+            divider2.line.fill.background()
+
+            para_box = _add_textbox(
+                s,
+                0.88,
+                3.02,
+                8.85,
+                1.72,
+                explainer,
+                font_size_pt=16,
+                align="left",
+                color=paragraph_color,
+                word_wrap=True,
+                auto_fit=True,
+            )
+            try:
+                para_box.text_frame.paragraphs[0].line_spacing = 1.24
+            except Exception:
+                pass
+            return
+
+        if chosen == "corner_frame_compact":
+            accent_main = _shade(primary, -12 if not dark_bg else 20)
+            accent_soft = _blend_rgb(accent_main, bg, 0.65)
+            card_fill = _blend_rgb(bg, pal.get("secondary", _blend_rgb(primary, bg, 0.85)), 0.20)
+            body_col = _blend_rgb(text_col, muted, 0.28)
+
+            card = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.58), Inches(0.42), Inches(12.20), Inches(6.58))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*card_fill)
+            card.line.color.rgb = RGBColor(*_blend_rgb(text_col, bg, 0.86))
+            card.line.width = Pt(0.8)
+
+            rail = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.45), Inches(0.42), Inches(0.09), Inches(6.58))
+            rail.fill.solid(); rail.fill.fore_color.rgb = RGBColor(*accent_main)
+            rail.line.fill.background()
+
+            top_h = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.62), Inches(0.48), Inches(1.12), Inches(0.038))
+            top_h.fill.solid(); top_h.fill.fore_color.rgb = RGBColor(*accent_main)
+            top_h.line.fill.background()
+            top_v = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.62), Inches(0.48), Inches(0.038), Inches(1.12))
+            top_v.fill.solid(); top_v.fill.fore_color.rgb = RGBColor(*accent_main)
+            top_v.line.fill.background()
+
+            bot_h = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(11.64), Inches(6.94), Inches(1.10), Inches(0.038))
+            bot_h.fill.solid(); bot_h.fill.fore_color.rgb = RGBColor(*accent_main)
+            bot_h.line.fill.background()
+            bot_v = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(12.70), Inches(5.88), Inches(0.038), Inches(1.10))
+            bot_v.fill.solid(); bot_v.fill.fore_color.rgb = RGBColor(*accent_main)
+            bot_v.line.fill.background()
+
+            dot_w = 0.020
+            for col_i in range(2):
+                for row_i in range(14):
+                    x = 12.28 + col_i * 0.09
+                    y = 0.98 + row_i * 0.14
+                    d = s.shapes.add_shape(MsoShape.OVAL, Inches(x), Inches(y), Inches(dot_w), Inches(dot_w))
+                    d.fill.solid(); d.fill.fore_color.rgb = RGBColor(*accent_soft)
+                    d.line.fill.background()
+
+            _add_textbox(
+                s,
+                0.98,
+                1.02,
+                6.35,
+                1.80,
+                headline,
+                font_size_pt=34,
+                bold=True,
+                align="left",
+                color=accent_main,
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+            divider = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.98), Inches(3.08), Inches(1.95), Inches(0.040))
+            divider.fill.solid(); divider.fill.fore_color.rgb = RGBColor(*accent_main)
+            divider.line.fill.background()
+
+            para_box = _add_textbox(
+                s,
+                0.98,
+                3.22,
+                8.90,
+                2.24,
+                explainer,
+                font_size_pt=17,
+                align="left",
+                color=body_col,
+                word_wrap=True,
+                auto_fit=True,
+            )
+            try:
+                para_box.text_frame.paragraphs[0].line_spacing = 1.28
+            except Exception:
+                pass
+            return
 
         if chosen == "orbital_frame":
             h, l, sat = _rgb_to_hls(primary)
