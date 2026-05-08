@@ -3946,9 +3946,108 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             topic_txt = (slides_norm[0].get("title") or "this topic").strip()
             explainer = f"An accessible summary of what {topic_txt} is, why it matters, and the core ideas to know."
 
-        # Headline: large, bold, centered; color follows theme title rules
+        raw_forced = str(c.get("one_idea_variant") or c.get("variant") or "").strip().lower()
+        forced_map = {
+            "classic": "classic",
+            "minimal": "classic",
+            "simple": "classic",
+            "orbital": "orbital_frame",
+            "orbital_frame": "orbital_frame",
+            "orbital-frame": "orbital_frame",
+            "ring": "orbital_frame",
+            "rings": "orbital_frame",
+            "framed": "orbital_frame",
+        }
+        forced_norm = forced_map.get(raw_forced) if raw_forced else None
+        pool = ["classic", "orbital_frame"]
+        chosen = choose_variant("one_idea", pool, forced=forced_norm)
+        _debug_variant(family="one_idea", chosen=chosen, eligible=pool, forced=forced_norm)
+
         dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
-        headline_color = (255, 255, 255) if dark_bg else pal.get("primary", (59, 130, 246))
+        bg = pal.get("bg", (242, 245, 249))
+        text_col = pal.get("text", (33, 37, 41))
+        primary = pal.get("primary", (59, 130, 246))
+        muted = pal.get("muted", text_col)
+
+        if chosen == "orbital_frame":
+            h, l, sat = _rgb_to_hls(primary)
+            accent = _hls_to_rgb(h + 0.28, l, max(0.15, sat * 0.8))
+            if _rgb_dist(accent, bg) < 70:
+                accent = _shade(accent, -26 if not _is_dark_rgb(bg) else 26)
+            dot_rgb = _blend_rgb(primary, bg, 0.65)
+            panel_base = pal.get("secondary", _blend_rgb(primary, bg, 0.82))
+            panel_fill = _blend_rgb(bg, panel_base, 0.52)
+            panel_border = _blend_rgb(primary, bg, 0.78)
+
+            dot_w = 0.052
+            for base_x in (0.12, 12.96):
+                for col_i in range(4):
+                    for row_i in range(30):
+                        if row_i % 5 == 4:
+                            continue
+                        x = base_x + col_i * 0.105
+                        y = 0.10 + row_i * 0.115
+                        d = s.shapes.add_shape(MsoShape.OVAL, Inches(x), Inches(y), Inches(dot_w), Inches(dot_w))
+                        d.fill.solid(); d.fill.fore_color.rgb = RGBColor(*dot_rgb)
+                        d.line.fill.background()
+
+            marker_specs = [
+                (2.56, 0.54, accent, 0.11),
+                (11.20, 0.64, accent, 0.11),
+                (12.14, 3.56, primary, 0.14),
+            ]
+            for mx, my, col, ms in marker_specs:
+                marker = s.shapes.add_shape(MsoShape.OVAL, Inches(mx), Inches(my), Inches(ms), Inches(ms))
+                marker.fill.solid(); marker.fill.fore_color.rgb = RGBColor(*col)
+                marker.line.fill.background()
+
+            headline_color = (255, 255, 255) if dark_bg else _shade(primary, -20)
+            if not dark_bg and _rgb_dist(headline_color, bg) < 80:
+                headline_color = _shade(primary, -38)
+
+            _add_textbox(
+                s,
+                1.45,
+                1.02,
+                10.45,
+                2.10,
+                headline,
+                font_size_pt=52,
+                bold=True,
+                align="center",
+                color=headline_color,
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+            divider_left = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(6.28), Inches(3.56), Inches(0.62), Inches(0.045))
+            divider_left.fill.solid(); divider_left.fill.fore_color.rgb = RGBColor(*primary)
+            divider_left.line.fill.background()
+            divider_right = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(6.90), Inches(3.56), Inches(0.62), Inches(0.045))
+            divider_right.fill.solid(); divider_right.fill.fore_color.rgb = RGBColor(*accent)
+            divider_right.line.fill.background()
+
+            panel = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(2.15), Inches(3.82), Inches(9.05), Inches(2.20))
+            panel.fill.solid(); panel.fill.fore_color.rgb = RGBColor(*panel_fill)
+            panel.line.color.rgb = RGBColor(*panel_border)
+            panel.line.width = Pt(0.8)
+
+            _add_textbox(
+                s,
+                2.55,
+                4.10,
+                8.25,
+                1.50,
+                explainer,
+                font_size_pt=19,
+                align="center",
+                color=_blend_rgb(text_col, muted, 0.35),
+                word_wrap=True,
+                auto_fit=True,
+            )
+            return
+
+        headline_color = (255, 255, 255) if dark_bg else primary
         _add_textbox(
             s,
             1.0,
@@ -3964,8 +4063,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             auto_fit=True,
         )
 
-        # Explainer paragraph: smaller, muted text below headline
-        expl_color = pal.get("muted", pal.get("text", (55, 65, 81)))
         _add_textbox(
             s,
             2.0,
@@ -3975,7 +4072,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             explainer,
             font_size_pt=22,
             align="center",
-            color=expl_color,
+            color=muted,
             word_wrap=True,
             auto_fit=True,
         )
@@ -8563,6 +8660,183 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 auto_fit=True,
             )
 
+    def _render_hub_spoke_circular_process_flow_6(sl) -> None:
+        title, items, content = _hub_spoke_items(sl, target_n=6)
+        s = prs.slides.add_slide(blank); apply_bg(s)
+
+        bg_rgb = pal.get("bg", (255, 255, 255))
+        text_rgb = pal.get("text", (24, 24, 27))
+        muted_rgb = pal.get("muted", _shade(text_rgb, 25))
+        primary_rgb = pal.get("primary", (59, 130, 246))
+        secondary_rgb = pal.get("secondary", _blend_rgb(primary_rgb, (255, 255, 255), 0.55))
+
+        ring_outer_rgb = _blend_rgb(bg_rgb, _shade(primary_rgb, 22 if _is_dark_rgb(bg_rgb) else -8), 0.28)
+        ring_inner_rgb = _blend_rgb(bg_rgb, secondary_rgb, 0.18)
+        border_rgb = _blend_rgb(text_rgb, bg_rgb, 0.72)
+
+        raw_title = re.sub(r"\s+", " ", str(title or "")).strip()
+        generic_titles = {"", "overview", "infographic", "impact map", "hub & spoke", "hub and spoke", "slide"}
+        topic_source = re.sub(r"\s+", " ", str(content.get("center_label") or raw_title or "")).strip()
+        if topic_source.lower() in generic_titles:
+            topic_source = "Strategic Process"
+        display_title = raw_title if raw_title.lower() not in generic_titles else f"{topic_source} Process Flow"
+
+        _add_textbox(
+            s,
+            1.0,
+            0.75,
+            11.2,
+            0.90,
+            display_title,
+            font_size_pt=32,
+            bold=True,
+            color=TITLE_COL,
+            align="left",
+            word_wrap=True,
+            auto_fit=True,
+        )
+
+        topic_hint = re.sub(r"\b(6[- ]?step|circular|process|flow|diagram|overview)\b", "", topic_source, flags=re.IGNORECASE)
+        topic_hint = re.sub(r"\s+", " ", topic_hint).strip(" ,.;:-") or topic_source
+
+        def _clean_label(raw: str, idx: int) -> str:
+            h, _t = _split_head_tail(str(raw or ""))
+            txt = (h or str(raw or "")).strip()
+            txt = re.sub(r"\([^)]*\)", "", txt)
+            txt = re.sub(r"\s+", " ", txt).strip(" ,.;:-")
+            txt_low = txt.lower()
+
+            generic_prefixes = [
+                "strategic priorities for ",
+                "operating model for ",
+                "execution roadmap for ",
+                "risk controls for ",
+                "adoption plan for ",
+                "kpis and outcomes for ",
+                "key drivers of ",
+                "opportunities and challenges in ",
+                "definition and scope of ",
+            ]
+            for pref in generic_prefixes:
+                if txt_low.startswith(pref):
+                    txt = txt[len(pref):].strip()
+                    txt_low = txt.lower()
+                    break
+
+            if txt_low in {"", "placeholder", "step", "item"} or re.match(r"^(step|item|point)\s*\d+$", txt_low):
+                lead = " ".join(str(topic_hint).split()[:2]).strip() or "Process"
+                txt = f"{lead} Focus {idx + 1}"
+
+            return _shorten(txt, 34)
+
+        item_heads: List[str] = []
+        icon_labels = ["☼", "⚓", "⎇", "◎", "◍", "◇"]
+        for idx in range(6):
+            item_heads.append(_clean_label(str(items[idx] or ""), idx))
+
+        cx, cy = (SLIDE_W_IN / 2.0), 4.06
+        outer_d = 4.00
+        inner_d = 2.66
+        ring_outer = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - outer_d / 2.0), Inches(cy - outer_d / 2.0), Inches(outer_d), Inches(outer_d))
+        ring_outer.fill.solid(); ring_outer.fill.fore_color.rgb = RGBColor(*ring_outer_rgb)
+        ring_outer.line.fill.background()
+
+        ring_inner = s.shapes.add_shape(MsoShape.OVAL, Inches(cx - inner_d / 2.0), Inches(cy - inner_d / 2.0), Inches(inner_d), Inches(inner_d))
+        ring_inner.fill.solid(); ring_inner.fill.fore_color.rgb = RGBColor(*ring_inner_rgb)
+        ring_inner.line.fill.background()
+
+        center_label = str(content.get("center_label") or display_title or "Process Overview").strip() or "Process Overview"
+        if center_label.lower() in generic_titles:
+            center_label = topic_source
+        center_tf = s.shapes.add_textbox(Inches(cx - 1.05), Inches(cy - 0.52), Inches(2.10), Inches(1.04)).text_frame
+        center_tf.clear(); center_tf.word_wrap = True; center_tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        try:
+            center_tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+            center_tf.margin_left = Pt(6); center_tf.margin_right = Pt(6)
+            center_tf.margin_top = Pt(0); center_tf.margin_bottom = Pt(0)
+        except Exception:
+            pass
+        cp = center_tf.paragraphs[0]; cp.alignment = PP_ALIGN.CENTER
+        cr = cp.add_run(); cr.text = _shorten(center_label, 52)
+        cr.font.size = Pt(19); cr.font.bold = True; cr.font.color.rgb = RGBColor(*text_rgb)
+
+        pill_w, pill_h = 3.20, 0.74
+        side_gap = 0.34
+        ring_left = cx - (outer_d / 2.0)
+        ring_right = cx + (outer_d / 2.0)
+        left_x = ring_left - side_gap - pill_w
+        right_x = ring_right + side_gap
+        mid_y = cy - (pill_h / 2.0)
+        row_gap = 1.18
+        ys = [mid_y - row_gap, mid_y, mid_y + row_gap]
+        left_cols = [(79, 106, 187), (73, 133, 210), (66, 153, 209)]
+        right_cols = [(76, 171, 201), (66, 194, 190), (42, 196, 166)]
+
+        pill_specs = [
+            (left_x, ys[0], left_cols[0], item_heads[0], icon_labels[0], "end"),
+            (left_x, ys[1], left_cols[1], item_heads[1], icon_labels[1], "end"),
+            (left_x, ys[2], left_cols[2], item_heads[2], icon_labels[2], "end"),
+            (right_x, ys[0], right_cols[0], item_heads[3], icon_labels[3], "start"),
+            (right_x, ys[1], right_cols[1], item_heads[4], icon_labels[4], "start"),
+            (right_x, ys[2], right_cols[2], item_heads[5], icon_labels[5], "start"),
+        ]
+
+        for x, y, col, label, icon_text, icon_pos in pill_specs:
+            pill = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(pill_w), Inches(pill_h))
+            pill.fill.solid(); pill.fill.fore_color.rgb = RGBColor(*col)
+            pill.line.fill.background()
+
+            tfp = pill.text_frame
+            tfp.clear(); tfp.word_wrap = True; tfp.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                tfp.vertical_anchor = MSO_ANCHOR.MIDDLE
+                if icon_pos == "end":
+                    tfp.margin_left = Pt(10); tfp.margin_right = Pt(44)
+                else:
+                    tfp.margin_left = Pt(44); tfp.margin_right = Pt(10)
+                tfp.margin_top = Pt(0); tfp.margin_bottom = Pt(0)
+            except Exception:
+                pass
+            pp = tfp.paragraphs[0]; pp.alignment = PP_ALIGN.CENTER
+            pp.line_spacing = 1.0
+            fit_txt, fit_fs = _fit_text_no_midword(
+                label,
+                box_w_in=pill_w - 0.84,
+                box_h_in=pill_h * 0.86,
+                base_font_pt=14,
+                min_font_pt=10,
+                max_lines=2,
+            )
+            rp = pp.add_run(); rp.text = fit_txt
+            rp.font.size = Pt(fit_fs); rp.font.bold = True; rp.font.color.rgb = RGBColor(245, 248, 252)
+
+            if icon_pos == "end":
+                icx = x + pill_w - 0.34
+            else:
+                icx = x + 0.34
+            icy = y + (pill_h / 2.0)
+
+            ico_d = 0.62
+            ico = s.shapes.add_shape(MsoShape.OVAL, Inches(icx - ico_d / 2.0), Inches(icy - ico_d / 2.0), Inches(ico_d), Inches(ico_d))
+            ico.fill.solid(); ico.fill.fore_color.rgb = RGBColor(248, 250, 252)
+            ico.line.color.rgb = RGBColor(*border_rgb); ico.line.width = Pt(1.5)
+            try:
+                ico.shadow.inherit = False; ico.shadow.visible = True; ico.shadow.blur = 4; ico.shadow.distance = 2
+            except Exception:
+                pass
+
+            itf = ico.text_frame
+            itf.clear(); itf.word_wrap = False; itf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                itf.vertical_anchor = MSO_ANCHOR.MIDDLE
+                itf.margin_left = Pt(0); itf.margin_right = Pt(0)
+                itf.margin_top = Pt(0); itf.margin_bottom = Pt(0)
+            except Exception:
+                pass
+            ip = itf.paragraphs[0]; ip.alignment = PP_ALIGN.CENTER
+            ir = ip.add_run(); ir.text = icon_text
+            ir.font.size = Pt(18); ir.font.bold = True; ir.font.color.rgb = RGBColor(*muted_rgb)
+
     def _render_hub_spoke_mind_map_6(sl) -> None:
         title, items, content = _hub_spoke_items(sl, target_n=6)
         s = prs.slides.add_slide(blank); apply_bg(s)
@@ -10980,6 +11254,16 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 "brainstorming-radial-5": "brainstorming_infographic_5",
                 "hub_spoke_brainstorming_5": "brainstorming_infographic_5",
                 "hub-spoke-brainstorming-5": "brainstorming_infographic_5",
+                "circular_process_flow_6": "circular_process_flow_6",
+                "circular-process-flow-6": "circular_process_flow_6",
+                "circular_process_flow": "circular_process_flow_6",
+                "circular-process-flow": "circular_process_flow_6",
+                "process_flow_circular_6": "circular_process_flow_6",
+                "process-flow-circular-6": "circular_process_flow_6",
+                "6_step_circular_process": "circular_process_flow_6",
+                "6-step-circular-process": "circular_process_flow_6",
+                "hub_spoke_circular_process": "circular_process_flow_6",
+                "hub-spoke-circular-process": "circular_process_flow_6",
                 "mind_map_6": "side_by_side_infographic_6",
                 "mind-map-6": "side_by_side_infographic_6",
                 "mind_map": "side_by_side_infographic_6",
@@ -11027,7 +11311,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             }
             forced = variant_map.get(raw_variant)
 
-            eligible: List[str] = ["quadrant_ring_4", "diamond_capsules_4", "brainstorming_infographic_4", "brainstorming_infographic_5", "side_by_side_infographic_6"]
+            eligible: List[str] = ["quadrant_ring_4", "diamond_capsules_4", "brainstorming_infographic_4", "brainstorming_infographic_5", "circular_process_flow_6", "side_by_side_infographic_6"]
             if forced and forced not in eligible:
                 eligible.append(forced)
 
@@ -11048,6 +11332,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 _render_hub_spoke_brainstorming_infographic_4(sl)
             elif chosen == "brainstorming_infographic_5":
                 _render_hub_spoke_brainstorming_infographic_5(sl)
+            elif chosen == "circular_process_flow_6":
+                _render_hub_spoke_circular_process_flow_6(sl)
             elif chosen == "infographic_donut_4":
                 _render_hub_spoke_infographic_donut_4(sl)
             elif chosen == "side_by_side_infographic_6":
