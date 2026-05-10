@@ -3971,9 +3971,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             "frame-corner": "corner_frame_compact",
             "corner_compact": "corner_frame_compact",
             "corner-compact": "corner_frame_compact",
+            "arc_corner": "arc_corner_minimal",
+            "arc-corner": "arc_corner_minimal",
+            "arc_corner_minimal": "arc_corner_minimal",
+            "arc-corner-minimal": "arc_corner_minimal",
+            "soft_orb": "arc_corner_minimal",
+            "soft-orb": "arc_corner_minimal",
+            "curve_corner": "arc_corner_minimal",
+            "curve-corner": "arc_corner_minimal",
         }
         forced_norm = forced_map.get(raw_forced) if raw_forced else None
-        pool = ["classic", "orbital_frame", "left_accent_compact", "corner_frame_compact"]
+        pool = ["classic", "orbital_frame", "left_accent_compact", "corner_frame_compact", "arc_corner_minimal"]
         chosen = choose_variant("one_idea", pool, forced=forced_norm)
         _debug_variant(family="one_idea", chosen=chosen, eligible=pool, forced=forced_norm)
 
@@ -4127,6 +4135,73 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 para_box.text_frame.paragraphs[0].line_spacing = 1.28
             except Exception:
                 pass
+            return
+
+        if chosen == "arc_corner_minimal":
+            accent_main = _shade(primary, -18 if not dark_bg else 18)
+            accent_soft = _blend_rgb(accent_main, bg, 0.64)
+            body_col = _blend_rgb(text_col, muted, 0.34)
+
+            orb_outer = s.shapes.add_shape(MsoShape.OVAL, Inches(11.18), Inches(-0.24), Inches(2.56), Inches(2.56))
+            orb_outer.fill.solid(); orb_outer.fill.fore_color.rgb = RGBColor(*_blend_rgb(primary, bg, 0.72))
+            orb_outer.line.fill.background()
+            orb_inner = s.shapes.add_shape(MsoShape.OVAL, Inches(11.42), Inches(0.00), Inches(2.08), Inches(2.08))
+            orb_inner.fill.solid(); orb_inner.fill.fore_color.rgb = RGBColor(*_blend_rgb(primary, bg, 0.84))
+            orb_inner.line.fill.background()
+
+            left_rail = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.58), Inches(0.88), Inches(0.042), Inches(2.04))
+            left_rail.fill.solid(); left_rail.fill.fore_color.rgb = RGBColor(*accent_main)
+            left_rail.line.fill.background()
+
+            top_rule = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.58), Inches(0.86), Inches(2.78), Inches(0.036))
+            top_rule.fill.solid(); top_rule.fill.fore_color.rgb = RGBColor(*accent_main)
+            top_rule.line.fill.background()
+
+            _add_textbox(
+                s,
+                0.76,
+                1.22,
+                6.55,
+                1.56,
+                headline,
+                font_size_pt=33,
+                bold=True,
+                align="left",
+                color=accent_main,
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+            divider = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.76), Inches(2.98), Inches(1.34), Inches(0.036))
+            divider.fill.solid(); divider.fill.fore_color.rgb = RGBColor(*accent_main)
+            divider.line.fill.background()
+
+            para_box = _add_textbox(
+                s,
+                0.76,
+                3.16,
+                7.20,
+                1.48,
+                explainer,
+                font_size_pt=15,
+                align="left",
+                color=body_col,
+                word_wrap=True,
+                auto_fit=True,
+            )
+            try:
+                para_box.text_frame.paragraphs[0].line_spacing = 1.20
+            except Exception:
+                pass
+
+            dot_w = 0.021
+            for row_i in range(9):
+                y = 2.36 + row_i * 0.135
+                for col_i in range(2):
+                    x = 12.66 + col_i * 0.10
+                    d = s.shapes.add_shape(MsoShape.OVAL, Inches(x), Inches(y), Inches(dot_w), Inches(dot_w))
+                    d.fill.solid(); d.fill.fore_color.rgb = RGBColor(*accent_soft)
+                    d.line.fill.background()
             return
 
         if chosen == "orbital_frame":
@@ -7532,6 +7607,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 return "OPTIMIZATION"
             if raw in {"LAYERED_BENEFITS_STACK", "BENEFITS_STACK", "BENEFITS"}:
                 return "BENEFITS"
+            if raw in {"INSIGHTS_SNAPSHOT", "INSIGHTS", "CASE_STUDY_SNAPSHOT", "CASE_STUDY", "CASE-STUDY", "SUCCESS_STORY"}:
+                return "INSIGHTS"
             # Unknown explicit tag: treat as GENERAL but remain deterministic
             return "GENERAL"
         t = (title or "").lower()
@@ -7552,6 +7629,16 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             return "OPTIMIZATION"
         if any(k in txt for k in ["benefit", "value", "advantages", "gains"]):
             return "BENEFITS"
+        if (
+            any(k in txt for k in ["insight", "insights", "finding", "findings", "trend", "patterns", "lesson", "recommendation"])
+            or any(k in txt for k in ["case study", "success story", "client story"])
+            or (
+                any(k in txt for k in ["challenge", "problem", "pain point", "issue", "risk"])
+                and any(k in txt for k in ["solution", "approach", "implementation", "action"])
+                and any(k in txt for k in ["result", "outcome", "impact", "roi", "metric"])
+            )
+        ):
+            return "INSIGHTS"
         return "GENERAL"
 
     def _fit_gantt_task_label(txt: str, *, box_w_in: float, base_font_pt: int = 14, min_font_pt: int = 10, max_lines: int = 3) -> tuple[str, int]:
@@ -11021,6 +11108,157 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             if tail:
                 p2 = tb.add_paragraph(); r2 = p2.add_run(); r2.text = tail; r2.font.size = Pt(tail_fs); r2.font.color.rgb = RGBColor(235, 244, 255) if fg == (255, 255, 255) else RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
 
+    def _render_insights_snapshot(sl) -> None:
+        title, bullets, content = _infographic_items(sl)
+        s = prs.slides.add_slide(blank); apply_bg(s)
+
+        c = content or {}
+        raw_title = re.sub(r"\s+", " ", str(title or "")).strip()
+        generic_titles = {"", "overview", "infographic", "case study", "insights", "slide"}
+        display_title = raw_title if raw_title.lower() not in generic_titles else "Insights Snapshot"
+
+        topic_tokens = [
+            w for w in re.findall(r"[A-Za-z0-9]+", display_title)
+            if len(w) > 3 and w.lower() not in {"with", "from", "that", "this", "into", "across", "about", "insights", "snapshot"}
+        ]
+
+        def _derive_heading_body(raw: str, idx: int) -> Tuple[str, str]:
+            txt = re.sub(r"\s+", " ", str(raw or "")).strip()
+            if not txt:
+                base = " ".join(topic_tokens[:2]).strip() or "Insight"
+                return _shorten(f"{base} {idx + 1}", 28), ""
+
+            # Prefer explicit heading separators to preserve authored labels.
+            m = re.match(r"^\s*([^:;\u2013\u2014]{2,56})\s*[:;\u2013\u2014]\s*(.+)$", txt)
+            if m:
+                head = re.sub(r"\s+", " ", str(m.group(1) or "")).strip(" .,:;|-")
+                body = re.sub(r"\s+", " ", str(m.group(2) or "")).strip()
+            else:
+                head, tail = _split_head_tail(txt)
+                head = re.sub(r"\s+", " ", str(head or "")).strip(" .,:;|-")
+                body = re.sub(r"\s+", " ", str(tail or txt)).strip()
+
+            generic_heads = {
+                "", "context", "insight", "key insight", "evidence", "finding", "analysis", "result",
+                "results", "observation", "recommended action", "action", "takeaway", "summary",
+            }
+            low = head.lower()
+            if low in generic_heads or re.match(r"^(item|point|bullet|step)\s*\d*$", low):
+                base = " ".join(topic_tokens[:2]).strip() or "Insight"
+                head = f"{base} {idx + 1}"
+
+            if head and head.lower() == head:
+                head = head.title()
+
+            return _shorten(head, 28), _shorten(body, 220)
+
+        cards: List[Tuple[str, str]] = []
+        for idx, raw in enumerate([str(x) for x in (bullets or []) if str(x).strip()]):
+            cards.append(_derive_heading_body(raw, idx))
+            if len(cards) >= 4:
+                break
+
+        if len(cards) < 4:
+            extras = _synthesize_topic_bullets(display_title) or []
+            for ex in extras:
+                cards.append(_derive_heading_body(str(ex), len(cards)))
+                if len(cards) >= 4:
+                    break
+
+        if len(cards) < 4:
+            while len(cards) < 4:
+                idx = len(cards)
+                base = " ".join(topic_tokens[:2]).strip() or "Insight"
+                cards.append((f"{base} {idx + 1}", "Add supporting evidence, implications, or actions."))
+
+        summary = re.sub(r"\s+", " ", str(c.get("summary") or c.get("case_summary") or "")).strip()
+        if not summary:
+            summary = _shorten(str(cards[0][1] if cards and cards[0][1] else cards[0][0]), 165)
+
+        title_fit, title_fs = _fit_text_no_midword(
+            display_title,
+            box_w_in=11.2,
+            box_h_in=1.15,
+            base_font_pt=34,
+            min_font_pt=24,
+            max_lines=2,
+            width_factor=0.95,
+        )
+        title_lines = max(1, len([ln for ln in str(title_fit).split("\n") if ln.strip()]))
+        title_y = 0.52
+        title_h = 0.52 + 0.36 * title_lines
+
+        _add_textbox(s, 0.9, title_y, 11.4, title_h, title_fit, font_size_pt=title_fs, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+
+        banner_y = title_y + title_h + 0.14
+        banner_h = 0.98
+        banner = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(0.9), Inches(banner_y), Inches(11.2), Inches(banner_h))
+        banner.fill.solid(); banner.fill.fore_color.rgb = RGBColor(*pal.get("primary", (46, 163, 222)))
+        banner.line.fill.background()
+        bt = banner.text_frame
+        bt.clear(); bt.word_wrap = True; bt.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        try:
+            bt.margin_left = Pt(16); bt.margin_right = Pt(16); bt.margin_top = Pt(8); bt.margin_bottom = Pt(8)
+        except Exception:
+            pass
+        bp = bt.paragraphs[0]; bp.alignment = PP_ALIGN.LEFT
+        br = bp.add_run(); br.text = _shorten(summary, 190)
+        br.font.size = Pt(18); br.font.bold = True; br.font.color.rgb = RGBColor(*_contrast_text(pal.get("primary", (46, 163, 222))))
+
+        start_x = 0.88
+        gap = 0.14
+        card_w = (11.25 - 3 * gap) / 4.0
+        card_h = 2.35
+        y = banner_y + banner_h + 0.23
+
+        for i, (label, body) in enumerate(cards[:4]):
+            x = start_x + i * (card_w + gap)
+            card = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(card_w), Inches(card_h))
+            card.fill.solid(); card.fill.fore_color.rgb = RGBColor(*pal.get("secondary", (237, 243, 246)))
+            card.line.color.rgb = RGBColor(215, 223, 231)
+
+            label_fit, label_fs = _fit_text_no_midword(
+                label,
+                box_w_in=max(0.9, card_w - 0.28),
+                box_h_in=0.62,
+                base_font_pt=16,
+                min_font_pt=12,
+                max_lines=2,
+                width_factor=0.95,
+            )
+            label_lines = max(1, len([ln for ln in str(label_fit).split("\n") if ln.strip()]))
+            label_h = min(0.62, 0.24 + 0.17 * label_lines)
+            body_y = y + 0.12 + label_h + 0.08
+            body_h = max(0.88, card_h - (body_y - y) - 0.12)
+
+            _add_textbox(
+                s,
+                x + 0.14,
+                y + 0.12,
+                card_w - 0.28,
+                label_h,
+                label_fit,
+                font_size_pt=label_fs,
+                bold=True,
+                color=pal.get("text", (15, 23, 42)),
+                word_wrap=True,
+                auto_fit=False,
+            )
+
+            body_txt = _shorten(body, 220)
+            _add_textbox(
+                s,
+                x + 0.14,
+                body_y,
+                card_w - 0.28,
+                body_h,
+                body_txt,
+                font_size_pt=15,
+                color=pal.get("muted", pal.get("text", (71, 85, 105))),
+                word_wrap=True,
+                auto_fit=True,
+            )
+
     def _render_takeaways_steps(slide, items: List[str], *, pal: Dict[str, Tuple[int, int, int]]):
         _add_textbox(slide, 1.2, 0.9, 10.8, 0.9, "Key Takeaways", font_size_pt=36, bold=True, color=pal["primary"])
         start_y = 1.75
@@ -11520,6 +11758,9 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             return
         if intent == "BENEFITS" and count >= 4:
             _render_layered_benefits_stack(sl)
+            return
+        if intent == "INSIGHTS":
+            _render_insights_snapshot(sl)
             return
         if intent == "IMPACT":
             _render_impact_map_rotated(allow_simple=(count <= 4))

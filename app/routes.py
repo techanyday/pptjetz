@@ -4070,6 +4070,49 @@ def _export_presentation_impl() -> Any:
 
 
 
+    def _eligible_insights(blob: str, bullets: list[str]) -> bool:
+
+        if len(bullets or []) < 3:
+
+            return False
+
+        if not blob:
+
+            return False
+
+        insight_terms = [
+            "insight", "insights", "finding", "findings", "signal", "signals", "observation", "observations",
+            "trend", "trends", "pattern", "patterns", "evidence", "what we learned", "lesson", "lessons",
+            "implication", "implications", "recommendation", "recommendations", "key takeaway", "key takeaways",
+        ]
+
+        challenge_terms = ["challenge", "challenges", "problem", "pain point", "pain points", "issue", "issues", "risk", "risks"]
+
+        solution_terms = ["solution", "approach", "intervention", "implementation", "initiative", "action", "recommendation", "next step"]
+
+        result_terms = ["result", "results", "outcome", "outcomes", "impact", "improvement", "roi", "%", "metric", "metrics"]
+
+        has_structured_story = (
+            any(k in blob for k in challenge_terms)
+            and any(k in blob for k in solution_terms)
+            and any(k in blob for k in result_terms)
+        )
+
+        if has_structured_story:
+
+            return True
+
+        if any(k in blob for k in insight_terms) and (
+            any(k in blob for k in result_terms)
+            or any(k in blob for k in ["driver", "drivers", "root cause", "cause", "factors", "factor"])
+        ):
+
+            return True
+
+        return False
+
+
+
     # Priority: prefer higher-value infographic intents when multiple are eligible
 
     _INTENT_PRIORITY: dict[str, int] = {
@@ -4082,15 +4125,17 @@ def _export_presentation_impl() -> Any:
 
         "COMPARE": 3,
 
-        "IMPACT": 4,
+        "INSIGHTS": 4,
 
-        "PROCESS": 5,
+        "IMPACT": 5,
 
-        "OPTIMIZATION": 6,
+        "PROCESS": 6,
 
-        "RISK": 7,
+        "OPTIMIZATION": 7,
 
-        "BENEFITS": 8,
+        "RISK": 8,
+
+        "BENEFITS": 9,
 
     }
 
@@ -4121,6 +4166,10 @@ def _export_presentation_impl() -> Any:
         if _eligible_comparison_matrix(blob, bullets):
 
             intents.append("COMPARE")
+
+        if _eligible_insights(blob, bullets):
+
+            intents.append("INSIGHTS")
 
         if _eligible_impact(blob):
 
@@ -5296,7 +5345,7 @@ def _export_presentation_impl() -> Any:
 
                     "If you choose pricing, you MUST output content.plans=[{name, price?, features:[...]}] with 2-4 plans.",
 
-                    "If you choose infographic, you may optionally set content.infographic_intent or content.intent to one of: IMPACT_MAP_SIMPLE, IMPACT_MAP_COMPLEX, PROCESS_FLOW_CHEVRON, RISK_MATRIX_ADVANCED, LAYERED_BENEFITS_STACK, CYCLIC_OPTIMIZATION_LOOP, GANTT_CHART, BUSINESS_MODEL_CANVAS. You may also set content.impact_map_variant to one of: classic, radial, pyramid, two_sided, swimlane.",
+                    "If you choose infographic, you may optionally set content.infographic_intent or content.intent to one of: IMPACT_MAP_SIMPLE, IMPACT_MAP_COMPLEX, PROCESS_FLOW_CHEVRON, RISK_MATRIX_ADVANCED, LAYERED_BENEFITS_STACK, CYCLIC_OPTIMIZATION_LOOP, GANTT_CHART, BUSINESS_MODEL_CANVAS, INSIGHTS_SNAPSHOT, CASE_STUDY_SNAPSHOT. You may also set content.impact_map_variant to one of: classic, radial, pyramid, two_sided, swimlane.",
 
                     "Avoid selecting comparison/double_column when a more visual type above is clearly applicable.",
 
@@ -6192,7 +6241,7 @@ def _export_presentation_impl() -> Any:
 
                 # can use more than 5 items when available.
 
-                if intent in {"GANTT", "BMC", "PROCESS_FLOW", "COMPARE"}:
+                if intent in {"GANTT", "BMC", "PROCESS_FLOW", "COMPARE", "INSIGHTS"}:
 
                     bullets = list(pts or [])[:18]
 
@@ -6243,6 +6292,10 @@ def _export_presentation_impl() -> Any:
                     elif intent == "COMPARE":
 
                         tag = "COMPARISON_MATRIX"
+
+                    elif intent == "INSIGHTS":
+
+                        tag = "INSIGHTS_SNAPSHOT"
 
                     elif intent == "IMPACT":
 
