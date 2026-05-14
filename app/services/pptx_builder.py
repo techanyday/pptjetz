@@ -2836,16 +2836,32 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 phase_box.fill.solid(); phase_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
                 phase_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
 
-                phase_title = str((phase.get("title") if isinstance(phase, dict) else "") or "")[:50]
+                phase_title = ""
+                date_range = ""
+                desc = ""
+                if isinstance(phase, dict):
+                    phase_title = str(phase.get("title") or phase.get("label") or phase.get("name") or "").strip()
+                    date_range = str(phase.get("date_range") or phase.get("date") or phase.get("period") or phase.get("timeline") or "").strip()
+                    desc = str(phase.get("description") or phase.get("desc") or phase.get("details") or phase.get("summary") or "").strip()
+                else:
+                    raw_phase = str(phase or "").strip()
+                    head, tail = _split_head_tail(raw_phase)
+                    phase_title = (head or raw_phase).strip()
+                    desc = (tail or "").strip()
+
+                phase_title = phase_title[:50]
                 _add_textbox(s, x + 0.15, y0 + 0.15, phase_w - 0.3, 0.5, phase_title,
                             font_size_pt=18, bold=True, color=pal["text"], word_wrap=True, auto_fit=True)
 
-                date_range = str((phase.get("date_range") if isinstance(phase, dict) else "") or "")[:30]
+                date_range = date_range[:30]
                 if date_range:
                     _add_textbox(s, x + 0.15, y0 + 0.65, phase_w - 0.3, 0.4, date_range,
                                 font_size_pt=12, color=pal.get("muted", pal["text"]), word_wrap=True, auto_fit=True)
 
-                desc = str((phase.get("description") if isinstance(phase, dict) else "") or "")[:150]
+                if not desc:
+                    basis = phase_title or title or "this phase"
+                    desc = f"This phase focuses on {basis.lower()} to keep the roadmap on track."
+                desc = desc[:150]
                 if desc:
                     _add_textbox(s, x + 0.15, y0 + 1.05, phase_w - 0.3, max(0.3, phase_h - 1.20), desc,
                                 font_size_pt=11, color=pal["text"], word_wrap=True, auto_fit=True)
@@ -7306,21 +7322,26 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
             grid_x = 0.85
             grid_y = 1.95 if not sub else 2.18
-            gap = 0.25
-            left_w = 2.25
-            col_w = (SLIDE_W_IN - grid_x * 2 - left_w - gap * 2)
-            col_w = col_w / 2.0
+            gap = 0.22
+            total_w = SLIDE_W_IN - grid_x * 2 - gap * 2
+            factor_len = max((len(str(x or "").strip()) for x in fact_pad), default=0)
+            factor_ratio = 0.30 if factor_len >= 26 else (0.28 if factor_len >= 18 else 0.26)
+            left_w = max(2.55, min(3.15, total_w * factor_ratio))
+            col_w = max(3.55, (total_w - left_w) / 2.0)
             x_factor = grid_x
             x_l = x_factor + left_w + gap
             x_r = x_l + col_w + gap
 
-            bottom_margin = 0.25
+            bottom_margin = 0.28
             takeaway_gap = 0.18 if takeaway else 0.0
             takeaway_h = 0.62 if takeaway else 0.0
-            grid_h = max(3.2, SLIDE_H_IN - grid_y - bottom_margin - takeaway_gap - takeaway_h)
+            available_h = max(3.2, SLIDE_H_IN - grid_y - bottom_margin - takeaway_gap - takeaway_h)
 
-            hdr_h = min(0.64, max(0.50, grid_h * 0.14))
-            body_h = max(2.4, grid_h - hdr_h)
+            hdr_h = 0.62
+            target_row_h = 0.92 if row_n <= 4 else (0.82 if row_n <= 6 else 0.74)
+            min_row_h = 0.60
+            body_h = min(max(row_n * min_row_h, row_n * target_row_h), max(2.4, available_h - hdr_h))
+            grid_h = hdr_h + body_h
             row_h = body_h / max(row_n, 1)
 
             primary_rgb = pal.get("primary", (49, 116, 251))
@@ -10329,7 +10350,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             return "ICONS"
         if exec_tone and max_len <= 60:
             return "BANDS"
-        return "CHEVRON"
+        return "BANDS"
 
     def _render_process_numbered_cards(title_txt: str, items: List[str]) -> None:
         s = prs.slides.add_slide(blank); apply_bg(s)
@@ -10846,7 +10867,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         roles = _extract_swimlane_roles(items)
         long_desc = (max_len >= 80) or (avg_len >= 55) or any(len(str(x)) >= 110 for x in (items or []))
 
-        eligible: List[str] = ["CHEVRON"]
+        eligible: List[str] = ["BANDS"]
         if governance and 4 <= n <= 6:
             eligible.append("GATE")
         if cyclical and 4 <= n <= 6:
@@ -10888,7 +10909,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         if v == "BANDS":
             _render_process_phase_bands(title_txt, items)
             return
-        render_timeline_horizontal(title_txt or "Process", items[:6], topic_src=title_txt)
+        _render_process_phase_bands(title_txt, items)
 
     def _render_process_flow_chevron_infographic(sl) -> None:
         title, bullets, content = _infographic_items(sl)
@@ -10897,7 +10918,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             steps = (steps + _synthesize_topic_bullets(title))[:4]
         variant_raw = str(content.get("process_variant") or content.get("variant") or "").strip().upper()
         variant_map = {
-            "CHEVRON": "CHEVRON",
             "BANDS": "BANDS",
             "ICONS": "ICONS",
             "CARDS": "CARDS",
@@ -10911,18 +10931,55 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
     def _render_risk_matrix_advanced(sl) -> None:
         title, bullets, content = _infographic_items(sl)
-        risks = [str(x).strip() for x in (bullets or []) if str(x).strip()]
+        def _compact_risk_bullet(raw: Any, max_chars: int = 78) -> str:
+            txt = re.sub(r"\s+", " ", str(raw or "")).strip(" •\t\n\r")
+            if not txt:
+                return ""
+            if len(txt) <= max_chars:
+                return txt
+            lead = re.split(r"[;:]", txt, maxsplit=1)[0].strip()
+            if 12 <= len(lead) <= max_chars:
+                return lead
+            words = txt.split()
+            out: List[str] = []
+            for w in words:
+                cand = " ".join(out + [w]).strip()
+                if len(cand) > max_chars:
+                    break
+                out.append(w)
+            compact = " ".join(out).rstrip(" ,.;:")
+            if compact and compact != txt:
+                compact += "..."
+            return compact or (txt[: max_chars - 3].rstrip() + "...")
+
+        risks = [_compact_risk_bullet(x) for x in (bullets or []) if _compact_risk_bullet(x)][:6]
 
         s = prs.slides.add_slide(blank); apply_bg(s)
-        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title or "Risk Matrix", font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+        _add_textbox(s, 1.0, 0.72, 11.3, 0.82, title or "Risk Matrix", font_size_pt=32, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
 
         rows, cols = 3, 4
         x_labels = content.get("x_labels") or ["Low", "Moderate", "High", "Critical"]
         y_labels = content.get("y_labels") or ["Rare", "Possible", "Likely"]
 
-        grid_x, grid_y, grid_w, grid_h = 2.4, 2.3, 6.4, 3.3
+        grid_x, grid_y, grid_w, grid_h = 1.95, 1.95, 7.30, 3.75
         cell_w = grid_w / cols
         cell_h = grid_h / rows
+
+        bg = pal.get("bg", (255, 255, 255))
+        text_col = pal.get("text", (24, 24, 27))
+        muted = pal.get("muted", text_col)
+        matrix_plate_rgb = _blend_rgb(pal.get("secondary", (226, 232, 240)), bg, 0.74)
+
+        plate = s.shapes.add_shape(
+            MsoShape.ROUNDED_RECTANGLE,
+            Inches(grid_x - 0.06), Inches(grid_y - 0.06), Inches(grid_w + 0.12), Inches(grid_h + 0.12),
+        )
+        plate.fill.solid(); plate.fill.fore_color.rgb = RGBColor(*matrix_plate_rgb)
+        plate.line.color.rgb = RGBColor(*_blend_rgb(muted, bg, 0.62))
+        try:
+            plate.shadow.inherit = False; plate.shadow.visible = True; plate.shadow.blur = 6; plate.shadow.distance = 2
+        except Exception:
+            pass
 
         col_scale = [
             (34, 197, 94),
@@ -10939,40 +10996,72 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 rect = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(x), Inches(y), Inches(cell_w), Inches(cell_h))
                 rect.fill.solid(); rect.fill.fore_color.rgb = RGBColor(*col_rgb)
                 rect.line.color.rgb = RGBColor(255, 255, 255)
-        _draw_table_grid_rect(s, grid_x, grid_y, grid_w, grid_h, rows, cols, rgb=(209, 213, 219), weight_pt=0.75)
+                rect.line.width = Pt(0.8)
+
+                if c_idx >= 2:
+                    glow_rgb = _blend_rgb(col_rgb, (255, 255, 255), 0.16 if c_idx == 2 else 0.20)
+                    glow = s.shapes.add_shape(
+                        MsoShape.RECTANGLE,
+                        Inches(x + 0.08), Inches(y + 0.08), Inches(max(0.2, cell_w - 0.16)), Inches(max(0.2, cell_h - 0.16)),
+                    )
+                    glow.fill.solid(); glow.fill.fore_color.rgb = RGBColor(*glow_rgb)
+                    glow.fill.transparency = 0.93 if c_idx == 2 else 0.90
+                    glow.line.fill.background()
+
+        _draw_table_grid_rect(s, grid_x, grid_y, grid_w, grid_h, rows, cols, rgb=(255, 255, 255), weight_pt=0.9)
 
         for c_idx in range(cols):
             lab = str(x_labels[c_idx] if c_idx < len(x_labels) else "")
-            _add_textbox(s, grid_x + c_idx * cell_w, grid_y + grid_h + 0.10, cell_w, 0.40, lab, font_size_pt=14, bold=True, align="center", color=pal.get("text", (24, 24, 27)))
-        _add_textbox(s, grid_x, grid_y + grid_h + 0.60, grid_w, 0.40, "Impact", font_size_pt=14, bold=True, align="center", color=pal.get("muted", pal.get("text", (71, 85, 105))))
+            _add_textbox(s, grid_x + c_idx * cell_w, grid_y + grid_h + 0.12, cell_w, 0.34, lab, font_size_pt=13, bold=True, align="center", color=text_col)
+        _add_textbox(s, grid_x, grid_y + grid_h + 0.50, grid_w, 0.34, "Impact", font_size_pt=13, bold=True, align="center", color=muted)
 
         for r in range(rows):
             lab = str(y_labels[rows - 1 - r] if r < len(y_labels) else "")
-            _add_textbox(s, grid_x - 1.05, grid_y + r * cell_h, 1.0, 0.40, lab, font_size_pt=14, bold=True, align="right", color=pal.get("text", (24, 24, 27)))
-        _add_textbox(s, grid_x - 1.45, grid_y - 0.10, 1.40, 0.60, "Likelihood", font_size_pt=14, bold=True, align="right", color=pal.get("muted", pal.get("text", (71, 85, 105))))
+            _add_textbox(
+                s,
+                grid_x - 1.25,
+                grid_y + r * cell_h + (cell_h - 0.34) / 2.0,
+                1.10,
+                0.34,
+                lab,
+                font_size_pt=13,
+                bold=True,
+                align="right",
+                color=text_col,
+            )
+        _add_textbox(s, grid_x - 1.82, grid_y - 0.24, 1.55, 0.34, "Likelihood", font_size_pt=13, bold=True, align="right", color=muted)
 
         if risks:
-            panel_x = grid_x + grid_w + 0.45
-            panel_w = max(2.0, SLIDE_W_IN - 1.0 - panel_x)
-            panel_y = grid_y
-            panel_h = grid_h
-            _add_bullets(
-                s,
-                panel_x,
-                panel_y,
-                panel_w,
-                panel_h,
-                risks[:6],
-                font_size_pt=14,
-                min_items=0,
-                color=pal.get("text", (24, 24, 27)),
-                word_wrap=True,
-                auto_fit=True,
-                line_spacing=1.20,
-                bold_first_phrase=False,
-                space_before_pt=0,
-                space_after_pt=6,
-            )
+            panel_x = grid_x + grid_w + 0.30
+            panel_w = max(2.15, SLIDE_W_IN - 0.52 - panel_x)
+            panel_h = min(3.58, max(2.95, grid_h - 0.18))
+            panel_y = grid_y + (grid_h - panel_h) / 2.0
+
+            bullet_box = s.shapes.add_textbox(Inches(panel_x), Inches(panel_y), Inches(panel_w), Inches(panel_h))
+            tfb = bullet_box.text_frame
+            tfb.clear()
+            tfb.word_wrap = True
+            tfb.margin_left = Pt(2)
+            tfb.margin_right = Pt(1)
+            tfb.margin_top = Pt(1)
+            tfb.margin_bottom = Pt(1)
+
+            for idx, txt in enumerate(risks[:5]):
+                p = tfb.paragraphs[0] if idx == 0 else tfb.add_paragraph()
+                p.clear()
+                p.alignment = PP_ALIGN.LEFT
+                p.level = 0
+                try:
+                    p.space_before = Pt(0)
+                    p.space_after = Pt(10)
+                    p.line_spacing = 1.14
+                except Exception:
+                    pass
+                rb = p.add_run()
+                rb.text = f"• {txt}"
+                rb.font.size = Pt(12)
+                rb.font.bold = False
+                rb.font.color.rgb = RGBColor(*text_col)
 
     def _render_cyclic_optimization_loop(sl) -> None:
         title, bullets, content = _infographic_items(sl)
@@ -13329,8 +13418,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def _render_roadmap(sl) -> None:
         """Render phase-based roadmap with title, date range, and description per phase."""
         content = _content(sl)
-        title = content.get("title", "Roadmap")
-        phases = content.get("phases", [])
+        title = sl.get("title") or content.get("title", "Roadmap")
+        phases = content.get("phases") or content.get("timeline") or []
         
         s = prs.slides.add_slide(blank); apply_bg(s)
         _add_textbox(s, 1.0, 0.9, 11.3, 0.9, title, font_size_pt=32, bold=True, color=TITLE_COL)
@@ -13348,19 +13437,34 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             phase_box.fill.solid(); phase_box.fill.fore_color.rgb = RGBColor(*pal.get("secondary", pal["bg"]))
             phase_box.line.color.rgb = RGBColor(*pal.get("primary", pal["text"]))
             
-            # Phase title
-            phase_title = str(phase.get("title", ""))[:50]  # Truncate long titles
+            phase_title = ""
+            date_range = ""
+            desc = ""
+            if isinstance(phase, dict):
+                phase_title = str(phase.get("title") or phase.get("label") or phase.get("name") or "").strip()
+                date_range = str(phase.get("date_range") or phase.get("date") or phase.get("period") or phase.get("timeline") or "").strip()
+                desc = str(phase.get("description") or phase.get("desc") or phase.get("details") or phase.get("summary") or "").strip()
+            else:
+                raw_phase = str(phase or "").strip()
+                head, tail = _split_head_tail(raw_phase)
+                phase_title = (head or raw_phase).strip()
+                desc = (tail or "").strip()
+
+            phase_title = phase_title[:50]
             _add_textbox(s, x + 0.15, start_y + 0.15, phase_w - 0.3, 0.5, phase_title, 
                         font_size_pt=18, bold=True, color=pal["text"], word_wrap=True)
             
             # Date range
-            date_range = str(phase.get("date_range", ""))[:30]
+            date_range = date_range[:30]
             if date_range:
                 _add_textbox(s, x + 0.15, start_y + 0.65, phase_w - 0.3, 0.4, date_range,
                             font_size_pt=12, color=pal.get("muted", pal["text"]), word_wrap=True)
             
             # Description
-            desc = str(phase.get("description", ""))[:150]  # Limit description length
+            if not desc:
+                basis = phase_title or title or "this phase"
+                desc = f"This phase focuses on {basis.lower()} to keep the roadmap on track."
+            desc = desc[:150]
             if desc:
                 _add_textbox(s, x + 0.15, start_y + 1.1, phase_w - 0.3, phase_h - 1.25, desc,
                             font_size_pt=11, color=pal["text"], word_wrap=True, auto_fit=True)
