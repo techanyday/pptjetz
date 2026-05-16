@@ -906,7 +906,7 @@ def _render_agenda_center_chevrons(slide, items: List[Any], *, pal: Dict[str, Tu
     left_x = side_margin
     right_x = center_x + center_gap / 2
     bar_w = col_w
-    bar_h = max(0.56, row_h * 0.72)
+    bar_h = max(0.62, row_h * 0.76)
 
     dot_d = max(0.10, min(0.16, row_h * 0.16))
     dot_col = pal.get("primary", (59, 130, 246))
@@ -916,10 +916,15 @@ def _render_agenda_center_chevrons(slide, items: List[Any], *, pal: Dict[str, Tu
     circ_txt_col = pal.get("text", (15, 23, 42))
 
     def _bar_text(slide, x_in: float, y_in: float, w_in: float, h_in: float, txt: str, *, color_rgb: Tuple[int, int, int]):
-        tf = slide.shapes.add_textbox(Inches(x_in), Inches(y_in), Inches(w_in), Inches(h_in)).text_frame
+        clean_txt = str(txt or "").strip()
+        tf = slide.shapes.add_textbox(Inches(x_in), Inches(y_in + 0.01), Inches(w_in), Inches(max(0.30, h_in - 0.02))).text_frame
         tf.clear()
         tf.word_wrap = True
         tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        tf.margin_left = Pt(2)
+        tf.margin_right = Pt(2)
+        tf.margin_top = Pt(0)
+        tf.margin_bottom = Pt(0)
         try:
             from pptx.enum.text import MSO_ANCHOR
             tf.vertical_anchor = MSO_ANCHOR.MIDDLE
@@ -928,8 +933,9 @@ def _render_agenda_center_chevrons(slide, items: List[Any], *, pal: Dict[str, Tu
         p = tf.paragraphs[0]
         p.alignment = PP_ALIGN.CENTER
         r = p.add_run()
-        r.text = str(txt or "").strip()
-        r.font.size = Pt(16)
+        r.text = clean_txt
+        txt_len = len(clean_txt)
+        r.font.size = Pt(15 if txt_len > 34 else 16)
         r.font.bold = True
         r.font.color.rgb = RGBColor(*color_rgb)
 
