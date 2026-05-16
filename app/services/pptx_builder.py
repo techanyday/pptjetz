@@ -4552,10 +4552,23 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             accent_soft = _blend_rgb(accent_main, bg, 0.64)
             body_col = _blend_rgb(text_col, muted, 0.34)
 
-            orb_outer = s.shapes.add_shape(MsoShape.OVAL, Inches(11.18), Inches(-0.24), Inches(2.56), Inches(2.56))
+            orb_outer_size = 2.26
+            orb_inner_size = 1.84
+            orb_right_pad = 0.34
+            orb_top = 0.18
+            orb_left = max(0.0, SLIDE_W_IN - orb_right_pad - orb_outer_size)
+
+            orb_outer = s.shapes.add_shape(MsoShape.OVAL, Inches(orb_left), Inches(orb_top), Inches(orb_outer_size), Inches(orb_outer_size))
             orb_outer.fill.solid(); orb_outer.fill.fore_color.rgb = RGBColor(*_blend_rgb(primary, bg, 0.72))
             orb_outer.line.fill.background()
-            orb_inner = s.shapes.add_shape(MsoShape.OVAL, Inches(11.42), Inches(0.00), Inches(2.08), Inches(2.08))
+            orb_inset = max(0.0, (orb_outer_size - orb_inner_size) / 2.0)
+            orb_inner = s.shapes.add_shape(
+                MsoShape.OVAL,
+                Inches(orb_left + orb_inset),
+                Inches(orb_top + orb_inset),
+                Inches(orb_inner_size),
+                Inches(orb_inner_size),
+            )
             orb_inner.fill.solid(); orb_inner.fill.fore_color.rgb = RGBColor(*_blend_rgb(primary, bg, 0.84))
             orb_inner.line.fill.background()
 
@@ -4605,10 +4618,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 pass
 
             dot_w = 0.021
+            dot_base_x = orb_left + orb_outer_size - 0.54
             for row_i in range(9):
                 y = 2.36 + row_i * 0.135
                 for col_i in range(2):
-                    x = 12.66 + col_i * 0.10
+                    x = dot_base_x + col_i * 0.10
                     d = s.shapes.add_shape(MsoShape.OVAL, Inches(x), Inches(y), Inches(dot_w), Inches(dot_w))
                     d.fill.solid(); d.fill.fore_color.rgb = RGBColor(*accent_soft)
                     d.line.fill.background()
