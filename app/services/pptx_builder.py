@@ -1129,6 +1129,187 @@ def _render_agenda_chevron_badges(slide, items: List[Any], *, pal: Dict[str, Tup
 
             y += row_h + row_gap
 
+
+def _render_agenda_numbered_rules(slide, items: List[Any], *, pal: Dict[str, Tuple[int, int, int]], title: str = "Agenda", subtitle: str | None = None) -> None:
+    cleaned = _clean_agenda_items_any(list(items or []), limit=10)
+    if not cleaned:
+        cleaned = ["Overview", "Approach", "Findings", "Next Steps"]
+    n = min(8, max(4, len(cleaned)))
+    cleaned = cleaned[:n]
+
+    bg_rgb = pal.get("bg", (255, 255, 255))
+    text_col = pal.get("text", (15, 23, 42))
+    muted = pal.get("muted", text_col)
+    is_dark_bg = _is_dark_rgb(bg_rgb)
+
+    _add_textbox(
+        slide,
+        1.0,
+        0.55,
+        11.3,
+        0.70,
+        title or "Agenda",
+        font_size_pt=34,
+        bold=True,
+        color=text_col,
+        align="center",
+        word_wrap=True,
+        auto_fit=True,
+    )
+    sub_h = 0.0
+    if subtitle:
+        _add_textbox(
+            slide,
+            1.0,
+            1.18,
+            11.3,
+            0.40,
+            str(subtitle),
+            font_size_pt=14,
+            bold=False,
+            color=muted,
+            align="center",
+            word_wrap=True,
+            auto_fit=True,
+        )
+        sub_h = 0.42
+
+    top = 1.65 + sub_h
+    avail_h = SLIDE_H_IN - 0.85 - top
+
+    primary = pal.get("primary", (59, 130, 246))
+    h, l, s = _rgb_to_hls(primary)
+    s = max(0.38, min(0.78, s if s > 0.18 else 0.55))
+    l = max(0.38, min(0.62, l))
+    if is_dark_bg:
+        l = max(l, 0.55)
+    else:
+        l = min(l, 0.56)
+
+    def _ensure_visible(rgb: Tuple[int, int, int]) -> Tuple[int, int, int]:
+        r, g, b = rgb
+        lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        br, bgc, bb = bg_rgb
+        lum_bg = 0.2126 * br + 0.7152 * bgc + 0.0722 * bb
+        if abs(lum - lum_bg) < 26:
+            return _shade(rgb, 32 if is_dark_bg else -32)
+        return rgb
+
+    a0 = _ensure_visible(_hls_to_rgb(h, l, s))
+    a1 = _ensure_visible(_blend_rgb(a0, _hls_to_rgb(h + 0.09, min(0.64, l + 0.02), max(0.30, s - 0.08)), 0.45))
+    a2 = _ensure_visible(_blend_rgb(a0, _hls_to_rgb(h + 0.18, min(0.64, l + 0.02), max(0.30, s - 0.10)), 0.45))
+    accents = [a0, a1, a2, a0, a1, a2, a0, a1]
+
+    left_count = (n + 1) // 2
+    left_items = cleaned[:left_count]
+    right_items = cleaned[left_count:]
+    rows = max(len(left_items), len(right_items))
+
+    col_gap = 0.90
+    col_w = (SLIDE_W_IN - 2.2 - col_gap) / 2
+    col_xs = [1.1, 1.1 + col_w + col_gap]
+
+    row_gap = 0.30
+    row_h = max(0.98, min(1.34, (avail_h - (rows - 1) * row_gap) / max(1, rows)))
+
+    num_w = 1.18
+    rule_w = 0.03
+    pad_x = 0.18
+
+    def _big_num(x: float, y: float, w: float, h: float, txt: str, rgb: Tuple[int, int, int]):
+        box = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
+        tf = box.text_frame
+        tf.clear()
+        try:
+            from pptx.enum.text import MSO_ANCHOR
+            tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        except Exception:
+            pass
+        p = tf.paragraphs[0]
+        p.alignment = PP_ALIGN.LEFT
+        r = p.add_run()
+        r.text = txt
+        r.font.size = Pt(60)
+        r.font.bold = True
+        r.font.color.rgb = RGBColor(*rgb)
+
+    for col_idx, col_items in enumerate([left_items, right_items]):
+        col_x = col_xs[col_idx]
+        y = top
+        for j in range(rows):
+            global_idx = (j if col_idx == 0 else (left_count + j))
+            if global_idx >= n:
+                continue
+            raw = col_items[j] if j < len(col_items) else None
+            if raw is None:
+                continue
+
+            head_txt, tail_txt = _agenda_head_desc(raw)
+            accent = accents[global_idx % len(accents)]
+
+            _big_num(col_x, y - 0.02, num_w, row_h, f"{global_idx + 1:02d}", accent)
+
+            rule_x = col_x + num_w + 0.10
+            rule = slide.shapes.add_shape(
+                MsoShape.RECTANGLE,
+                Inches(rule_x),
+                Inches(y + 0.14),
+                Inches(rule_w),
+                Inches(max(0.30, row_h - 0.28)),
+            )
+            rule.fill.solid(); rule.fill.fore_color.rgb = RGBColor(*accent)
+            rule.line.fill.background()
+
+            text_x = rule_x + rule_w + pad_x
+            text_w = max(1.9, (col_x + col_w) - text_x)
+            head_y = y + 0.04
+            head_h = 0.40
+            _add_textbox(
+                slide,
+                text_x,
+                head_y,
+                text_w,
+                head_h,
+                head_txt,
+                font_size_pt=17,
+                bold=True,
+                color=text_col,
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+            if tail_txt:
+                tail_y = head_y + head_h + 0.04
+                tail_h = max(0.28, row_h - (tail_y - y) - 0.12)
+                _add_textbox(
+                    slide,
+                    text_x,
+                    tail_y,
+                    text_w,
+                    tail_h,
+                    tail_txt,
+                    font_size_pt=11,
+                    color=muted,
+                    word_wrap=True,
+                    auto_fit=True,
+                )
+
+            if tail_txt:
+                underline_y = y + row_h - 0.10
+            else:
+                underline_y = head_y + head_h + 0.04
+            underline = slide.shapes.add_shape(
+                MsoShape.RECTANGLE,
+                Inches(text_x),
+                Inches(underline_y),
+                Inches(max(1.8, text_w - 0.05)),
+                Inches(0.025),
+            )
+            underline.fill.solid(); underline.fill.fore_color.rgb = RGBColor(*accent)
+            underline.line.fill.background()
+
+            y += row_h + row_gap
+
 def _render_agenda_split_panel(slide, items: List[Any], *, pal: Dict[str, Tuple[int, int, int]], title: str = "Agenda", subtitle: str | None = None) -> None:
     cleaned = _clean_agenda_items_any(list(items or []), limit=10)
     if not cleaned:
@@ -2581,10 +2762,12 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         ag_idx = next(i for i, s in enumerate(slides_norm) if _ctype(s) == "agenda")
         ag = slides_norm[ag_idx]
         c = _content(ag)
-        bullets = [str(x) for x in (c.get("bullets") or []) if str(x).strip()]
+        bullets = [_agenda_head_desc(x)[0] for x in (c.get("bullets") or []) if str(_agenda_head_desc(x)[0] or "").strip()]
         if not bullets or _is_generic_agenda(bullets):
             new_bullets = _clean_agenda_items(outline_titles(max_n=12), limit=12)
-            ag["content"] = {"bullets": new_bullets}
+            new_content = dict(c) if isinstance(c, dict) else {}
+            new_content["bullets"] = new_bullets
+            ag["content"] = new_content
     else:
         # Prefer AI outline slide titles as agenda items
         agenda_src: List[str] = outline_titles(max_n=12)
@@ -2613,7 +2796,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             prefix = slides_norm[:ag_idx + 1] if ag_idx is not None else slides_norm[:1]
             topic_slides: List[Dict[str, Any]] = []
             for i, t in enumerate(titles_seq, start=1):
-                topic = str(t).strip()
+                topic = str(_agenda_head_desc(t)[0] or "").strip() or str(t).strip()
                 if not topic:
                     continue
                 synth = _synthesize_topic_bullets(topic)
@@ -3898,7 +4081,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         title_txt = str(sl.get("title") or "Agenda").strip() or "Agenda"
         subtitle_txt = str(c.get("subtitle") or "").strip() or None
 
-        raw_forced = str(c.get("agenda_variant") or c.get("variant") or "").strip().lower()
+        raw_forced = str(c.get("agenda_variant") or c.get("variant") or sl.get("agenda_variant") or sl.get("variant") or "").strip().lower()
+        raw_forced = raw_forced.replace(" ", "_").replace("-", "_")
         forced_map = {
             "zebra": "minimal_rule",
             "rows": "minimal_rule",
@@ -3926,24 +4110,59 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             "stacked-circles": "stacked_circles",
             "circles": "stacked_circles",
             "circle": "stacked_circles",
+            "numbered_rules": "numbered_rules",
+            "numbered-rules": "numbered_rules",
+            "numbered rules": "numbered_rules",
+            "numbered": "numbered_rules",
+            "numbers": "numbered_rules",
+            "underline": "numbered_rules",
+            "rules": "numbered_rules",
             "split": "split_panel",
             "split_panel": "split_panel",
             "split-panel": "split_panel",
             "panel": "split_panel",
         }
-        forced_norm = forced_map.get(raw_forced) if raw_forced else None
+        pool = ["step_squares", "center_chevrons", "chevron_badges", "numbered_rules", "minimal_rule", "stacked_circles", "split_panel"]
 
-        pool = ["step_squares", "center_chevrons", "chevron_badges", "minimal_rule", "stacked_circles", "split_panel"]
+        forced_norm = forced_map.get(raw_forced) if raw_forced else None
+        if raw_forced and not forced_norm:
+            # Allow direct forcing if the caller provided an already-normalized pool value.
+            forced_norm = raw_forced if raw_forced in pool else None
+        if SLIDE_DEBUG:
+            try:
+                print(f"slide_debug:agenda_force raw_forced={raw_forced!r} forced_norm={forced_norm!r} content_keys={list(c.keys())}")
+            except Exception:
+                pass
+
         chosen = choose_variant("agenda", pool, forced=forced_norm)
         _debug_variant(family="agenda", chosen=chosen, eligible=pool, forced=forced_norm)
 
-        bullets_raw = c.get("bullets", [])[:32]
+        bullets_any = (
+            c.get("bullets")
+            or c.get("items")
+            or c.get("agenda")
+            or c.get("points")
+            or sl.get("bullets")
+            or sl.get("items")
+            or []
+        )
+        if isinstance(bullets_any, dict):
+            bullets_raw = [bullets_any]
+        elif isinstance(bullets_any, (tuple, set)):
+            bullets_raw = list(bullets_any)
+        elif isinstance(bullets_any, str):
+            bullets_raw = [bullets_any]
+        else:
+            bullets_raw = bullets_any
+        bullets_raw = list(bullets_raw or [])[:32]
         if chosen == "step_squares":
             _render_agenda_step_squares(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
         elif chosen == "center_chevrons":
             _render_agenda_center_chevrons(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
         elif chosen == "chevron_badges":
             _render_agenda_chevron_badges(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
+        elif chosen == "numbered_rules":
+            _render_agenda_numbered_rules(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
         elif chosen == "minimal_rule":
             _render_agenda_minimal_rule(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
         elif chosen == "stacked_circles":
@@ -12753,7 +12972,10 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     body_titles.append(ttl)
             if body_titles:
                 slides_norm[ag_idx] = dict(slides_norm[ag_idx])
-                slides_norm[ag_idx]["content"] = {"bullets": body_titles[:32]}
+                existing_c = _content(slides_norm[ag_idx])
+                merged_c = dict(existing_c) if isinstance(existing_c, dict) else {}
+                merged_c["bullets"] = body_titles[:32]
+                slides_norm[ag_idx]["content"] = merged_c
     except Exception:
         pass
 

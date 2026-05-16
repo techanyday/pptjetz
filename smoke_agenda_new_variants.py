@@ -46,7 +46,7 @@ def _slides(deck_id: str, variant: str, topic: str):
         },
         {
             "type": "agenda",
-            "title": "Agenda Slide",
+            "title": "Agenda",
             "subtitle": "Make a big impact with our professional slides and charts.",
             "content": {
                 "agenda_variant": variant,
@@ -71,7 +71,7 @@ def main() -> None:
     os.makedirs(out_dir, exist_ok=True)
     run_tag = str(int(time.time()))
 
-    variants = ["step_squares", "center_chevrons", "chevron_badges", "minimal_rule", "stacked_circles", "split_panel"]
+    variants = ["step_squares", "center_chevrons", "chevron_badges", "numbered_rules", "minimal_rule", "stacked_circles", "split_panel"]
     if only_variant:
         variants = [only_variant]
     out_paths = []
