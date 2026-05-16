@@ -71,7 +71,7 @@ def main() -> None:
     os.makedirs(out_dir, exist_ok=True)
     run_tag = str(int(time.time()))
 
-    variants = ["step_squares", "center_chevrons", "chevron_badges", "numbered_rules", "minimal_rule", "stacked_circles", "split_panel"]
+    variants = ["step_squares", "center_chevrons", "chevron_badges", "numbered_rules", "numbered_grid", "minimal_rule", "stacked_circles", "split_panel"]
     if only_variant:
         variants = [only_variant]
     out_paths = []

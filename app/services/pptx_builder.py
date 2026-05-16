@@ -1310,6 +1310,168 @@ def _render_agenda_numbered_rules(slide, items: List[Any], *, pal: Dict[str, Tup
 
             y += row_h + row_gap
 
+
+def _render_agenda_numbered_grid(slide, items: List[Any], *, pal: Dict[str, Tuple[int, int, int]], title: str = "Agenda", subtitle: str | None = None) -> None:
+    cleaned = _clean_agenda_items_any(list(items or []), limit=12)
+    if not cleaned:
+        cleaned = [
+            {"title": "Introduction", "description": "Setting the stage for today's discussion."},
+            {"title": "Market Overview", "description": "Current trends and market landscape."},
+            {"title": "Our Strategy", "description": "Our approach and strategic priorities."},
+            {"title": "Solutions", "description": "How our solutions address key challenges."},
+            {"title": "Case Study", "description": "Real-world example and impact."},
+            {"title": "Next Steps", "description": "What's next and how we move forward."},
+        ]
+
+    # Reference layout is 2x3, no standalone left item.
+    grid_items = cleaned[:6]
+    n = min(6, max(4, len(grid_items)))
+    grid_items = grid_items[:n]
+
+    bg_rgb = pal.get("bg", (255, 255, 255))
+    text_col = pal.get("text", (15, 23, 42))
+    muted = pal.get("muted", text_col)
+    is_dark_bg = _is_dark_rgb(bg_rgb)
+
+    title_txt = (title or "Agenda").strip() or "Agenda"
+    left_x = 0.85
+    left_w = 4.85
+    _add_textbox(
+        slide,
+        left_x,
+        0.75,
+        left_w,
+        1.05,
+        title_txt,
+        font_size_pt=56,
+        bold=True,
+        color=text_col,
+        align="left",
+        word_wrap=False,
+        auto_fit=True,
+    )
+
+    cols = 2
+    rows = (n + cols - 1) // cols
+
+    # Grid placement: centered vertically with safe bottom padding.
+    grid_left = 4.65
+    top_min = 1.15
+    right_pad = 0.90
+    bottom_pad = 1.10
+    col_gap = 0.95
+    row_gap = 0.62
+    avail_w = SLIDE_W_IN - grid_left - right_pad
+    avail_h = SLIDE_H_IN - bottom_pad - top_min
+
+    cell_w = (avail_w - col_gap) / 2.0
+    cell_h = max(1.60, min(1.90, (avail_h - (rows - 1) * row_gap) / max(1, rows)))
+    grid_h = rows * cell_h + (rows - 1) * row_gap
+    top = top_min + max(0.0, (avail_h - grid_h) / 2.0)
+
+    # Use a high-contrast, reference-like accent set (prevents washed-out gray numbers)
+    STEP_COLS = [
+        (242, 109, 39),   # orange
+        (18, 94, 171),    # blue
+        (221, 61, 44),    # red
+        (245, 167, 35),   # yellow
+        (118, 176, 65),   # green
+        (24, 184, 199),   # teal
+    ]
+
+    def _ensure_visible(rgb: Tuple[int, int, int]) -> Tuple[int, int, int]:
+        r, g, b = rgb
+        lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        br, bgc, bb = bg_rgb
+        lum_bg = 0.2126 * br + 0.7152 * bgc + 0.0722 * bb
+        if abs(lum - lum_bg) < 24:
+            return _shade(rgb, 34 if is_dark_bg else -34)
+        return rgb
+
+    num_w = 1.05
+    rule_w = 0.03
+    pad_x = 0.18
+
+    for i, raw in enumerate(grid_items, start=1):
+        c_idx = (i - 1) % cols
+        r_idx = (i - 1) // cols
+        x = grid_left + c_idx * (cell_w + col_gap)
+        y = top + r_idx * (cell_h + row_gap)
+
+        head_txt, tail_txt = _agenda_head_desc(raw)
+        accent = _ensure_visible(STEP_COLS[(i - 1) % len(STEP_COLS)])
+
+        # Big number (inline with text, like the reference)
+        num_tf = slide.shapes.add_textbox(Inches(x), Inches(y + 0.14), Inches(num_w), Inches(cell_h)).text_frame
+        num_tf.clear()
+        num_tf.word_wrap = False
+        p = num_tf.paragraphs[0]
+        p.alignment = PP_ALIGN.LEFT
+        run = p.add_run()
+        run.text = f"{i:02d}"
+        run.font.size = Pt(56)
+        run.font.bold = True
+        run.font.color.rgb = RGBColor(*accent)
+
+        # Thin vertical rule
+        rule_x = x + num_w + 0.10
+        rule = slide.shapes.add_shape(
+            MsoShape.RECTANGLE,
+            Inches(rule_x),
+            Inches(y + 0.28),
+            Inches(rule_w),
+            Inches(max(0.35, cell_h - 0.56)),
+        )
+        rule.fill.solid(); rule.fill.fore_color.rgb = RGBColor(*accent)
+        rule.line.fill.background()
+
+        text_x = rule_x + rule_w + pad_x
+        text_w = max(1.9, (x + cell_w) - text_x)
+        head_y = y + 0.20
+        head_h = 0.46
+        _add_textbox(
+            slide,
+            text_x,
+            head_y,
+            text_w,
+            head_h,
+            head_txt,
+            font_size_pt=16,
+            bold=True,
+            color=text_col,
+            word_wrap=True,
+            auto_fit=True,
+        )
+
+        underline_y = y + cell_h - 0.22
+        if tail_txt:
+            tail_y = head_y + head_h + 0.06
+            tail_h = max(0.34, underline_y - tail_y - 0.06)
+            _add_textbox(
+                slide,
+                text_x,
+                tail_y,
+                text_w,
+                tail_h,
+                tail_txt,
+                font_size_pt=11,
+                bold=False,
+                color=muted,
+                word_wrap=True,
+                auto_fit=True,
+            )
+
+        underline_w = min(text_w * 0.78, 2.85)
+        underline = slide.shapes.add_shape(
+            MsoShape.RECTANGLE,
+            Inches(text_x),
+            Inches(underline_y),
+            Inches(max(1.8, underline_w)),
+            Inches(0.022),
+        )
+        underline.fill.solid(); underline.fill.fore_color.rgb = RGBColor(*accent)
+        underline.line.fill.background()
+
 def _render_agenda_split_panel(slide, items: List[Any], *, pal: Dict[str, Tuple[int, int, int]], title: str = "Agenda", subtitle: str | None = None) -> None:
     cleaned = _clean_agenda_items_any(list(items or []), limit=10)
     if not cleaned:
@@ -4117,12 +4279,17 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             "numbers": "numbered_rules",
             "underline": "numbered_rules",
             "rules": "numbered_rules",
+            "numbered_grid": "numbered_grid",
+            "numbered-grid": "numbered_grid",
+            "numbered grid": "numbered_grid",
+            "grid": "numbered_grid",
+            "tiles": "numbered_grid",
             "split": "split_panel",
             "split_panel": "split_panel",
             "split-panel": "split_panel",
             "panel": "split_panel",
         }
-        pool = ["step_squares", "center_chevrons", "chevron_badges", "numbered_rules", "minimal_rule", "stacked_circles", "split_panel"]
+        pool = ["step_squares", "center_chevrons", "chevron_badges", "numbered_rules", "numbered_grid", "minimal_rule", "stacked_circles", "split_panel"]
 
         forced_norm = forced_map.get(raw_forced) if raw_forced else None
         if raw_forced and not forced_norm:
@@ -4163,6 +4330,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             _render_agenda_chevron_badges(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
         elif chosen == "numbered_rules":
             _render_agenda_numbered_rules(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
+        elif chosen == "numbered_grid":
+            _render_agenda_numbered_grid(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
         elif chosen == "minimal_rule":
             _render_agenda_minimal_rule(s, bullets_raw, pal=pal, title=title_txt, subtitle=subtitle_txt)
         elif chosen == "stacked_circles":

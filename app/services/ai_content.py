@@ -1898,12 +1898,164 @@ def _json_dump(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False)
 
 
+def _strip_code_fences(raw: str) -> str:
+    s = str(raw or "")
+    if "```" not in s:
+        return s.strip()
+    try:
+        lines = s.splitlines()
+        if not lines:
+            return s.strip()
+        if lines[0].lstrip().startswith("```"):
+            end = None
+            for i in range(1, len(lines)):
+                if lines[i].lstrip().startswith("```"):
+                    end = i
+                    break
+            if end is not None:
+                return "\n".join(lines[1:end]).strip()
+    except Exception:
+        pass
+    return s.strip()
+
+
+def _extract_first_json_array(raw: str) -> str | None:
+    s = str(raw or "")
+    start = s.find("[")
+    if start < 0:
+        return None
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(s)):
+        ch = s[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+            continue
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                return s[start : i + 1].strip()
+    return None
+
+
+def _escape_control_chars_in_strings(raw: str) -> str:
+    s = str(raw or "")
+    out: list[str] = []
+    in_str = False
+    esc = False
+    for ch in s:
+        if in_str:
+            if esc:
+                out.append(ch)
+                esc = False
+                continue
+            if ch == "\\":
+                out.append(ch)
+                esc = True
+                continue
+            if ch == '"':
+                in_str = False
+                out.append(ch)
+                continue
+            if ch == "\n" or ch == "\r":
+                out.append("\\n")
+                continue
+            if ch == "\t":
+                out.append("\\t")
+                continue
+            out.append(ch)
+            continue
+        if ch == '"':
+            in_str = True
+            out.append(ch)
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+def _remove_trailing_commas(raw: str) -> str:
+    s = str(raw or "")
+    out: list[str] = []
+    in_str = False
+    esc = False
+    i = 0
+    n = len(s)
+    while i < n:
+        ch = s[i]
+        if in_str:
+            out.append(ch)
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            i += 1
+            continue
+        if ch == '"':
+            in_str = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == ",":
+            j = i + 1
+            while j < n and s[j] in " \t\r\n":
+                j += 1
+            if j < n and s[j] in "]}":
+                i += 1
+                continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _parse_json_array(raw: str) -> Tuple[List[Dict[str, Any]] | None, str | None]:
     import json
-    try:
-        data = json.loads(raw)
-    except Exception as exc:  # noqa: BLE001
-        return None, f"JSON parse error: {exc}"
+    raw0 = str(raw or "").strip()
+    candidates: list[str] = []
+    if raw0:
+        candidates.append(raw0)
+        fenced = _strip_code_fences(raw0)
+        if fenced and fenced != raw0:
+            candidates.append(fenced)
+        extracted = _extract_first_json_array(raw0) or _extract_first_json_array(fenced)
+        if extracted:
+            candidates.append(extracted)
+
+    last_exc: Exception | None = None
+    for cand in candidates:
+        try:
+            data = json.loads(cand)
+            last_exc = None
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            try:
+                cand2 = cand.replace("\u201c", '"').replace("\u201d", '"').replace("\u2018", "'").replace("\u2019", "'")
+                cand2 = _escape_control_chars_in_strings(cand2)
+                cand2 = _remove_trailing_commas(cand2)
+                data = json.loads(cand2)
+                last_exc = None
+                break
+            except Exception as exc2:  # noqa: BLE001
+                last_exc = exc2
+                continue
+    else:
+        data = None
+
+    if last_exc is not None or data is None:
+        return None, f"JSON parse error: {last_exc}"
     if not isinstance(data, list):
         return None, "Top-level JSON must be an array"
     # Shallow sanitize items to ensure dicts
