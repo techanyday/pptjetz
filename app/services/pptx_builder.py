@@ -329,6 +329,109 @@ def _split_head_tail(txt: str) -> Tuple[str, str]:
     return head, tail
 
 
+def _extract_head_tail_any(
+    item: Any,
+    *,
+    head_keys: Tuple[str, ...] = ("title", "heading", "header", "label", "name", "step"),
+    tail_keys: Tuple[str, ...] = ("description", "body", "desc", "details", "detail", "text"),
+) -> Tuple[str, str]:
+    def _is_bad_fragment(txt: str) -> bool:
+        t = str(txt or "").strip().lower()
+        if not t:
+            return False
+        if t.startswith("{") or t.startswith("["):
+            return True
+        for k in set(head_keys + tail_keys):
+            if f"'{k}'" in t or f'"{k}"' in t:
+                return True
+        return False
+
+    def _normalize_quotes(s: str) -> str:
+        return (
+            str(s or "")
+            .replace("“", '"')
+            .replace("”", '"')
+            .replace("’", "'")
+            .replace("‘", "'")
+        )
+
+    def _from_dict(d: Dict[str, Any]) -> Tuple[str, str]:
+        h = ""
+        t = ""
+        for k in head_keys:
+            if d.get(k):
+                h = str(d.get(k) or "").strip()
+                break
+        for k in tail_keys:
+            if d.get(k):
+                t = str(d.get(k) or "").strip()
+                break
+        return h, t
+
+    if isinstance(item, dict):
+        head, tail = _from_dict(item)
+        if head and (not _is_bad_fragment(head)) and (not _is_bad_fragment(tail)):
+            return head, tail
+        item = str(item)
+
+    if isinstance(item, str):
+        s = _normalize_quotes(item.strip())
+        keys_blob = " ".join(set(head_keys + tail_keys)).lower()
+        if s.startswith("{") and any(k in s.lower() for k in keys_blob.split()):
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, dict):
+                    h, t = _from_dict(parsed)
+                    if h and not _is_bad_fragment(h):
+                        return h, t
+            except Exception:
+                pass
+            try:
+                parsed2 = ast.literal_eval(s)
+                if isinstance(parsed2, dict):
+                    h, t = _from_dict(parsed2)
+                    if h and not _is_bad_fragment(h):
+                        return h, t
+            except Exception:
+                pass
+
+            m_h = re.search(
+                r"(?:'header'|\"header\"|'heading'|\"heading\"|'title'|\"title\"|'label'|\"label\")\s*(?::\s*)?(?:'([^']+)'|\"([^\"]+)\")",
+                s,
+                flags=re.S,
+            )
+            if not m_h:
+                m_h = re.search(
+                    r"(?:'header'|\"header\"|'heading'|\"heading\"|'title'|\"title\"|'label'|\"label\")[\s,]+(?:'([^']+)'|\"([^\"]+)\")",
+                    s,
+                    flags=re.S,
+                )
+            m_t = re.search(
+                r"(?:'body'|\"body\"|'description'|\"description\"|'desc'|\"desc\"|'details'|\"details\")\s*(?::\s*)?(?:'([^']+)'|\"([^\"]+)\")",
+                s,
+                flags=re.S,
+            )
+            if not m_t:
+                m_t = re.search(
+                    r"(?:'body'|\"body\"|'description'|\"description\"|'desc'|\"desc\"|'details'|\"details\")[\s,]+(?:'([^']+)'|\"([^\"]+)\")",
+                    s,
+                    flags=re.S,
+                )
+            h = str((m_h.group(1) or m_h.group(2)) if m_h else "").strip()
+            t = str((m_t.group(1) or m_t.group(2)) if m_t else "").strip()
+            if h and not _is_bad_fragment(h):
+                return h, t
+
+        head, tail = _split_head_tail(s)
+        return (head or s).strip(), (tail or "").strip()
+
+    s_other = str(item or "").strip()
+    if not s_other:
+        return "", ""
+    head, tail = _split_head_tail(s_other)
+    return (head or s_other).strip(), (tail or "").strip()
+
+
 def _add_bullets(
     slide,
     x,
@@ -354,7 +457,13 @@ def _add_bullets(
     and colors. The `color` parameter is used for both bullet markers and
     body text so bullets never fall back to random theme defaults.
     """
-    items = [str(s).strip() for s in (bullets or []) if str(s).strip()]
+    items: List[str] = []
+    for s in (bullets or []):
+        head, tail = _extract_head_tail_any(s)
+        txt = f"{head} — {tail}" if head and tail else (head or tail)
+        txt = str(txt or "").strip()
+        if txt:
+            items.append(txt)
     while len(items) < min_items:
         items.append(synth_fill)
 
@@ -462,40 +571,19 @@ def _clean_agenda_items(items: List[str], limit: int = 32) -> List[str]:
             break
     return out
 
+
+def _shorten(txt: str, max_chars: int) -> str:
+    t = str(txt or "").strip()
+    if len(t) <= max_chars:
+        return t
+    if max_chars <= 1:
+        return t[:max_chars]
+    return t[: max_chars - 1].rstrip() + "…"
+
 def _clean_agenda_items_any(items: List[Any], limit: int = 32) -> List[Any]:
     seen = set()
     out: List[Any] = []
     for it in items or []:
-        # Preserve structured agenda items. Some upstream flows can stringify dicts;
-        # normalize those back into dicts so title/description extraction is reliable.
-        try:
-            if isinstance(it, str):
-                s = it.strip()
-                if s.startswith("{") and ("title" in s or "description" in s):
-                    s_norm = (
-                        s.replace("“", '"')
-                        .replace("”", '"')
-                        .replace("’", "'")
-                        .replace("‘", "'")
-                    )
-                    probe = s_norm
-                    if "}" in probe:
-                        probe = probe[: probe.rfind("}") + 1]
-                    try:
-                        import ast as _ast
-
-                        obj = _ast.literal_eval(probe)
-                        if isinstance(obj, dict):
-                            it = obj
-                    except Exception:
-                        try:
-                            obj2 = json.loads(probe)
-                            if isinstance(obj2, dict):
-                                it = obj2
-                        except Exception:
-                            pass
-        except Exception:
-            pass
         head_txt, _tail_txt = _agenda_head_desc(it)
         t = str(head_txt or "").strip()
         if not t or t.lower() in {"tbd", "-", "•"}:
@@ -504,7 +592,11 @@ def _clean_agenda_items_any(items: List[Any], limit: int = 32) -> List[Any]:
         if lo in seen:
             continue
         seen.add(lo)
-        out.append(it)
+        tail_txt = str(_tail_txt or "").strip()
+        canonical: Dict[str, str] = {"title": t}
+        if tail_txt:
+            canonical["description"] = tail_txt
+        out.append(canonical)
         if len(out) >= limit:
             break
     return out
@@ -545,128 +637,73 @@ def _agenda_subtitle(slide, y_in: float, subtitle: str, *, pal: Dict[str, Tuple[
     )
     return 0.45
 
+
+def _normalize_agenda_item(item: Any) -> Dict[str, str]:
+    import ast
+    import json as _json
+    import re as _re
+
+    if isinstance(item, dict):
+        title = item.get("title") or item.get("label") or item.get("heading") or ""
+        desc = item.get("description") or item.get("desc") or item.get("details") or item.get("text") or ""
+
+        if isinstance(title, str) and ("'title'" in title or '"title"' in title):
+            nested = _normalize_agenda_item(title)
+            if nested.get("title"):
+                return nested
+
+        return {
+            "title": str(title).strip(),
+            "description": str(desc).strip(),
+        }
+
+    if isinstance(item, str):
+        s = item.strip()
+
+        if s.startswith("{") and ("title" in s or "description" in s):
+            try:
+                parsed = ast.literal_eval(s)
+                if isinstance(parsed, dict):
+                    return _normalize_agenda_item(parsed)
+            except Exception:
+                pass
+
+            try:
+                parsed = _json.loads(s)
+                if isinstance(parsed, dict):
+                    return _normalize_agenda_item(parsed)
+            except Exception:
+                pass
+
+            title_match = _re.search(r"['\"]title['\"]\s*:\s*['\"]([^'\"]+)['\"]", s)
+            desc_match = _re.search(r"['\"]description['\"]\s*:\s*['\"]([^'\"]+)['\"]", s)
+
+            return {
+                "title": title_match.group(1).strip() if title_match else "",
+                "description": desc_match.group(1).strip() if desc_match else "",
+            }
+
+        return {"title": s, "description": ""}
+
+    return {"title": str(item).strip(), "description": ""}
+
+
 def _agenda_head_desc(item: Any) -> Tuple[str, str]:
-    try:
-        if isinstance(item, dict):
-            head_txt = str(item.get("title") or item.get("label") or item.get("heading") or "").strip()
-            tail_txt = str(item.get("description") or item.get("details") or item.get("text") or "").strip()
-            if head_txt:
-                tail_txt = str(tail_txt or "").strip()
-                if tail_txt and not re.search(r"[A-Za-z0-9]", tail_txt):
-                    tail_txt = ""
-                return head_txt, _shorten(tail_txt, 96) if tail_txt else ""
-    except Exception:
-        pass
+    normalized = _normalize_agenda_item(item)
+    title = str(normalized.get("title", "")).strip()
+    desc = str(normalized.get("description", "")).strip()
 
-    # If the agenda item is a dict-like string (common when upstream JSON/dicts
-    # are stringified), attempt to parse it and re-run extraction.
-    try:
-        txt_probe = str(item or "").strip()
-        # Normalize smart quotes so dict-like strings are parseable and match regex patterns.
-        txt_probe = (
-            txt_probe.replace("“", '"')
-            .replace("”", '"')
-            .replace("’", "'")
-            .replace("‘", "'")
-        )
-        # Be tolerant of dict-like strings that may have extra characters or not strictly end with '}'.
-        # Try to isolate the first JSON/dict object and parse it.
-        if txt_probe.startswith("{") and ("title" in txt_probe or "description" in txt_probe):
-            import ast as _ast
-            probe = txt_probe
-            if "}" in probe:
-                probe = probe[: probe.rfind("}") + 1]
-            try:
-                obj = _ast.literal_eval(probe)
-                if isinstance(obj, dict):
-                    return _agenda_head_desc(obj)
-            except Exception:
-                pass
-            try:
-                obj2 = json.loads(probe)
-                if isinstance(obj2, dict):
-                    return _agenda_head_desc(obj2)
-            except Exception:
-                pass
+    bad_fragments = ["{'title'", '{"title"', "'title'", '"title"', "{title"]
+    if title in bad_fragments or title.startswith("{'title") or title.startswith('{"title'):
+        title = ""
 
-            # Regex fallback for cases where the string is almost-a-dict but not parseable
-            # (e.g., mixed quotes/formatting). This prevents placeholder-looking output.
-            try:
-                m_title = re.search(r"(?:'title'|\"title\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", probe)
-                if not m_title:
-                    # Handle malformed key/value where ':' is missing after the title key.
-                    m_title = re.search(r"(?:'title'|\"title\")\s*(?:,|\s)+\s*(?:'([^']+)'|\"([^\"]+)\")", probe)
+    if desc.startswith("{") and ("title" in desc or "description" in desc):
+        nested = _normalize_agenda_item(desc)
+        if nested.get("title"):
+            title = str(nested.get("title", "")).strip()
+            desc = str(nested.get("description", "")).strip()
 
-                m_desc = re.search(r"(?:'description'|\"description\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", probe)
-                if not m_desc:
-                    m_desc = re.search(r"(?:'desc'|\"desc\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", probe)
-
-                title_val = (m_title.group(1) or m_title.group(2)) if m_title else ""
-                desc_val = (m_desc.group(1) or m_desc.group(2)) if m_desc else ""
-                title_val = str(title_val or "").strip()
-                desc_val = str(desc_val or "").strip()
-                if title_val:
-                    if desc_val and not re.search(r"[A-Za-z0-9]", desc_val):
-                        desc_val = ""
-                    return title_val, _shorten(desc_val, 96) if desc_val else ""
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-    txt = str(item or "").strip()
-    if not txt:
-        return "", ""
-    head, tail = _split_head_tail(txt)
-    head_txt = (head or txt).strip()
-    tail_txt = (tail or "").strip()
-
-    if tail_txt:
-        tail_words = re.findall(r"[A-Za-z0-9]+", tail_txt)
-        if len(tail_words) <= 1 or len(tail_txt) < 10:
-            head_txt = (head_txt + " " + tail_txt).strip()
-            tail_txt = ""
-    try:
-        tail_txt = str(tail_txt or "").strip()
-        if tail_txt and not re.search(r"[A-Za-z0-9]", tail_txt):
-            tail_txt = ""
-        tail_txt = _shorten(tail_txt, 96) if tail_txt else ""
-    except Exception:
-        tail_txt = tail_txt or ""
-
-    # Final guard: if the "headline" looks like a dict key placeholder, attempt to extract a real title.
-    head_probe = str(head_txt or "").strip()
-    if (
-        head_probe in {"{'title'", '{"title"', "{title"}
-        or head_probe.startswith("{'title")
-        or head_probe.startswith('{"title')
-    ):
-        try:
-            s0 = str(item or "").strip()
-            s0 = (
-                s0.replace("“", '"')
-                .replace("”", '"')
-                .replace("’", "'")
-                .replace("‘", "'")
-            )
-            m_title2 = re.search(r"(?:'title'|\"title\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", s0)
-            if not m_title2:
-                m_title2 = re.search(r"(?:'title'|\"title\")\s*(?:,|\s)+\s*(?:'([^']+)'|\"([^\"]+)\")", s0)
-
-            m_desc2 = re.search(r"(?:'description'|\"description\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", s0)
-            if not m_desc2:
-                m_desc2 = re.search(r"(?:'desc'|\"desc\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", s0)
-            title2 = (m_title2.group(1) or m_title2.group(2)) if m_title2 else ""
-            desc2 = (m_desc2.group(1) or m_desc2.group(2)) if m_desc2 else ""
-            title2 = str(title2 or "").strip()
-            desc2 = str(desc2 or "").strip()
-            if title2:
-                if desc2 and not re.search(r"[A-Za-z0-9]", desc2):
-                    desc2 = ""
-                return title2, _shorten(desc2, 96) if desc2 else ""
-        except Exception:
-            pass
-    return head_txt, tail_txt
+    return title, _shorten(desc, 96) if desc else ""
 
 def _agenda_step_colors(pal: Dict[str, Tuple[int, int, int]]) -> List[Tuple[int, int, int]]:
     base_primary = pal.get("primary", (59, 130, 246))
@@ -1278,9 +1315,11 @@ def _render_agenda_numbered_rules(slide, items: List[Any], *, pal: Dict[str, Tup
                 auto_fit=True,
             )
 
+            underline_y = y + row_h - 0.10
+
             if tail_txt:
                 tail_y = head_y + head_h + 0.04
-                tail_h = max(0.28, row_h - (tail_y - y) - 0.12)
+                tail_h = max(0.28, underline_y - tail_y - 0.08)
                 _add_textbox(
                     slide,
                     text_x,
@@ -1293,11 +1332,6 @@ def _render_agenda_numbered_rules(slide, items: List[Any], *, pal: Dict[str, Tup
                     word_wrap=True,
                     auto_fit=True,
                 )
-
-            if tail_txt:
-                underline_y = y + row_h - 0.10
-            else:
-                underline_y = head_y + head_h + 0.04
             underline = slide.shapes.add_shape(
                 MsoShape.RECTANGLE,
                 Inches(text_x),
@@ -6247,12 +6281,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             ]
 
         def _extract_title_desc(it: Any) -> tuple[str, str]:
-            if isinstance(it, dict):
-                lab = str(it.get("label") or it.get("title") or "").strip()
-                desc = str(it.get("description") or "").strip()
-                return lab, desc
-            head, tail = _split_head_tail(str(it or "").strip())
-            return (head or str(it or "").strip()), tail
+            return _extract_head_tail_any(
+                it,
+                head_keys=("label", "title", "heading", "header", "name", "step"),
+                tail_keys=("description", "body", "desc", "details", "text"),
+            )
 
         items: List[tuple[str, bool, str, str]] = []
         n = min(6, max(4, len(raw_items)))
@@ -6410,12 +6443,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
 
         def _extract_title_desc(it: Any) -> tuple[str, str]:
-            if isinstance(it, dict):
-                lab = str(it.get("label") or it.get("title") or "").strip()
-                desc = str(it.get("description") or "").strip()
-                return lab, desc
-            head, tail = _split_head_tail(str(it or "").strip())
-            return (head or str(it or "").strip()), tail
+            return _extract_head_tail_any(
+                it,
+                head_keys=("label", "title", "heading", "header", "name", "step"),
+                tail_keys=("description", "body", "desc", "details", "text"),
+            )
 
         items: List[tuple[str, bool, str, str]] = []
         n = min(6, max(4, len(raw_items)))
@@ -6639,12 +6671,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             return str(fallback)
 
         def _extract_title_desc(it: Any) -> tuple[str, str]:
-            if isinstance(it, dict):
-                lab = str(it.get("label") or it.get("title") or "").strip()
-                desc = str(it.get("description") or "").strip()
-                return lab, desc
-            head, tail = _split_head_tail(str(it or "").strip())
-            return (head or str(it or "").strip()), tail
+            return _extract_head_tail_any(
+                it,
+                head_keys=("label", "title", "heading", "header", "name", "step"),
+                tail_keys=("description", "body", "desc", "details", "text"),
+            )
 
         items: List[tuple[str, bool, str, str]] = []
         n = min(6, max(4, len(raw_items)))
@@ -6820,8 +6851,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 lab = str(it.get("label") or it.get("title") or "").strip()
                 desc = str(it.get("description") or "").strip()
             else:
-                head, tail = _split_head_tail(str(it or "").strip())
-                lab, desc = (head or str(it or "").strip()), tail
+                lab, desc = _extract_head_tail_any(
+                    it,
+                    head_keys=("label", "title", "heading", "header", "name", "step"),
+                    tail_keys=("description", "body", "desc", "details", "text"),
+                )
             yr, show_yr = _timeline_label_for_item(it, idx, items_src, "callout_chevrons")
             items.append((yr, show_yr, lab, desc))
         if len(items) < 4:
@@ -6962,8 +6996,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 lab = str(it.get("label") or it.get("title") or "").strip()
                 desc = str(it.get("description") or "").strip()
             else:
-                head, tail = _split_head_tail(str(it or "").strip())
-                lab, desc = (head or str(it or "").strip()), tail
+                lab, desc = _extract_head_tail_any(
+                    it,
+                    head_keys=("label", "title", "heading", "header", "name", "step"),
+                    tail_keys=("description", "body", "desc", "details", "text"),
+                )
             yr, show_yr = _timeline_label_for_item(it, idx, items_src, "strip_columns")
             items.append((yr, show_yr, lab, desc))
         if len(items) < 4:
@@ -7097,8 +7134,11 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 lab = str(it.get("label") or it.get("title") or "").strip()
                 desc = str(it.get("description") or "").strip()
             else:
-                head, tail = _split_head_tail(str(it or "").strip())
-                lab, desc = (head or str(it or "").strip()), tail
+                lab, desc = _extract_head_tail_any(
+                    it,
+                    head_keys=("label", "title", "heading", "header", "name", "step"),
+                    tail_keys=("description", "body", "desc", "details", "text"),
+                )
             yr, show_yr = _timeline_label_for_item(it, idx, items_src, "arc_progress")
             items.append((yr, show_yr, lab, desc))
         if len(items) < 4:
@@ -8701,7 +8741,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
         def _draw_node(*, x: float, y: float, idx: int, text: str, align_left: bool) -> None:
             col = step_cols[idx % len(step_cols)]
-            head, tail = _split_head_tail(str(text or "").strip())
+            head, tail = _extract_head_tail_any(text)
             head_txt = (head or str(text or "")).strip() or f"Option {idx + 1}"
             body_txt = (tail or "").strip()
             if body_txt and len(body_txt.split()) > 12:
@@ -8823,7 +8863,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
         for idx, (px, py, col_idx) in enumerate(panel_specs):
             col = step_cols[col_idx % len(step_cols)]
-            head, tail = _split_head_tail(str(items[idx] or ""))
+            head, tail = _extract_head_tail_any(items[idx])
             heading = (head or str(items[idx] or "")).strip() or f"Section {letters[idx]}"
             body = (tail or "").strip() or "Make a big impact with professional slides, charts, infographics and more."
             is_top = idx in (0, 1)
@@ -9145,192 +9185,166 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def _render_hub_spoke_diamond_capsules_4(sl) -> None:
         title, items, content = _hub_spoke_items(sl, target_n=4)
         s = prs.slides.add_slide(blank); apply_bg(s)
-
         primary_rgb = pal.get("primary", (59, 130, 246))
-        secondary_rgb = pal.get("secondary", _blend_rgb(primary_rgb, (255, 255, 255), 0.50))
+        secondary_rgb = pal.get("secondary", _blend_rgb(primary_rgb, (255, 255, 255), 0.45))
         bg_rgb = pal.get("bg", (255, 255, 255))
-        frame_rgb = _shade(primary_rgb, -4)
-        panel_rgb = bg_rgb
-        text_rgb = pal.get("text", (30, 30, 30))
-
-        tag_rgb = _blend_rgb(primary_rgb, secondary_rgb, 0.22)
-        tag_text_rgb = _contrast_text(tag_rgb)
-        dot_rgb = _blend_rgb(secondary_rgb, primary_rgb, 0.32)
-        dot_text_rgb = pal.get("muted", _contrast_text(dot_rgb))
-
-        orange_rgb = (247, 97, 0)
-        yellow_rgb = (231, 184, 62)
-        teal_rgb = (49, 150, 176)
-        lime_rgb = (194, 198, 0)
-        topic_label = _shorten((str(title or "").strip() or "this topic"), 34)
+        title_rgb = _shade(primary_rgb, -32)
+        subtitle_rgb = pal.get("muted", _shade(title_rgb, 35))
+        head_rgb = _shade(primary_rgb, -8)
+        body_rgb = pal.get("text", (36, 46, 78))
 
         item_heads: List[str] = []
         item_bodies: List[str] = []
         for idx in range(4):
-            head, tail = _split_head_tail(str(items[idx] or ""))
-            heading = (head or str(items[idx] or "")).strip() or f"Main idea {idx + 1}"
-            heading = _shorten(heading, 34)
-
-            body = (tail or "").strip()
-            if not body:
-                body = f"Focus on {heading.lower()} to strengthen {topic_label.lower()} outcomes."
-
-            words = body.split()
-            if len(words) > 12:
-                body = " ".join(words[:12]).rstrip(" ,.;:-")
-
+            head, tail = _extract_head_tail_any(items[idx])
+            heading = re.sub(r"\s+", " ", str(head or items[idx] or "")).strip() or f"Step {idx + 1}"
+            body = re.sub(r"\s+", " ", str(tail or "")).strip()
+            if len(body.split()) < 5:
+                body = f"Define actions, ownership, and controls to make {heading.lower()} measurable and repeatable."
             item_heads.append(heading)
             item_bodies.append(body)
 
-        raw_topic = re.sub(r"\s+", " ", str(title or "")).strip()
-        blocked_topics = {"", "hub & spoke", "hub and spoke", "impact map", "infographic", "overview"}
-        topic_key = raw_topic.lower()
-        if topic_key in blocked_topics:
-            raw_topic = ""
+        subtitle = re.sub(r"\s+", " ", str(content.get("subtitle") or "")).strip()
+        if not subtitle:
+            subtitle = "From detection to prevention through coordinated controls"
 
-        tag_title = raw_topic if raw_topic else ""
-        if not tag_title:
-            fallback_title = " / ".join([h for h in item_heads[:2] if h])
-            tag_title = _shorten(fallback_title, 52) if fallback_title else "Infographic"
+        title_raw = re.sub(r"\s+", " ", str(title or "")).strip() or "Strategic Roadmap"
+        title_fit, title_fs = _fit_text_no_midword(
+            title_raw,
+            box_w_in=12.25,
+            box_h_in=1.28,
+            base_font_pt=50,
+            min_font_pt=28,
+            max_lines=2,
+            width_factor=0.98,
+            height_factor=0.95,
+        )
+        title_lines = max(1, len([ln for ln in str(title_fit).split("\n") if ln.strip()]))
+        title_y = 0.40
+        title_h = 0.92 if title_lines == 1 else 1.28
+        subtitle_h = 0.46
+        subtitle_y = title_y + title_h + 0.08
+        ribbon_y = subtitle_y + subtitle_h + 0.24
 
-        def _flat(shape) -> None:
-            try:
-                shape.shadow.inherit = False
-                shape.shadow.visible = False
-            except Exception:
-                pass
+        _add_textbox(
+            s,
+            0.55,
+            title_y,
+            12.25,
+            title_h,
+            title_fit,
+            font_size_pt=title_fs,
+            bold=True,
+            color=title_rgb,
+            align="center",
+            word_wrap=True,
+            auto_fit=True,
+        )
+        _add_textbox(
+            s,
+            0.80,
+            subtitle_y,
+            11.80,
+            subtitle_h,
+            subtitle,
+            font_size_pt=18,
+            bold=False,
+            color=subtitle_rgb,
+            align="center",
+            word_wrap=True,
+            auto_fit=True,
+        )
 
-        frame = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0), Inches(0), Inches(SLIDE_W_IN), Inches(SLIDE_H_IN))
-        frame.fill.solid(); frame.fill.fore_color.rgb = RGBColor(*frame_rgb)
-        frame.line.fill.background(); _flat(frame)
-
-        panel = s.shapes.add_shape(MsoShape.RECTANGLE, Inches(0.30), Inches(0.82), Inches(SLIDE_W_IN - 0.60), Inches(SLIDE_H_IN - 0.98))
-        panel.fill.solid(); panel.fill.fore_color.rgb = RGBColor(*panel_rgb)
-        panel.line.fill.background(); _flat(panel)
-
-        tag_x = 0.05
-        tag_w = max(4.10, min(6.80, (SLIDE_W_IN - 1.15) - tag_x - 0.18))
-        tag = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(tag_x), Inches(0.42), Inches(tag_w), Inches(0.78))
-        tag.fill.solid(); tag.fill.fore_color.rgb = RGBColor(*tag_rgb)
-        tag.line.fill.background(); _flat(tag)
-        tft = tag.text_frame
-        tft.clear(); tft.word_wrap = True; tft.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-        try:
-            tft.vertical_anchor = MSO_ANCHOR.MIDDLE
-            tft.margin_left = Pt(10); tft.margin_right = Pt(10)
-            tft.margin_top = Pt(0); tft.margin_bottom = Pt(0)
-        except Exception:
-            pass
-        pt = tft.paragraphs[0]; pt.alignment = PP_ALIGN.LEFT
-        rt = pt.add_run(); rt.text = tag_title
-        rt.font.size = Pt(20); rt.font.bold = True; rt.font.color.rgb = RGBColor(*tag_text_rgb)
-        ra = pt.add_run(); ra.text = "   →"
-        ra.font.size = Pt(24); ra.font.bold = True; ra.font.color.rgb = RGBColor(*tag_text_rgb)
-
-        dot = s.shapes.add_shape(MsoShape.OVAL, Inches(SLIDE_W_IN - 1.15), Inches(0.52), Inches(0.76), Inches(0.76))
-        dot.fill.solid(); dot.fill.fore_color.rgb = RGBColor(*dot_rgb)
-        dot.line.fill.background(); _flat(dot)
-        dtf = dot.text_frame
-        dtf.clear(); dtf.word_wrap = False; dtf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-        try:
-            dtf.vertical_anchor = MSO_ANCHOR.MIDDLE
-            dtf.margin_left = Pt(0); dtf.margin_right = Pt(0)
-            dtf.margin_top = Pt(0); dtf.margin_bottom = Pt(0)
-        except Exception:
-            pass
-        dp = dtf.paragraphs[0]; dp.alignment = PP_ALIGN.CENTER
-        dr = dp.add_run(); dr.text = "•••"
-        dr.font.size = Pt(14); dr.font.bold = True; dr.font.color.rgb = RGBColor(*dot_text_rgb)
-
-        pill_w, pill_h = 3.10, 0.86
-        pill_specs = [
-            (4.44, 2.00, 315, teal_rgb, item_heads[0], "✎", "end"),
-            (7.10, 2.40, 45, orange_rgb, item_heads[1], "▦", "end"),
-            (3.62, 4.14, 45, lime_rgb, item_heads[2], "☼", "start"),
-            (6.42, 4.62, 315, yellow_rgb, item_heads[3], "⚙", "start"),
+        ribbon_x = 0.25
+        ribbon_w, ribbon_h = SLIDE_W_IN - 0.50, 0.72
+        seg_w = ribbon_w / 4.0
+        seg_cols = [
+            _shade(primary_rgb, -18),
+            _blend_rgb(primary_rgb, secondary_rgb, 0.45),
+            _blend_rgb(primary_rgb, secondary_rgb, 0.22),
+            _shade(primary_rgb, -6),
         ]
 
-        for x, y, rot, col, label, icon_text, icon_pos in pill_specs:
-            pill = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(pill_w), Inches(pill_h))
-            pill.fill.solid(); pill.fill.fore_color.rgb = RGBColor(*col)
-            pill.line.fill.background(); pill.rotation = rot; _flat(pill)
-
-            pill_label = _shorten(str(label or "").strip(), 24)
-            tfp = pill.text_frame
-            tfp.clear(); tfp.word_wrap = True; tfp.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        for idx in range(4):
+            sx = ribbon_x + (idx * seg_w) - (0.05 if idx else 0.0)
+            sw = seg_w + (0.05 if idx < 3 else 0.0)
+            seg = s.shapes.add_shape(MsoShape.CHEVRON, Inches(sx), Inches(ribbon_y), Inches(sw), Inches(ribbon_h))
+            seg.fill.solid(); seg.fill.fore_color.rgb = RGBColor(*seg_cols[idx])
             try:
-                tfp.vertical_anchor = MSO_ANCHOR.MIDDLE
-                if icon_pos == "end":
-                    tfp.margin_left = Pt(10); tfp.margin_right = Pt(44)
-                else:
-                    tfp.margin_left = Pt(44); tfp.margin_right = Pt(10)
-                tfp.margin_top = Pt(0); tfp.margin_bottom = Pt(0)
+                seg.line.color.rgb = RGBColor(225, 232, 246)
+                seg.line.width = Pt(1.1)
+            except Exception:
+                seg.line.fill.background()
+
+            tf = seg.text_frame
+            tf.clear(); tf.word_wrap = False; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+                tf.margin_left = Pt(0); tf.margin_right = Pt(0)
+                tf.margin_top = Pt(0); tf.margin_bottom = Pt(0)
             except Exception:
                 pass
-            pp = tfp.paragraphs[0]; pp.alignment = PP_ALIGN.CENTER
-            rp = pp.add_run(); rp.text = pill_label
-            rp.font.size = Pt(11); rp.font.bold = True; rp.font.color.rgb = RGBColor(24, 24, 24)
+            p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+            r = p.add_run(); r.text = f"{idx + 1:02d}"
+            r.font.size = Pt(22); r.font.bold = True; r.font.color.rgb = RGBColor(243, 247, 255)
 
-            cxp = x + (pill_w / 2.0)
-            cyp = y + (pill_h / 2.0)
-            rr = math.radians(rot)
-            vx, vy = math.cos(rr), math.sin(rr)
-            d = (pill_w / 2.0) - (pill_h / 2.0) + 0.13
-            if icon_pos == "end":
-                icx, icy = (cxp + vx * d), (cyp + vy * d)
-            else:
-                icx, icy = (cxp - vx * d), (cyp - vy * d)
+        col_top_y = ribbon_y + ribbon_h + 0.21
+        col_h = 3.95
+        for idx in range(1, 4):
+            vx = ribbon_x + idx * seg_w
+            v = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(vx), Inches(col_top_y), Inches(vx), Inches(col_top_y + col_h))
+            v.line.color.rgb = RGBColor(220, 226, 238)
+            v.line.width = Pt(1.1)
 
-            ico_d = 0.66
-            ico = s.shapes.add_shape(MsoShape.OVAL, Inches(icx - ico_d / 2.0), Inches(icy - ico_d / 2.0), Inches(ico_d), Inches(ico_d))
-            ico.fill.solid(); ico.fill.fore_color.rgb = RGBColor(245, 248, 252)
-            ico.line.color.rgb = RGBColor(*col); ico.line.width = Pt(1.5); _flat(ico)
-            itf = ico.text_frame
-            itf.clear(); itf.word_wrap = False; itf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-            try:
-                itf.vertical_anchor = MSO_ANCHOR.MIDDLE
-                itf.margin_left = Pt(0); itf.margin_right = Pt(0)
-                itf.margin_top = Pt(0); itf.margin_bottom = Pt(0)
-            except Exception:
-                pass
-            ip = itf.paragraphs[0]; ip.alignment = PP_ALIGN.CENTER
-            ir = ip.add_run(); ir.text = icon_text
-            ir.font.size = Pt(21); ir.font.bold = True; ir.font.color.rgb = RGBColor(*col)
+        for idx in range(4):
+            cx = ribbon_x + idx * seg_w + 0.34
+            cw = seg_w - 0.52
 
-        text_specs = [
-            (0.70, 1.66, 3.55, 1.28),
-            (9.30, 2.08, 3.35, 1.28),
-            (0.70, 5.38, 3.55, 1.28),
-            (9.30, 5.38, 3.35, 1.28),
-        ]
-        for idx, (x, y, w, h) in enumerate(text_specs):
-            heading = item_heads[idx]
-            body = item_bodies[idx]
+            heading_fit, heading_fs = _fit_text_no_midword(
+                item_heads[idx],
+                box_w_in=cw,
+                box_h_in=0.98,
+                base_font_pt=17,
+                min_font_pt=13,
+                max_lines=2,
+                width_factor=0.98,
+                height_factor=0.95,
+            )
+            body_fit, body_fs = _fit_text_no_midword(
+                item_bodies[idx],
+                box_w_in=cw,
+                box_h_in=2.50,
+                base_font_pt=13,
+                min_font_pt=11,
+                max_lines=5,
+                width_factor=0.98,
+                height_factor=0.95,
+            )
 
             _add_textbox(
                 s,
-                x,
-                y,
-                w,
-                0.42,
-                _shorten(heading, 34),
-                font_size_pt=19,
+                cx,
+                col_top_y + 0.54,
+                cw,
+                0.98,
+                heading_fit,
+                font_size_pt=heading_fs,
                 bold=True,
-                color=text_rgb,
+                color=head_rgb,
                 align="center",
-                word_wrap=False,
+                word_wrap=True,
                 auto_fit=True,
             )
             _add_textbox(
                 s,
-                x,
-                y + 0.42,
-                w,
-                h - 0.42,
-                body,
-                font_size_pt=12,
+                cx,
+                col_top_y + 1.47,
+                cw,
+                2.40,
+                body_fit,
+                font_size_pt=body_fs,
                 bold=False,
-                color=_shade(text_rgb, 10),
+                color=body_rgb,
                 align="center",
                 word_wrap=True,
                 auto_fit=True,
@@ -9376,7 +9390,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         topic_hint = re.sub(r"\s+", " ", topic_hint).strip(" ,.;:-") or topic_source
 
         def _clean_label(raw: str, idx: int) -> str:
-            h, _t = _split_head_tail(str(raw or ""))
+            h, _t = _extract_head_tail_any(raw)
             txt = (h or str(raw or "")).strip()
             txt = re.sub(r"\([^)]*\)", "", txt)
             txt = re.sub(r"\s+", " ", txt).strip(" ,.;:-")
@@ -9551,7 +9565,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         item_heads: List[str] = []
         item_bodies: List[str] = []
         for idx in range(6):
-            head, tail = _split_head_tail(str(items[idx] or ""))
+            head, tail = _extract_head_tail_any(items[idx])
             heading = (head or str(items[idx] or "")).strip() or f"Idea {idx + 1}"
             heading = _shorten(heading, 24)
 
@@ -9862,7 +9876,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         top_title = _shorten(raw_topic, 44) if raw_topic else "Brainstorming Infographic"
         topic_label = _shorten(raw_topic or "this topic", 34)
 
-        center_head, center_tail = _split_head_tail(str(items[0] or ""))
+        center_head, center_tail = _extract_head_tail_any(items[0])
         center_heading = (center_head or str(items[0] or "")).strip() or "Write a main point here"
         center_heading = _shorten(center_heading, 34)
         center_body = (center_tail or "").strip()
@@ -9903,7 +9917,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         if len(outer_items) < 5:
             outer_items = (outer_items + [items[-1]] * (5 - len(outer_items)))[:5]
         for idx, raw_outer in enumerate(outer_items, start=1):
-            head, tail = _split_head_tail(str(raw_outer or ""))
+            head, tail = _extract_head_tail_any(raw_outer)
             heading = (head or str(raw_outer or "")).strip()
             if not heading:
                 heading = f"Point {idx}"
@@ -10123,7 +10137,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             node.line.color.rgb = RGBColor(*col)
             node.line.width = Pt(node_line_pt)
 
-            head, _ = _split_head_tail(str(raw or ""))
+            head, tail = _extract_head_tail_any(raw)
             lab = (head or str(raw or "")).strip()
             tf = node.text_frame
             tf.clear()
@@ -10338,7 +10352,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             ny = max(band_y + edge_pad, min(band_y + band_h - node_h - edge_pad, ny))
             node_rects.append((nx, ny, node_w, node_h))
 
-            head, tail = _split_head_tail(str(raw or ""))
+            head, tail = _extract_head_tail_any(raw)
             head_txt = (head or str(raw or "")).strip()
             body_txt = (tail or "").strip()
             # Keep a premium, airy look: prioritise the headline, de-emphasise long tails.
@@ -10876,7 +10890,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             except Exception:
                 pass
 
-            head, tail = _split_head_tail(str(raw))
+            head, tail = _extract_head_tail_any(raw)
             head_txt = (head or str(raw)).strip()
             tail_txt = (tail or "").strip()
 
@@ -11785,7 +11799,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             nb.clear(); pnum = nb.paragraphs[0]; pnum.alignment = PP_ALIGN.LEFT
             rnum = pnum.add_run(); rnum.text = f"{i}."; rnum.font.size = Pt(44); rnum.font.bold = True; rnum.font.color.rgb = RGBColor(*num_rgb)
 
-            head, tail = _split_head_tail(str(raw))
+            head, tail = _extract_head_tail_any(raw)
             tb = slide.shapes.add_textbox(Inches(2.3), Inches(start_y), Inches(9.7), Inches(row_h - 0.20)).text_frame
             tb.word_wrap = True
             p1 = tb.paragraphs[0]; p1.clear()
@@ -11846,7 +11860,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             itf = ico.text_frame; itf.clear(); ip = itf.paragraphs[0]; ip.alignment = PP_ALIGN.CENTER
             ir = ip.add_run(); ir.text = str(row_idx); ir.font.size = Pt(20); ir.font.bold = True; ir.font.color.rgb = RGBColor(*glyph_rgb)
 
-            head, tail = _split_head_tail(str(raw))
+            head, tail = _extract_head_tail_any(raw)
             tb = slide.shapes.add_textbox(Inches(pill_x + 0.65), Inches(y + 0.14), Inches(pill_w - 0.90), Inches(h - 0.28)).text_frame
             tb.word_wrap = True
             tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -11912,7 +11926,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             icon.line.color.rgb = RGBColor(*_shade(col_rgb, -30))
             icon.line.width = Pt(1.5)
 
-            head, tail = _split_head_tail(str(raw))
+            head, tail = _extract_head_tail_any(raw)
             tb = slide.shapes.add_textbox(Inches(tx), Inches(y + 0.12), Inches(tw), Inches(h - 0.24)).text_frame
             tb.word_wrap = True
             tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -11947,7 +11961,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             itf = ico.text_frame; itf.clear(); ip = itf.paragraphs[0]; ip.alignment = PP_ALIGN.CENTER
             ir = ip.add_run(); ir.text = "🔑"; ir.font.size = Pt(12)
 
-            head, tail = _split_head_tail(str(raw))
+            head, tail = _extract_head_tail_any(raw)
             tb = slide.shapes.add_textbox(Inches(1.60), Inches(y), Inches(10.3), Inches(h)).text_frame
             tb.word_wrap = True
             tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -11997,7 +12011,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             pt = tft.paragraphs[0]; pt.alignment = PP_ALIGN.CENTER
             rt = pt.add_run(); rt.text = f"{i:02d}"; rt.font.size = Pt(18); rt.font.bold = True; rt.font.color.rgb = RGBColor(*_contrast_text(col_rgb))
 
-            head, tail = _split_head_tail(str(raw))
+            head, tail = _extract_head_tail_any(raw)
             tb = slide.shapes.add_textbox(Inches(x + 1.55), Inches(y + 0.40), Inches(card_w - 1.85), Inches(card_h - 0.80)).text_frame
             tb.word_wrap = True
             tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -12024,7 +12038,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
 
         for i, raw in enumerate(rows, start=1):
             col_rgb = step_cols[(i - 1) % len(step_cols)]
-            head, tail = _split_head_tail(str(raw))
+            head, tail = _extract_head_tail_any(raw)
             label = (head or f"Focus Area {i}").strip() or f"Focus Area {i}"
             desc = (tail or (head or str(raw))).strip() or str(raw)
 
@@ -13129,11 +13143,53 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         pass
 
     def _card_item_to_text(x: Any) -> str:
+        def _is_bad_fragment(txt: str) -> bool:
+            t = str(txt or "").strip().lower()
+            if not t:
+                return False
+            if t.startswith("{") or t.startswith("["):
+                return True
+            for k in ("title", "heading", "header", "description", "body", "desc", "details"):
+                if f"'{k}'" in t or f'"{k}"' in t:
+                    return True
+            return False
+
+        def _extract_from_blob(blob: str) -> Tuple[str, str]:
+            s = str(blob or "").strip()
+            if not s:
+                return "", ""
+            s = (
+                s.replace("“", '"')
+                .replace("”", '"')
+                .replace("’", "'")
+                .replace("‘", "'")
+            )
+
+            m_h = re.search(r"(?:'header'|\"header\"|'heading'|\"heading\"|'title'|\"title\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", s)
+            if not m_h:
+                m_h = re.search(r"(?:'header'|\"header\"|'heading'|\"heading\"|'title'|\"title\")[\s,]+(?:'([^']+)'|\"([^\"]+)\")", s)
+
+            m_b = re.search(r"(?:'body'|\"body\"|'description'|\"description\"|'desc'|\"desc\"|'details'|\"details\")\s*:\s*(?:'([^']+)'|\"([^\"]+)\")", s)
+            if not m_b:
+                m_b = re.search(r"(?:'body'|\"body\"|'description'|\"description\"|'desc'|\"desc\"|'details'|\"details\")[\s,]+(?:'([^']+)'|\"([^\"]+)\")", s)
+
+            h = str((m_h.group(1) or m_h.group(2)) if m_h else "").strip()
+            b = str((m_b.group(1) or m_b.group(2)) if m_b else "").strip()
+            return h, b
+
         if isinstance(x, dict):
-            h = x.get("heading") or x.get("title") or x.get("label") or x.get("name") or x.get("step")
+            h = x.get("heading") or x.get("header") or x.get("title") or x.get("label") or x.get("name") or x.get("step")
             d = x.get("description") or x.get("desc") or x.get("details") or x.get("detail") or x.get("body") or x.get("text")
             hs = str(h or "").strip()
             ds = str(d or "").strip()
+
+            if (not hs) or _is_bad_fragment(hs) or _is_bad_fragment(ds):
+                h2, d2 = _extract_from_blob(str(x))
+                if h2:
+                    hs = h2
+                if d2 and ((not ds) or _is_bad_fragment(ds)):
+                    ds = d2
+
             if hs and ds:
                 return f"{hs} — {ds}"
             if hs:
@@ -13143,7 +13199,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             return ""
         if isinstance(x, str):
             s = x.strip()
-            if s.startswith("{") and s.endswith("}") and ("title" in s or "heading" in s or "description" in s):
+            if s.startswith("{") and ("title" in s or "heading" in s or "header" in s or "description" in s or "body" in s):
                 parsed: Any = None
                 try:
                     parsed = json.loads(s)
@@ -13155,6 +13211,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                         parsed = None
                 if isinstance(parsed, dict):
                     return _card_item_to_text(parsed)
+                hs, ds = _extract_from_blob(s)
+                if hs and ds:
+                    return f"{hs} — {ds}"
+                if hs:
+                    return hs
+                if ds:
+                    return ds
             return s
         return str(x or "").strip()
 
@@ -13522,7 +13585,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     pass
 
                 # Text: white on blue rows, dark on light rows; no auto-darkening on blue
-                head, tail = _split_head_tail(str(raw))
+                head, tail = _extract_head_tail_any(raw)
                 tb = slide.shapes.add_textbox(Inches(pill_x + 0.65), Inches(y + 0.14), Inches(pill_w - 0.90), Inches(h - 0.28)).text_frame
                 tb.word_wrap = True
                 tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -13622,7 +13685,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 pass
 
             # Text: bold head + lighter tail for visibility
-            head, tail = _split_head_tail(str(raw))
+            head, tail = _extract_head_tail_any(raw)
             tb = slide.shapes.add_textbox(Inches(pill_x + 0.65), Inches(y + 0.14), Inches(pill_w - 0.90), Inches(h - 0.28)).text_frame
             tb.word_wrap = True
             tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -13714,7 +13777,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             rnum = pnum.add_run(); rnum.text = f"{i}."; rnum.font.size = Pt(44); rnum.font.bold = True; rnum.font.color.rgb = RGBColor(*num_col)
 
             # Head (bold) + tail (lighter) stacked to the right
-            head, tail = _split_head_tail(str(raw))
+            head, tail = _extract_head_tail_any(raw)
             # Keep right edge consistent at ~12.0in: x=2.3, w=9.7
             tb = slide.shapes.add_textbox(Inches(2.3), Inches(start_y), Inches(9.7), Inches(row_h - 0.20)).text_frame
             tb.word_wrap = True
@@ -13783,7 +13846,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             tri.fill.solid(); tri.fill.fore_color.rgb = RGBColor(*bg_rgb)
             tri.line.fill.background()
             # Text
-            head, tail = _split_head_tail(str(raw))
+            head, tail = _extract_head_tail_any(raw)
             tb = slide.shapes.add_textbox(Inches(x + 0.55), Inches(y + 0.20), Inches(card_w - 1.10), Inches(card_h - 0.40)).text_frame
             tb.word_wrap = True; tb.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
             p = tb.paragraphs[0]; p.clear()
@@ -13833,7 +13896,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             chev.fill.solid(); chev.fill.fore_color.rgb = RGBColor(*bg_rgb)
             chev.line.fill.background()
             # Head text on chevron
-            head, tail = _split_head_tail(str(raw))
+            head, tail = _extract_head_tail_any(raw)
             tb1 = slide.shapes.add_textbox(Inches(band_x + 0.40), Inches(y + 0.14), Inches(CHEV_W - 0.80), Inches(band_h - 0.28)).text_frame
             tb1.word_wrap = True; tb1.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
             p1 = tb1.paragraphs[0]; p1.clear(); r1 = p1.add_run(); r1.text = head or str(raw); r1.font.size = Pt(20); r1.font.bold = True; r1.font.color.rgb = RGBColor(*txt_pref)
