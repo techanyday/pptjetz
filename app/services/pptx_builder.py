@@ -11619,6 +11619,8 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             if len(w) > 3 and w.lower() not in {"with", "from", "that", "this", "into", "across", "about", "insights", "snapshot"}
         ]
 
+        topic_phrase = " ".join(topic_tokens[:3]).strip() or "this topic"
+
         def _derive_heading_body(raw: str, idx: int) -> Tuple[str, str]:
             txt = re.sub(r"\s+", " ", str(raw or "")).strip()
             if not txt:
@@ -11633,7 +11635,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             else:
                 head, tail = _split_head_tail(txt)
                 head = re.sub(r"\s+", " ", str(head or "")).strip(" .,:;|-")
-                body = re.sub(r"\s+", " ", str(tail or txt)).strip()
+                body = re.sub(r"\s+", " ", str(tail or "")).strip()
 
             generic_heads = {
                 "", "context", "insight", "key insight", "evidence", "finding", "analysis", "result",
@@ -11647,7 +11649,23 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             if head and head.lower() == head:
                 head = head.title()
 
-            return _shorten(head, 28), _shorten(body, 220)
+            # If no explainer was provided, do not repeat the label; synthesize a short, useful line.
+            if not body or body.strip().lower() == head.strip().lower():
+                hl = head.lower()
+                if "tracking" in hl or "telemetry" in hl or "signals" in hl:
+                    body = "Captures signals to inform decisions and improve targeting."
+                elif "content" in hl or "delivery" in hl or "personalized" in hl:
+                    body = "Delivers tailored experiences across channels with consistent messaging."
+                elif "predict" in hl or "analytics" in hl or "forecast" in hl:
+                    body = "Anticipates intent and trends to optimize timing and relevance."
+                elif "recommend" in hl or "suggest" in hl:
+                    body = "Surfaces the next-best action to increase engagement and conversion."
+                elif "real-time" in hl or "realtime" in hl:
+                    body = "Updates responses instantly based on live behavior and context."
+                else:
+                    body = f"Explains what it enables and why it matters for {topic_phrase.lower()}."
+
+            return _shorten(head, 36), _shorten(body, 220)
 
         cards: List[Tuple[str, str]] = []
         for idx, raw in enumerate([str(x) for x in (bullets or []) if str(x).strip()]):
