@@ -72,7 +72,7 @@ from flask_login import login_user, logout_user, current_user, login_required
 
 
 
-from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI, derive_topic_comparison_table, ENABLE_EXPORT_COMPARISON_AI, derive_one_idea_intro, ENABLE_EXPORT_ONE_IDEA_AI
+from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI, derive_topic_comparison_table, ENABLE_EXPORT_COMPARISON_AI, derive_one_idea_intro, ENABLE_EXPORT_ONE_IDEA_AI, normalize_one_idea_explainer, normalize_one_idea_headline, compose_one_idea_intro_insight
 
 # Preview PNG generation is removed; only PPTX export remains
 
@@ -4647,7 +4647,7 @@ def _export_presentation_impl() -> Any:
 
             headline_src = (deck_title or "").strip() or (agenda_topics[0] if agenda_topics else "Overview")
 
-            headline = str(headline_src).strip()
+            headline = normalize_one_idea_headline(str(headline_src).strip(), deck_title=deck_title, agenda_topics=agenda_topics)
 
             # Soft character cap to keep it readable on one or two lines
 
@@ -4707,7 +4707,7 @@ def _export_presentation_impl() -> Any:
 
                     if ai_headline:
 
-                        headline = ai_headline
+                        headline = normalize_one_idea_headline(ai_headline, deck_title=deck_title, agenda_topics=agenda_topics)
 
                     if ai_expl:
 
@@ -4729,37 +4729,21 @@ def _export_presentation_impl() -> Any:
 
                     if "startup" in area.lower():
 
-                        expl = f"{tech} is changing how startups build, launch, and grow products, from first ideas through scale-up."
+                        expl = f"{tech} is reshaping how startups build, launch, and grow, creating new leverage but also demanding sharper choices about where it adds real value first."
 
                     else:
 
-                        expl = f"{tech} is changing how {area.lower()} works and opening new ways to create value."
+                        expl = f"{tech} is changing how {area.lower()} works, creating new ways to solve problems, improve decisions, and unlock value. The real advantage will depend on where adoption is practical and differentiating."
 
                 elif agenda_topics:
 
-                    # Use the first agenda item as a simple anchor
-
-                    simple_topic = agenda_topics[0].strip()
-
-                    expl = f"{simple_topic} focuses on what the idea is, why it matters, and how it changes everyday work."
+                    expl = compose_one_idea_intro_insight(base_title or headline, agenda_topics=agenda_topics)
 
                 else:
 
-                    # Generic fallback when we only know the deck title
+                    expl = compose_one_idea_intro_insight(base_title or headline)
 
-                    subj = base_title or "this topic"
-
-                    expl = f"{subj} is about the core idea, why it matters, and the difference it can make in practice."
-
-
-
-            # Keep explainer reasonably tight
-
-            if len(expl) > 230:
-
-                e_trim = expl[:230]
-
-                expl = (e_trim.rsplit(" ", 1)[0] or e_trim).rstrip(",.;:- ") + "…"
+            expl = normalize_one_idea_explainer(headline, expl, fallback_subject=src, agenda_topics=agenda_topics)
 
 
 

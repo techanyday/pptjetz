@@ -8,6 +8,7 @@ from app import db
 from app.models import LLMCall, Pricing
 import os
 import logging
+import re
 import uuid
 import requests
 
@@ -34,6 +35,149 @@ MAX_SLIDES = 15
 
 
 logger = logging.getLogger(__name__)
+
+
+def _clean_one_idea_topic_label(topic: str) -> str:
+    txt = re.sub(r"\s+", " ", str(topic or "")).strip(" ,.;:-")
+    if not txt:
+        return ""
+    txt = re.sub(
+        r"^(understanding|exploring|examining|introduction to|intro to|overview of|basics of|fundamentals of|key)\s+",
+        "",
+        txt,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\s+", " ", txt).strip(" ,.;:-")
+
+
+def _join_readable(parts: List[str]) -> str:
+    items = [re.sub(r"\s+", " ", str(p or "")).strip() for p in parts if str(p or "").strip()]
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
+
+
+def _limit_one_idea_text(txt: str, *, fallback_subject: str = "This topic") -> str:
+    clean = re.sub(r"\s+", " ", str(txt or "")).strip()
+    if not clean:
+        return ""
+    if len(clean) <= 230:
+        return clean
+
+    parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+", clean) if p.strip()]
+    kept: List[str] = []
+    for part in parts:
+        candidate = " ".join(kept + [part]).strip()
+        if len(candidate) <= 230:
+            kept.append(part)
+        else:
+            break
+    if kept:
+        return " ".join(kept).strip()
+
+    subject = re.sub(r"\s+", " ", str(fallback_subject or "This topic")).strip() or "This topic"
+    fallback = f"{subject} matters because it helps teams focus on high-value opportunities and make better decisions earlier."
+    if len(fallback) <= 230:
+        return fallback
+    trimmed = fallback[:230]
+    return (trimmed.rsplit(" ", 1)[0] or trimmed).rstrip(",.;:- ")
+
+
+def _summarize_one_idea_topics(agenda_topics: List[str] | None = None) -> str:
+    seen: set[str] = set()
+    cleaned: List[str] = []
+    for raw in agenda_topics or []:
+        label = _clean_one_idea_topic_label(raw)
+        if not label:
+            continue
+        key = label.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(label)
+        if len(cleaned) >= 3:
+            break
+    return _join_readable(cleaned)
+
+
+def normalize_one_idea_headline(headline: str, *, deck_title: str = "", agenda_topics: List[str] | None = None) -> str:
+    head = re.sub(r"\s+", " ", str(headline or "")).strip()
+    deck = re.sub(r"\s+", " ", str(deck_title or "")).strip()
+    first_topic = ""
+    for raw in agenda_topics or []:
+        candidate = re.sub(r"\s+", " ", str(raw or "")).strip()
+        if candidate:
+            first_topic = candidate
+            break
+    if not head:
+        head = deck or first_topic or "Overview"
+    low = head.lower()
+    if deck:
+        first_low = first_topic.lower() if first_topic else ""
+        narrow_pattern = re.fullmatch(r"(understanding|exploring|examining|introduction to|intro to)\s+.+", low)
+        if (first_low and low == first_low and deck.lower() != first_low) or (narrow_pattern and "basic" in low):
+            head = deck
+    if len(head) > 140:
+        h_trim = head[:140]
+        head = (h_trim.rsplit(" ", 1)[0] or h_trim).rstrip(",.;:- ")
+    return head
+
+
+def compose_one_idea_intro_insight(subject: str, *, agenda_topics: List[str] | None = None) -> str:
+    anchor = re.sub(r"\s+", " ", str(subject or "")).strip() or "This topic"
+    topic_summary = _summarize_one_idea_topics(agenda_topics)
+    if topic_summary and len(anchor) <= 44 and len(topic_summary) <= 72:
+        txt = (
+            f"{anchor} matters because it can change how teams prioritize, decide, and execute. "
+            f"It connects {topic_summary} to show where the biggest opportunity is and what constraints still shape adoption."
+        )
+    else:
+        txt = (
+            f"{anchor} matters because it helps teams focus on the highest-value opportunities and make better decisions earlier. "
+            "The real advantage comes from knowing where it can deliver results first and what constraints will shape adoption."
+        )
+    return _limit_one_idea_text(txt, fallback_subject=anchor)
+
+
+def normalize_one_idea_explainer(headline: str, explainer: str, *, fallback_subject: str = "", agenda_topics: List[str] | None = None) -> str:
+    txt = re.sub(r"\s+", " ", str(explainer or "")).strip()
+    subject = re.sub(r"\s+", " ", str(fallback_subject or headline or "")).strip()
+    if not txt:
+        return ""
+
+    low = txt.lower()
+    match = re.search(r"what\s+(.+?)\s+is,\s*why\s+it\s+matters", txt, flags=re.IGNORECASE)
+    if match:
+        subject = re.sub(r"\s+", " ", match.group(1)).strip() or subject
+
+    descriptive = (
+        low.startswith("an accessible summary of")
+        or low.startswith("a summary of")
+        or low.startswith("an overview of")
+        or low.startswith("overview of")
+        or low.startswith("this topic is about")
+        or low.startswith("this topic focuses on")
+        or low.startswith("this slide")
+        or low.startswith("this presentation")
+        or "what the idea is, why it matters" in low
+        or "what " in low and " why it matters" in low
+    )
+    thin = (
+        descriptive
+        or "improve how people work, make decisions, and create practical value" in low
+        or "reshape decisions, execution, and measurable business results" in low
+        or "change how teams work, decide, or deliver value in practice" in low
+        or len(re.findall(r"[A-Za-z0-9]+", txt)) < 14
+    )
+
+    if thin:
+        txt = compose_one_idea_intro_insight(subject or "This topic", agenda_topics=agenda_topics)
+
+    return _limit_one_idea_text(txt, fallback_subject=subject or headline or "This topic")
 
 
 def _attach_deck_id(slides: List[Dict[str, Any]], *, deck_id: str | None) -> List[Dict[str, Any]]:
@@ -2364,9 +2508,12 @@ def derive_one_idea_intro(
         "context": (input_text or "").strip(),
         "rules": [
             "Return ONLY a JSON object with keys 'headline' and 'explainer'.",
-            "Headline: a single clear statement of the core idea; at most 16 words.",
-            "Explainer: 1–2 sentences in simple language, at most 45 words total.",
+            "Headline: a presentation-level statement of the core idea; avoid using a single agenda item as the headline; at most 16 words.",
+            "Explainer: usually 2 compact sentences in simple language, about 35-60 words total.",
             "Do not mention the slide, deck, presentation, or bullets.",
+            "State the core idea as an insight or thesis, not as an overview or summary of the topic.",
+            "Make it feel like the opening insight for the full presentation: explain why the topic matters and what core opportunities, constraints, or themes the rest will unpack.",
+            "Do not use phrases like 'this slide explains', 'an overview of', or 'what X is, why it matters'.",
             "Describe the topic itself and its impact, not what the slide will cover.",
             "No lists, numbering, or emojis.",
         ],
@@ -2393,8 +2540,6 @@ def derive_one_idea_intro(
             user_id=user_id,
         )
         import json
-        import re
-
         raw = (resp.choices[0].message.content or "").strip()
         obj = json.loads(raw)
         if not isinstance(obj, dict):
@@ -2403,13 +2548,12 @@ def derive_one_idea_intro(
         explainer = str(obj.get("explainer") or "").strip()
         if not headline and not explainer:
             return None
+        headline = normalize_one_idea_headline(headline, deck_title=deck_title, agenda_topics=agenda_topics)
         if explainer:
             parts = re.split(r"(?<=[.!?])\s+", explainer.strip())
             parts = [p for p in parts if p]
             explainer = " ".join(parts[:2]).strip()
-            if len(explainer) > 260:
-                e_trim = explainer[:260]
-                explainer = (e_trim.rsplit(" ", 1)[0] or e_trim).rstrip(",.;:- ") + "…"
+            explainer = normalize_one_idea_explainer(headline, explainer, fallback_subject=deck_title, agenda_topics=agenda_topics)
         if headline and len(headline) > 140:
             h_trim = headline[:140]
             headline = (h_trim.rsplit(" ", 1)[0] or h_trim).rstrip(",.;:- ")

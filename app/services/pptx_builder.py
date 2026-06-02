@@ -13,6 +13,7 @@ import hashlib
 from pptx import Presentation  # type: ignore
 from pptx.util import Inches, Pt
 from .content_synthesis import synthesize_key_concepts, is_placeholder, BANNED
+from .ai_content import normalize_one_idea_explainer, normalize_one_idea_headline, compose_one_idea_intro_insight
 from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE, MSO_ANCHOR  # type: ignore
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE as MsoShape, MSO_CONNECTOR_TYPE  # type: ignore
 from pptx.enum.dml import MSO_LINE_DASH_STYLE  # type: ignore
@@ -4384,11 +4385,22 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         """
         s = prs.slides.add_slide(blank); apply_bg(s)
         c = _content(sl)
-        headline = (c.get("headline") or sl.get("title") or "Overview").strip()
+        agenda_topics = []
+        try:
+            for raw_sl in slides_norm or []:
+                if str((raw_sl or {}).get("type") or "").strip().lower() == "agenda":
+                    raw_bullets = ((raw_sl or {}).get("content") or {}).get("bullets")
+                    if isinstance(raw_bullets, list):
+                        agenda_topics = [str(x or "").strip() for x in raw_bullets if str(x or "").strip()]
+                    break
+        except Exception:
+            agenda_topics = []
+        headline = normalize_one_idea_headline((c.get("headline") or sl.get("title") or "Overview").strip(), deck_title=(slides_norm[0].get("title") or ""), agenda_topics=agenda_topics)
         explainer = (c.get("explainer") or c.get("paragraph") or "").strip()
+        topic_txt = (slides_norm[0].get("title") or headline or "this topic").strip()
         if not explainer:
-            topic_txt = (slides_norm[0].get("title") or "this topic").strip()
-            explainer = f"An accessible summary of what {topic_txt} is, why it matters, and the core ideas to know."
+            explainer = compose_one_idea_intro_insight(topic_txt, agenda_topics=agenda_topics)
+        explainer = normalize_one_idea_explainer(headline, explainer, fallback_subject=topic_txt, agenda_topics=agenda_topics)
 
         raw_forced = str(c.get("one_idea_variant") or c.get("variant") or "").strip().lower()
         forced_map = {
@@ -4491,7 +4503,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                 0.88,
                 3.02,
                 8.85,
-                1.72,
+                2.10,
                 explainer,
                 font_size_pt=16,
                 align="left",
