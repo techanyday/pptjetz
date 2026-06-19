@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
 {% block title %}Startup Pitch Deck Generator (Free & Unlimited) | PPTJet{% endblock %}
-{% block description %}Generate a startup pitch deck in minutes. Create a structured, editable PowerPoint you can customize for investors, accelerators, and early customers—free and unlimited with PPTJet.{% endblock %}
+{% block description %}Generate a startup pitch deck in minutes. Create a structured, editable PowerPoint you can customize for investors, accelerators, and early customers—free and unlimited with Google sign-in to start.{% endblock %}
 {% block og_title %}Startup Pitch Deck Generator (Free & Unlimited){% endblock %}
-{% block og_description %}Generate a startup pitch deck in minutes. Create a structured, editable PowerPoint you can customize for investors, accelerators, and early customers—free and unlimited with PPTJet.{% endblock %}
+{% block og_description %}Generate a startup pitch deck in minutes. Create a structured, editable PowerPoint you can customize for investors, accelerators, and early customers—free and unlimited with Google sign-in to start.{% endblock %}
 {% block tw_title %}Startup Pitch Deck Generator (Free & Unlimited){% endblock %}
-{% block tw_description %}Generate a startup pitch deck in minutes. Create a structured, editable PowerPoint you can customize for investors, accelerators, and early customers—free and unlimited with PPTJet.{% endblock %}
+{% block tw_description %}Generate a startup pitch deck in minutes. Create a structured, editable PowerPoint you can customize for investors, accelerators, and early customers—free and unlimited with Google sign-in to start.{% endblock %}
 
 {% block head_extra %}
 <script type="application/ld+json">
@@ -21,7 +21,7 @@
     "price": "0",
     "priceCurrency": "USD"
   },
-  "description": "PPTJet is a startup pitch deck generator that creates an investor-ready slide structure as an editable PowerPoint (.pptx). Free and unlimited."
+  "description": "PPTJet is a startup pitch deck generator that creates an investor-ready slide structure as an editable PowerPoint (.pptx). Free and unlimited, with Google sign-in to start."
 }
 </script>
 <script type="application/ld+json">
@@ -42,7 +42,7 @@
       "name": "Is this startup pitch deck generator free?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. PPTJet is free and supports unlimited pitch deck generation and exports with no credit card required."
+        "text": "Yes. PPTJet is free and supports unlimited pitch deck generation and exports. Sign in with Google to start creating decks."
       }
     },
     {
@@ -82,6 +82,7 @@
           Investor pitch deck generator
         </a>
       </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited pitch deck generation. Google sign-in required.</p>
     </header>
 
     <section class="mt-10" aria-labelledby="what-it-includes">
@@ -149,7 +150,7 @@
       <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 class="text-lg font-bold text-gray-900">Ready to draft your startup pitch deck?</h2>
-          <p class="mt-1 text-gray-700">Free & unlimited. Generate a structure, export to PowerPoint, and make it yours.</p>
+          <p class="mt-1 text-gray-700">Free & unlimited. Sign in with Google, generate a structure, export to PowerPoint, and make it yours.</p>
         </div>
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
           Start Creating for Free

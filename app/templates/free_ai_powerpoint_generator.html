@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
 {% block title %}Free AI PowerPoint Generator (Unlimited .PPTX) | PPTJet{% endblock %}
-{% block description %}Generate a PowerPoint in minutes with PPTJet’s free AI PowerPoint generator. Create a structured deck, export an editable .pptx, and refine in Microsoft PowerPoint. Unlimited and no credit card.{% endblock %}
+{% block description %}Generate a PowerPoint in minutes with PPTJet’s free AI PowerPoint generator. Create a structured deck, export an editable .pptx, and sign in with Google to start.{% endblock %}
 {% block og_title %}Free AI PowerPoint Generator (Unlimited .PPTX) | PPTJet{% endblock %}
-{% block og_description %}Generate a PowerPoint in minutes with PPTJet’s free AI PowerPoint generator. Create a structured deck, export an editable .pptx, and refine in Microsoft PowerPoint. Unlimited and no credit card.{% endblock %}
+{% block og_description %}Generate a PowerPoint in minutes with PPTJet’s free AI PowerPoint generator. Create a structured deck, export an editable .pptx, and sign in with Google to start.{% endblock %}
 {% block tw_title %}Free AI PowerPoint Generator (Unlimited .PPTX) | PPTJet{% endblock %}
-{% block tw_description %}Generate a PowerPoint in minutes with PPTJet’s free AI PowerPoint generator. Create a structured deck, export an editable .pptx, and refine in Microsoft PowerPoint. Unlimited and no credit card.{% endblock %}
+{% block tw_description %}Generate a PowerPoint in minutes with PPTJet’s free AI PowerPoint generator. Create a structured deck, export an editable .pptx, and sign in with Google to start.{% endblock %}
 
 {% block head_extra %}
 <script type="application/ld+json">
@@ -34,7 +34,7 @@
       "name": "Is PPTJet a free AI PowerPoint generator?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. PPTJet is free and supports unlimited PowerPoint generation and exports. No credit card required."
+        "text": "Yes. PPTJet is free and supports unlimited PowerPoint generation and exports. Sign in with Google to start creating decks."
       }
     },
     {
@@ -72,7 +72,7 @@
     <header>
       <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">Free AI PowerPoint Generator</h1>
       <p class="mt-4 text-lg text-gray-700">
-        Generate a clean, editable PowerPoint deck in minutes. PPTJet is <strong>free</strong>, supports <strong>unlimited</strong> generation, and exports a real <strong>.pptx</strong> you can refine in Microsoft PowerPoint.
+        Generate a clean, editable PowerPoint deck in minutes. PPTJet is <strong>free</strong>, supports <strong>unlimited</strong> generation, exports a real <strong>.pptx</strong>, and uses Google sign-in to start.
       </p>
       <p class="mt-4 text-gray-700">
         If your usual workflow is “open PowerPoint, stare at a blank slide, then fight with slide order,” an AI PowerPoint generator can remove the hardest part: structure. PPTJet turns a topic, outline, or rough notes into a coherent slide sequence with headings, key bullets, and visual layouts (timelines, roadmaps, comparison slides, and more). You start with a first draft that already reads like a deck.
@@ -85,6 +85,7 @@
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Generate a free PowerPoint</a>
         <a href="{{ url_for('main.export_to_pptx_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">Export to .pptx</a>
       </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited generation and exports. Google sign-in required.</p>
     </header>
 
     <section class="mt-10" aria-labelledby="how-it-works">
@@ -176,7 +177,7 @@
       <dl class="mt-5 space-y-6">
         <div>
           <dt class="text-lg font-semibold text-gray-900">Is this PowerPoint generator really free?</dt>
-          <dd class="mt-2 text-gray-700">Yes. PPTJet is free and supports unlimited presentation generation and exports with no credit card required.</dd>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet is free and supports unlimited presentation generation and exports. Sign in with Google to create and download decks.</dd>
         </div>
         <div>
           <dt class="text-lg font-semibold text-gray-900">Can I edit the PowerPoint after export?</dt>
@@ -207,7 +208,7 @@
       <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 class="text-lg font-bold text-gray-900">Ready to generate your PowerPoint draft?</h2>
-          <p class="mt-1 text-gray-700">Create a structured deck now, then polish it in PowerPoint.</p>
+          <p class="mt-1 text-gray-700">Free. Google sign-in required. Create a structured deck now, then polish it in PowerPoint.</p>
         </div>
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Start Creating for Free</a>
       </div>

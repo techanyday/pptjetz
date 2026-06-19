@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
 {% block title %}Free AI Presentation Generator (No Watermark) | PPTJet{% endblock %}
-{% block description %}Free AI presentation generator and maker with unlimited exports, no watermark, and editable PowerPoint downloads. Create polished decks in seconds.{% endblock %}
+{% block description %}Free AI presentation generator and maker with unlimited exports, no watermark, and editable PowerPoint downloads. Sign in with Google to create polished decks in seconds.{% endblock %}
 {% block og_title %}Free AI Presentation Generator (No Watermark) | PPTJet{% endblock %}
-{% block og_description %}Free AI presentation generator and maker with unlimited exports, no watermark, and editable PowerPoint downloads. Create polished decks in seconds.{% endblock %}
+{% block og_description %}Free AI presentation generator and maker with unlimited exports, no watermark, and editable PowerPoint downloads. Sign in with Google to create polished decks in seconds.{% endblock %}
 {% block tw_title %}Free AI Presentation Generator (No Watermark) | PPTJet{% endblock %}
-{% block tw_description %}Free AI presentation generator and maker with unlimited exports, no watermark, and editable PowerPoint downloads. Create polished decks in seconds.{% endblock %}
+{% block tw_description %}Free AI presentation generator and maker with unlimited exports, no watermark, and editable PowerPoint downloads. Sign in with Google to create polished decks in seconds.{% endblock %}
 
 {% block head_extra %}
 <script type="application/ld+json">
@@ -17,7 +17,7 @@
   "operatingSystem": "Web",
   "url": "https://pptjet.com/free-ai-presentation-generator",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
-  "description": "PPTJet is a free AI presentation generator that creates structured slide decks and exports an editable PowerPoint (.pptx) file. Unlimited exports and no watermark."
+  "description": "PPTJet is a free AI presentation generator that creates structured slide decks, exports an editable PowerPoint (.pptx) file, and supports unlimited exports. Sign in with Google to start."
 }
 </script>
 <script type="application/ld+json">
@@ -25,7 +25,7 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    {"@type": "Question", "name": "Is PPTJet really a free AI presentation maker?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet is free and supports unlimited presentation generation and exports."}},
+    {"@type": "Question", "name": "Is PPTJet really a free AI presentation maker?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet is free and supports unlimited presentation generation and exports. Sign in with Google to start creating decks."}},
     {"@type": "Question", "name": "Do I get an editable PowerPoint file?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet exports a standard .pptx file you can edit in Microsoft PowerPoint."}},
     {"@type": "Question", "name": "Does the export include a watermark?", "acceptedAnswer": {"@type": "Answer", "text": "No. PPTJet exports without a watermark."}}
   ]
@@ -85,7 +85,7 @@
       </p>
       <p class="mt-3 text-gray-700">
         It’s <strong>free</strong>, supports <strong>unlimited exports</strong>, and creates a real PowerPoint file.
-        You can download a .pptx, open it in Microsoft PowerPoint, and edit every element just like a normal deck.
+        Sign in with Google to generate and download a .pptx, then open it in Microsoft PowerPoint and edit every element just like a normal deck.
       </p>
       <p class="mt-3 text-sm text-gray-600">Last updated: April 30, 2026</p>
       <p class="mt-3 text-gray-700">
@@ -109,6 +109,7 @@
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Start Creating for Free</a>
         <a href="{{ url_for('main.ai_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">See structured slide types</a>
       </div>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited exports. Google sign-in required.</p>
     </header>
 
     <section class="mt-10" aria-labelledby="why-free">
@@ -185,7 +186,7 @@
       <dl class="mt-5 space-y-6">
         <div>
           <dt class="text-lg font-semibold text-gray-900">Is this really a free AI presentation generator?</dt>
-          <dd class="mt-2 text-gray-700">Yes. PPTJet is free and supports unlimited generation and exports.</dd>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet is free and supports unlimited generation and exports. Sign in with Google to create and download decks.</dd>
         </div>
         <div>
           <dt class="text-lg font-semibold text-gray-900">Can I edit the file after downloading?</dt>
@@ -217,7 +218,7 @@
       <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 class="text-lg font-bold text-gray-900">Ready to generate your next deck?</h2>
-          <p class="mt-1 text-gray-700">Draft, export, and polish in PowerPoint — free and unlimited.</p>
+          <p class="mt-1 text-gray-700">Draft, export, and polish in PowerPoint — free and unlimited, with Google sign-in required.</p>
         </div>
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Start Creating for Free</a>
       </div>
