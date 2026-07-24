@@ -72,7 +72,7 @@ from flask_login import login_user, logout_user, current_user, login_required
 
 
 
-from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI, derive_topic_comparison_table, ENABLE_EXPORT_COMPARISON_AI, derive_one_idea_intro, ENABLE_EXPORT_ONE_IDEA_AI, normalize_one_idea_explainer, normalize_one_idea_headline, compose_one_idea_intro_insight
+from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI, derive_topic_comparison_table, ENABLE_EXPORT_COMPARISON_AI, derive_one_idea_intro, ENABLE_EXPORT_ONE_IDEA_AI, normalize_one_idea_explainer, normalize_one_idea_headline, compose_one_idea_intro_insight, build_slide_type_plan, enforce_slide_count_postprocess, MIN_SLIDES, MAX_SLIDES
 
 # Preview PNG generation is removed; only PPTX export remains
 
@@ -1683,6 +1683,36 @@ def generate() -> Any:
                 _fail(msg0 or "Generation failed", [str(x) for x in (errs or [])])
                 return
 
+            if len(slides) < MIN_SLIDES:
+                plan, _ = build_slide_type_plan(
+                    topic=title or input_text,
+                    input_text=input_text,
+                    slide_count=MIN_SLIDES,
+                    theme_name=theme_name,
+                )
+                slides = enforce_slide_count_postprocess(
+                    client=None,
+                    system_msg="",
+                    deck_title=title or input_text,
+                    input_text=input_text,
+                    slides=slides,
+                    slide_type_plan=plan,
+                    chosen_n=MIN_SLIDES,
+                    deck_id=deck_id,
+                    user_id=user_id,
+                )
+                body_titles = [
+                    str(sl.get("title") or "").strip()
+                    for sl in slides
+                    if isinstance(sl, dict) and str(sl.get("type") or "").strip().lower() not in {"title", "agenda", "thank_you", "cta"}
+                ]
+                for sl in slides:
+                    if isinstance(sl, dict) and str(sl.get("type") or "").strip().lower() == "agenda":
+                        content = sl.get("content") if isinstance(sl.get("content"), dict) else {}
+                        content["bullets"] = body_titles
+                        sl["content"] = content
+                        break
+
             debug_log_slides("ai_raw", slides)
 
             # Derive a better deck title
@@ -2352,11 +2382,11 @@ def api_previews(deck_id: str) -> Any:
 
     try:
 
-        preview_max = int(os.getenv("PREVIEW_MAX_SLIDES") or "20")
+        preview_max = max(MIN_SLIDES, int(os.getenv("PREVIEW_MAX_SLIDES") or "20"))
 
     except Exception:
 
-        preview_max = 20
+        preview_max = MIN_SLIDES
 
     max_pages = None
 
@@ -3158,15 +3188,47 @@ def _export_presentation_impl() -> Any:
 
     try:
 
-        preview_max_slides = int(os.getenv("PREVIEW_MAX_SLIDES") or "20")
+        preview_max_slides = max(MIN_SLIDES, int(os.getenv("PREVIEW_MAX_SLIDES") or "20"))
 
     except Exception:
 
-        preview_max_slides = 20
+        preview_max_slides = MIN_SLIDES
 
 
+
+    def _ensure_minimum_slides(sl_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        arr = [s for s in (sl_list or []) if isinstance(s, dict)]
+        target = max(MIN_SLIDES, min(MAX_SLIDES, len(arr)))
+        if len(arr) >= target:
+            return arr
+        thanks = []
+        body = list(arr)
+        if body and str(body[-1].get("type") or "").strip().lower() in {"thank_you", "cta"}:
+            thanks = body[-1:]
+            body = body[:-1]
+        plan, _ = build_slide_type_plan(
+            topic=deck_title,
+            input_text=input_text or deck_title,
+            slide_count=target,
+            theme_name=theme_name,
+        )
+        filled = enforce_slide_count_postprocess(
+            client=None,
+            system_msg="",
+            deck_title=deck_title,
+            input_text=input_text or deck_title,
+            slides=body,
+            slide_type_plan=plan,
+            chosen_n=target,
+            deck_id=deck_id,
+        )
+        if not thanks:
+            thanks = [{"type": "thank_you", "title": "Thank You", "content": {}}]
+        return (filled[: max(0, target - 1)] + thanks[-1:])[:target]
 
     def _clamp_for_preview(sl_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+
+        sl_list = _ensure_minimum_slides(sl_list)
 
         if not preview_guardrails:
 
@@ -4589,6 +4651,10 @@ def _export_presentation_impl() -> Any:
 
             "subtitle": (s1.get("subtitle") if isinstance(s1.get("subtitle"), str) else "") or (data.get("subtitle") or ""),
 
+            "presenter": (s1.get("presenter") if isinstance(s1.get("presenter"), str) else "") or (data.get("presenter") or ""),
+
+            "date": (s1.get("date") if isinstance(s1.get("date"), str) else "") or (data.get("date") or ""),
+
             "_render_exact": True,
 
         }
@@ -4901,6 +4967,8 @@ def _export_presentation_impl() -> Any:
 
                 "pricing": 1,
 
+                "image": 2,
+
             }
 
 
@@ -4986,6 +5054,8 @@ def _export_presentation_impl() -> Any:
                 "architecture",
 
                 "pricing",
+
+                "image",
 
             }
 
@@ -5299,6 +5369,8 @@ def _export_presentation_impl() -> Any:
 
                     "pricing": "Pricing/plan comparison with 2-4 plans and features.",
 
+                    "image": "A stock-photo-supported visual slide with a relevant image and concise supporting bullets.",
+
                 },
 
                 "rules": [
@@ -5328,6 +5400,8 @@ def _export_presentation_impl() -> Any:
                     "If you choose architecture, you MUST output content.boxes=[{label, description?}] (4-8) and content.connections=[{from_box,to_box,label?}] referencing existing labels.",
 
                     "If you choose pricing, you MUST output content.plans=[{name, price?, features:[...]}] with 2-4 plans.",
+
+                    "If you choose image, output content.image_query, content.image_layout, and concise supporting bullets.",
 
                     "If you choose infographic, you may optionally set content.infographic_intent or content.intent to one of: IMPACT_MAP_SIMPLE, IMPACT_MAP_COMPLEX, PROCESS_FLOW_CHEVRON, RISK_MATRIX_ADVANCED, LAYERED_BENEFITS_STACK, CYCLIC_OPTIMIZATION_LOOP, GANTT_CHART, BUSINESS_MODEL_CANVAS, INSIGHTS_SNAPSHOT, CASE_STUDY_SNAPSHOT. You may also set content.impact_map_variant to one of: classic, radial, pyramid, two_sided, swimlane.",
 
@@ -5945,7 +6019,7 @@ def _export_presentation_impl() -> Any:
 
 
 
-            if layout in {"timeline", "roadmap", "swot", "kpi", "risk_matrix", "before_after", "architecture", "pricing"}:
+            if layout in {"timeline", "roadmap", "swot", "kpi", "risk_matrix", "before_after", "architecture", "pricing", "image"}:
 
                 c0 = spec.get("ai_content")
 

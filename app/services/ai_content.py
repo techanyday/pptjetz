@@ -30,8 +30,8 @@ ENABLE_LLM_HARMONIZE = os.getenv("ENABLE_LLM_HARMONIZE", "1") == "1"
 ENABLE_LLM_QUALITY_ENHANCER = os.getenv("ENABLE_LLM_QUALITY_ENHANCER", "1") == "1"
 QUALITY_MAX_RETRIES = int(os.getenv("QUALITY_MAX_RETRIES", "2"))
 
-MIN_SLIDES = 13
-MAX_SLIDES = 15
+MIN_SLIDES = 16
+MAX_SLIDES = 18
 
 
 logger = logging.getLogger(__name__)
@@ -598,6 +598,7 @@ def build_slide_type_plan(
         "before_after",
         "architecture",
         "roadmap",
+        "image",
     ]
     if allow_swot:
         optional.append("swot")
@@ -781,10 +782,10 @@ def enforce_slide_count_postprocess(
                     "title": ttl,
                     "content": {
                         "timeline": [
-                            {"label": "Phase 1", "description": "Define scope"},
-                            {"label": "Phase 2", "description": "Prepare rollout"},
-                            {"label": "Phase 3", "description": "Execute"},
-                            {"label": "Phase 4", "description": "Optimize"},
+                            {"label": "Assess current state", "description": "Define scope, needs, and success criteria."},
+                            {"label": "Design the approach", "description": "Prepare the operating model, resources, and rollout plan."},
+                            {"label": "Execute the plan", "description": "Deliver the work with clear ownership and feedback loops."},
+                            {"label": "Measure and improve", "description": "Review outcomes, address gaps, and scale what works."},
                         ]
                     },
                 }
@@ -846,10 +847,38 @@ def enforce_slide_count_postprocess(
             if t == "architecture":
                 return {
                     "type": "architecture",
-                    "title": ttl,
+                    "title": f"How {short_topic} Works",
                     "content": {
-                        "boxes": ["Input", "Processing", "Control", "Output"],
-                        "connections": ["Input -> Processing", "Processing -> Output"],
+                        "boxes": [
+                            {"label": "Signals and data", "description": f"Inputs from users, systems, and the operating environment"},
+                            {"label": "Intelligent processing", "description": f"Models interpret context and determine the next best action"},
+                            {"label": "Guardrails and control", "description": f"Policies, permissions, and human review manage risk"},
+                            {"label": "Business outcome", "description": f"The workflow delivers a measurable result for {short_topic}"},
+                        ],
+                        "connections": ["Signals and data -> Intelligent processing", "Intelligent processing -> Guardrails and control", "Guardrails and control -> Business outcome"],
+                    },
+                }
+            if t == "image":
+                image_titles = [
+                    f"Business Applications of {short_topic}",
+                    f"Implementation Priorities for {short_topic}",
+                    f"Future Opportunities in {short_topic}",
+                    f"Operating Model Changes from {short_topic}",
+                ]
+                image_title = image_titles[(idx - 1) % len(image_titles)]
+                return {
+                    "type": "image",
+                    "title": image_title,
+                    "content": {
+                        "query": short_topic,
+                        "layout": "split",
+                        "alt_text": short_topic,
+                        "bullets": [
+                            f"Where {short_topic} creates measurable business value",
+                            f"Operational changes required to apply {short_topic}",
+                            f"Key risks and adoption constraints for {short_topic}",
+                            f"Measures that show progress in {short_topic}",
+                        ],
                     },
                 }
             if t == "pricing":
@@ -858,8 +887,8 @@ def enforce_slide_count_postprocess(
                     "title": ttl,
                     "content": {
                         "bullets": [
-                            "Option A: baseline scope and support",
-                            "Option B: expanded capability and service levels",
+                            "Current approach: baseline scope and support",
+                            "Expanded approach: broader capability and service levels",
                             "Tradeoffs: cost, speed, and operational complexity",
                             "Selection criteria aligned to team priorities",
                         ]
@@ -1132,6 +1161,7 @@ def build_prompt(
                             "infographic",
                             "key_takeaways",
                             "impact_effort_matrix",
+                            "image",
                             "thank_you",
                         ],
                     },
@@ -1200,6 +1230,14 @@ def build_prompt(
                             "connections": {"type": "array"},
                             "plans": {"type": "array"},
                             "visual_hint": {"type": "string"},
+                            "image_query": {"type": "string"},
+                            "image_layout": {"type": "string"},
+                            "image_url": {"type": "string"},
+                            "source_url": {"type": "string"},
+                            "source_name": {"type": "string"},
+                            "creator": {"type": "string"},
+                            "license": {"type": "string"},
+                            "attribution": {"type": "string"},
                             "columns": {"type": "object"}
                         },
                     },
@@ -1218,7 +1256,9 @@ def build_prompt(
             "Matrix gating: Only use type impact_effort_matrix if input_text explicitly implies a 2x2 quadrant prioritization matrix (impact vs effort). If slide_type_plan contains impact_effort_matrix, you must populate all four quadrants with 3-5 items each. If slide_type_plan does NOT contain impact_effort_matrix, you must NOT output it.",
             "Bullets must be non-duplicative, 4–14 words, informative, and TOPIC-SPECIFIC. Avoid generic boilerplate such as 'leveraging X to improve KPIs'.",
             "Write executive-ready content: specific mechanisms, impacts, and tradeoffs. Avoid vague claims (e.g., 'critical', 'accelerated', 'important') unless you add a short 'because/so-what' clause.",
-            "For slides after the Agenda, prefer rich visual types (cards, comparison/table, infographic, timeline, roadmap, swot, risk_matrix, before_after, architecture) over plain bullets.",
+            "For slides after the Agenda, prefer rich visual types (cards, comparison/table, infographic, timeline, roadmap, swot, risk_matrix, before_after, architecture, image) over plain bullets.",
+            "Image slides must include content.image_query, content.image_layout, concise supporting bullets, and should be used only when a relevant real-world visual improves the narrative.",
+            "Title and one_idea slides may include content.visual with image_query and layout metadata for guaranteed visual treatment.",
             "Use type 'bullets' ONLY for the Agenda slide and as a last-resort fallback when no other slide type fits.",
             "COHERENCE & ORDER: All slides after the agenda MUST map to the agenda bullets in sequence (1 slide per agenda bullet; do not group multiple slides under one bullet).",
             "TITLE PARAPHRASING: Each mapped slide's TITLE must closely paraphrase its agenda bullet (share key terms); do not use generic labels.",
@@ -3025,7 +3065,7 @@ def _ai_rewrite_table_headers(client: Any, slides: List[Dict[str, Any]]) -> List
             return ("Current State", "Proposed Reforms")
         if any(k in text for k in ["covid", "pandemic", "crisis"]):
             return ("Pre-Crisis", "Post-Crisis")
-        return ("Option A", "Option B")  # safe, will be improved by later passes if possible
+        return ("Current approach", "Alternative approach")
     for s in slides:
         if s.get("type") != "table":
             continue
