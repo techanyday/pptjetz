@@ -28,7 +28,7 @@ def _is_placeholder_text(text: str) -> bool:
         return True
     if t in _PLACEHOLDER_PHRASES:
         return True
-    if re.match(r"^(slide|point|item|step|metric|indicator)\s*[a-z0-9]+$", t):
+    if re.match(r"^(slide|point|item|step|phase|scope|metric|indicator|key\s*point)\s*[a-z0-9]+$", t):
         return True
     if re.match(r"^(company|org|organization|product|solution)\s*[a-z0-9]+$", t):
         return True
@@ -165,6 +165,80 @@ def _top_up_from_title(*, title: str, min_n: int, existing: List[str] | None = N
     return out
 
 
+def _image_slide_points(title: str, existing: List[str]) -> List[str]:
+    base = str(title or "Overview").strip() or "Overview"
+    low = base.lower()
+    template_markers = (
+        "definition and scope", "primary business outcomes", "teams and decisions affected",
+        "evidence that", "tradeoffs that may limit", "measures for tracking",
+        "connect the visual", "use a relevant real-world context", "keep supporting text concise",
+    )
+    usable = [
+        x for x in existing
+        if not _is_placeholder_text(x) and not any(marker in x.lower() for marker in template_markers)
+    ]
+    if "5g" in low:
+        templates = [
+            f"Higher bandwidth enables richer real-time services across {base}",
+            f"Lower latency supports connected devices and responsive operations",
+            f"Network slicing can prioritize critical workloads and service levels",
+            f"Coverage, spectrum, and infrastructure cost shape the rollout case",
+            f"Security and edge-computing decisions determine enterprise readiness",
+        ]
+    elif any(k in low for k in {"artificial intelligence", " ai ", "machine learning"}):
+        templates = [
+            f"Automation shifts repetitive decisions from teams to intelligent systems",
+            f"Data quality and model governance determine reliable outcomes",
+            f"The strongest value appears where {base} improves speed or accuracy",
+            f"Human review remains important for exceptions, risk, and accountability",
+            f"Adoption depends on workflow integration, skills, and measurable results",
+        ]
+    elif any(k in low for k in {"integration", "implementation", "adoption"}):
+        templates = [
+            f"The capability connects to existing workflows and operating processes",
+            f"Data, systems, and teams must be ready before scale-up",
+            f"Operational roles change as the new capability enters daily work",
+            f"Controls and success measures keep implementation on track",
+            f"The next decision is where to pilot {base} with lowest execution risk",
+        ]
+    elif any(k in low for k in {"future", "trend", "innovation"}):
+        templates = [
+            f"The underlying capability shift is changing how value is created",
+            f"Early adopters are testing new operating models and customer experiences",
+            f"Investment signals show where the market is moving next",
+            f"Constraints include skills, regulation, infrastructure, and trust",
+            f"Near-term action is to test one high-value use case with clear measures",
+        ]
+    elif any(k in low for k in {"impact", "benefit", "value", "opportunity"}):
+        templates = [
+            f"The main impact appears in faster decisions, lower friction, or better reach",
+            f"Teams and customers experience the change at different points in the journey",
+            f"Value depends on adoption, process redesign, and outcome measurement",
+            f"Tradeoffs include investment, complexity, risk, and change capacity",
+            f"Progress should be tracked through business outcomes rather than activity alone",
+        ]
+    else:
+        templates = [
+            f"The concept changes how teams make decisions and deliver outcomes",
+            f"Key drivers include customer needs, operating pressure, and available technology",
+            f"The main constraints are capability, cost, risk, and execution capacity",
+            f"A focused pilot can test the idea before broader investment",
+            f"Success requires ownership, adoption, and measures tied to outcomes",
+        ]
+    if usable:
+        templates = usable + templates
+    out: List[str] = []
+    seen = set()
+    for item in templates:
+        clean = str(item).strip()
+        if clean and clean.lower() not in seen:
+            out.append(clean)
+            seen.add(clean.lower())
+        if len(out) >= 5:
+            break
+    return out[:6]
+
+
 def _slide_debug_enabled() -> bool:
     return os.getenv("SLIDE_DEBUG", "0") == "1"
 
@@ -224,6 +298,7 @@ _ALLOWED_TYPES = {
     "architecture",
     "pricing",
     "impact_effort_matrix",
+    "image",
     "impact_matrix",
     "prioritization_matrix",
     "thank_you",
@@ -404,6 +479,13 @@ def validate_slide_type_fit(slide: Dict[str, Any]) -> Tuple[bool, str]:
         if isinstance(b, list) and any(str(x).strip() for x in b):
             return True, "ok"
         return False, "agenda_missing_bullets"
+
+    if t == "image":
+        query = str(c.get("query") or c.get("image_query") or "").strip()
+        bullets = c.get("bullets")
+        if query or (isinstance(bullets, list) and any(str(x).strip() for x in bullets)):
+            return True, "ok"
+        return False, "image_missing_query"
 
     if t in {"bullets", "infographic", "key_takeaways"}:
         b = c.get("bullets")
@@ -589,6 +671,27 @@ def _ensure_nonempty_slide_content(sl: Dict[str, Any]) -> Dict[str, Any]:
 
     title = str(sl.get("title") or "").strip() or "Overview"
 
+    if t == "before_after":
+        before = c.get("before") if isinstance(c.get("before"), dict) else {}
+        after = c.get("after") if isinstance(c.get("after"), dict) else {}
+        source = _clean_list_text(c.get("bullets"), max_n=12)
+        if len(source) < 6:
+            source = _top_up_from_title(title=title, min_n=6, existing=source)[:12]
+        bp = _clean_list_text(before.get("points"), max_n=8)
+        ap = _clean_list_text(after.get("points"), max_n=8)
+        if len(bp) < 3:
+            bp = (bp + source[:3])[:8]
+        if len(ap) < 3:
+            ap = (ap + source[3:6])[:8]
+        if len(bp) < 3:
+            bp = _top_up_from_title(title=title + " before", min_n=3, existing=bp)[:8]
+        if len(ap) < 3:
+            ap = _top_up_from_title(title=title + " after", min_n=3, existing=ap)[:8]
+        c["before"] = {**before, "heading": str(before.get("heading") or "Before").strip() or "Before", "points": bp}
+        c["after"] = {**after, "heading": str(after.get("heading") or "After").strip() or "After", "points": ap}
+        sl["content"] = c
+        return sl
+
     if t == "swot":
         keys = ["strengths", "weaknesses", "opportunities", "threats"]
         labels = {
@@ -680,6 +783,12 @@ def _ensure_nonempty_slide_content(sl: Dict[str, Any]) -> Dict[str, Any]:
         return sl
 
     # Enforce minimum density (no placeholders).
+    if t == "image":
+        b = _clean_list_text(c.get("bullets"), max_n=12)
+        c["bullets"] = _image_slide_points(title, b)
+        sl["content"] = c
+        return sl
+
     if t in {"bullets", "infographic", "key_takeaways"}:
         b = _clean_list_text(c.get("bullets"), max_n=12)
         min_n = 4 if t in {"infographic", "key_takeaways"} else 4
@@ -747,6 +856,14 @@ def finalize_slides(slides: List[Dict[str, Any]] | None, *, stage: str = "final"
 
         original_type = str(s.get("type") or "").strip().lower()
         norm = normalize_slide(s)
+        title_lc = str(norm.get("title") or "").strip().lower()
+        if (
+            norm.get("type") != "before_after"
+            and original_type in {"timeline", "roadmap", "cards", "card", "card_style", "process_timeline_alt"}
+            and re.search(r"\bbefore\s+(?:and|vs\.?|versus)\s+after\b", title_lc)
+        ):
+            norm["type"] = "before_after"
+            original_type = original_type or "before_after"
 
         # Enforce placeholder removal + min-content guarantees early so that
         # under-specified slides can be topped up instead of being downgraded.
