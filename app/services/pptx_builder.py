@@ -4337,6 +4337,22 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             picture.crop_bottom = crop
         return picture
 
+    def _add_editorial_picture(slide, path: str, x: float, y: float, w: float, h: float):
+        with Image.open(path) as image:
+            image_w, image_h = image.size
+        image_w_in = max(0.01, image_w / 96.0)
+        image_h_in = max(0.01, image_h / 96.0)
+        scale = min(w / image_w_in, h / image_h_in)
+        render_w = image_w_in * scale
+        render_h = image_h_in * scale
+        return slide.shapes.add_picture(
+            path,
+            Inches(x + (w - render_w) / 2.0),
+            Inches(y + (h - render_h) / 2.0),
+            width=Inches(render_w),
+            height=Inches(render_h),
+        )
+
     def _add_image_bullets(slide, bullets: List[str], x: float, y: float, w: float, h: float, color):
         box = _add_textbox(slide, x, y, w, h, "\n".join(f"• {item}" for item in bullets), font_size_pt=14, color=color, word_wrap=True, auto_fit=True)
         try:
@@ -4353,8 +4369,19 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         bullets = c.get("bullets") or c.get("points") or []
         if not isinstance(bullets, list):
             bullets = [str(bullets)] if bullets else []
-        bullets = [str(x).strip() for x in bullets if str(x).strip()][:5]
+        bullets = [str(x).strip() for x in bullets if str(x).strip()][:6]
         layout = str(c.get("layout") or c.get("image_layout") or "split").strip().lower()
+        narrative_parts = []
+        for item in bullets:
+            clean = re.sub(r"^[•\-–—\d.) ]+", "", item).strip()
+            if clean:
+                narrative_parts.append(clean.rstrip(".;:!?"))
+        narrative = ". ".join(narrative_parts).strip()
+        if narrative:
+            narrative = narrative.rstrip(".") + "."
+        words = narrative.split()
+        if len(words) > 90:
+            narrative = " ".join(words[:90]).rstrip(" ,.;:") + "."
         asset = _stock_asset(sl, title)
         if not asset or not asset.get("local_path"):
             fallback = dict(sl)
@@ -4374,18 +4401,26 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     _add_image_bullets(s, bullets, 0.88, 2.55, 6.4, 3.10, (255, 255, 255))
                 _add_stock_attribution(s, asset, 0.88, 7.18, 6.8)
                 return
-            if layout == "image_card":
-                _add_cover_picture(s, asset["local_path"], 7.15, 1.05, 5.25, 4.95)
-                _add_textbox(s, 0.85, 0.90, 5.65, 1.85, title, font_size_pt=27, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
-                if bullets:
-                    _add_image_bullets(s, bullets, 0.90, 3.05, 5.45, 2.55, pal["text"])
-                _add_stock_attribution(s, asset, 7.25, 6.12, 5.0)
-                return
-            _add_cover_picture(s, asset["local_path"], 7.45, 0.90, 5.35, 5.85)
-            _add_textbox(s, 0.85, 0.82, 5.85, 2.15, title, font_size_pt=27, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
-            if bullets:
-                _add_image_bullets(s, bullets, 0.90, 3.18, 5.65, 2.55, pal["text"])
-            _add_stock_attribution(s, asset, 7.55, 6.88, 5.0)
+            text_x = 0.78
+            text_w = 3.95
+            image_x = 4.82
+            image_w = SLIDE_W_IN - image_x
+            image_y = 0.34
+            image_h = SLIDE_H_IN - 0.68
+            _add_editorial_picture(s, asset["local_path"], image_x, image_y, image_w, image_h)
+            title_size = 38 if len(title) <= 34 else 34
+            title_y = 1.48 if narrative else 2.35
+            title_h = 1.75 if narrative else 2.35
+            _add_textbox(s, text_x, title_y, text_w, title_h, title, font_size_pt=title_size, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
+            if narrative:
+                narrative_box = _add_textbox(s, text_x, title_y + title_h + 0.22, text_w, 2.20, narrative, font_size_pt=15.5, color=pal.get("text", (31, 41, 55)), word_wrap=True, auto_fit=True)
+                try:
+                    for paragraph in narrative_box.text_frame.paragraphs:
+                        paragraph.line_spacing = 1.38
+                except Exception:
+                    pass
+            _add_stock_attribution(s, asset, image_x + 0.22, SLIDE_H_IN - 0.34, image_w - 0.42)
+            return
         except Exception:
             fallback = dict(sl)
             fallback["type"] = "infographic"
@@ -4412,11 +4447,16 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         image_x = 6.80
         title_w = max(3.8, image_x - title_x - 0.28) if asset else 11.3
         title_align = "left" if asset else "center"
-        _add_textbox(s, title_x, 0.78, title_w, 2.70, title, font_size_pt=34 if asset else 40, bold=True, align=title_align, color=TITLE_COL, word_wrap=True, auto_fit=True)
+        title_size = 32 if asset and len(title) > 58 else (34 if asset else 40)
+        title_h = 3.60 if asset else 3.10
+        title_y = 0.70
+        _add_textbox(s, title_x, title_y, title_w, title_h, title, font_size_pt=title_size, bold=True, align=title_align, color=TITLE_COL, word_wrap=True, auto_fit=True)
+        details_y = title_y + title_h + 0.18
         if subtitle:
-            _add_textbox(s, title_x, 3.78, title_w, 0.62, subtitle, font_size_pt=16, color=pal["text"], align=title_align, word_wrap=True, auto_fit=True)
+            _add_textbox(s, title_x, details_y, title_w, 0.70, subtitle, font_size_pt=16, color=pal["text"], align=title_align, word_wrap=True, auto_fit=True)
+            details_y += 0.82
         if author_line:
-            _add_textbox(s, title_x, 4.52, title_w, 0.42, author_line, font_size_pt=13, color=pal.get("muted", pal["text"]), align=title_align, word_wrap=True, auto_fit=True)
+            _add_textbox(s, title_x, details_y, title_w, 0.42, author_line, font_size_pt=13, color=pal.get("muted", pal["text"]), align=title_align, word_wrap=True, auto_fit=True)
 
     def render_agenda(sl):
         s = prs.slides.add_slide(blank); apply_bg(s)
@@ -9950,9 +9990,14 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         heads: List[str] = []
         bodies: List[str] = []
         for idx in range(4):
-            raw_item = str(items[idx] or "")
-            head, tail = _split_head_tail(raw_item)
-            heading = _clean_fragment(head or raw_item) or f"Main point {idx + 1}"
+            raw_item = items[idx]
+            head, tail = _extract_head_tail_any(
+                raw_item,
+                head_keys=("label", "title", "heading", "header", "name", "step"),
+                tail_keys=("description", "body", "desc", "details", "detail", "text"),
+            )
+            fallback_item = _render_item_text(raw_item)
+            heading = _clean_fragment(head or fallback_item) or f"Main point {idx + 1}"
             heading = heading.strip()
 
             body = _clean_fragment(tail)
@@ -11001,8 +11046,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         roles = _extract_swimlane_roles(items)
         long_desc = (max_len >= 80) or (avg_len >= 55) or any(len(str(x)) >= 110 for x in (items or []))
 
-        if governance and 4 <= n <= 6:
-            return "GATE"
         if cyclical and 4 <= n <= 6:
             return "CYCLE"
         if len(roles) >= 2 and n <= 6:
@@ -11438,26 +11481,42 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def _render_process_milestone_gate(title_txt: str, items: List[str]) -> None:
         s = prs.slides.add_slide(blank); apply_bg(s)
         dark_bg = _is_dark_rgb(pal.get("bg", (255, 255, 255)))
-        _add_textbox(s, 1.0, 0.9, 11.3, 1.0, title_txt or "Milestone Gates", font_size_pt=32, bold=True, color=(255, 255, 255) if dark_bg else TITLE_COL, word_wrap=True, auto_fit=True)
+        title_color = (255, 255, 255) if dark_bg else TITLE_COL
+        _add_textbox(s, 1.0, 0.82, 11.3, 0.95, title_txt or "Cryptocurrency Adoption Risk Assessment", font_size_pt=36, bold=True, color=title_color, word_wrap=True, auto_fit=True)
 
         n = min(6, max(4, len(items)))
-        arr = items[:n]
+        arr = [str(x).strip() for x in (items or []) if str(x).strip()][:n]
+        priority_terms = (
+            ("highest", "priority", "adoption"),
+            ("immediate", "next", "action"),
+            ("residual", "monitor", "remaining"),
+            ("owner", "escalation", "response", "timing"),
+        )
+        def _stage_rank(value: str) -> int:
+            text = value.lower()
+            for rank, terms in enumerate(priority_terms):
+                if any(term in text for term in terms):
+                    return rank
+            return len(priority_terms)
+        arr = sorted(enumerate(arr), key=lambda pair: (_stage_rank(pair[1]), pair[0]))
+        arr = [value for _, value in arr]
+
         cont_x = 0.7
         cont_w = SLIDE_W_IN - 1.4
-        cont_y = 2.15
-        cont_h = 4.85
+        cont_y = 2.05
+        cont_h = 3.65
         cont = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(cont_x), Inches(cont_y), Inches(cont_w), Inches(cont_h))
         cont.fill.solid(); cont.fill.fore_color.rgb = RGBColor(*(pal.get("secondary", (240, 245, 255))))
         cont.line.color.rgb = RGBColor(229, 231, 235)
         try:
-            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 14; cont.shadow.distance = 3
+            cont.shadow.inherit = False; cont.shadow.visible = True; cont.shadow.blur = 12; cont.shadow.distance = 3
         except Exception:
             pass
 
         pad_x = 0.55
         mid_y = cont_y + cont_h / 2
-        step_w = 1.55
-        gate_w = 0.55
+        step_w = 2.10
+        gate_w = 0.44
         avail = cont_w - 2 * pad_x
         total = n * step_w + (n - 1) * gate_w
         scale = min(1.0, avail / total) if total > 0 else 1.0
@@ -11469,41 +11528,51 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         x = cont_x + pad_x + max(0.0, (avail - total) / 2)
         for idx, raw in enumerate(arr):
             col = STEP_COLS[idx % len(STEP_COLS)]
-            box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(mid_y - 0.55), Inches(step_w), Inches(1.10))
+            box_h = 1.38
+            box = s.shapes.add_shape(MsoShape.ROUNDED_RECTANGLE, Inches(x), Inches(mid_y - box_h / 2), Inches(step_w), Inches(box_h))
             box.fill.solid(); box.fill.fore_color.rgb = RGBColor(*pal.get("bg", (255, 255, 255)))
             box.line.color.rgb = RGBColor(*col)
-            box.line.width = Pt(1.25)
+            box.line.width = Pt(1.4)
+            try:
+                box.shadow.inherit = False; box.shadow.visible = True; box.shadow.blur = 5; box.shadow.distance = 2
+            except Exception:
+                pass
 
             head, tail = _split_head_tail(raw)
             head_txt = (head or raw).strip()
             tail_txt = (tail or "").strip()
-            tf = s.shapes.add_textbox(Inches(x + 0.12), Inches(mid_y - 0.48), Inches(step_w - 0.24), Inches(0.96)).text_frame
+            tf = s.shapes.add_textbox(Inches(x + 0.14), Inches(mid_y - 0.58), Inches(step_w - 0.28), Inches(1.16)).text_frame
             tf.word_wrap = True; tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            try:
+                tf.margin_top = Inches(0.04); tf.margin_bottom = Inches(0.04)
+            except Exception:
+                pass
             p = tf.paragraphs[0]; p.clear(); p.alignment = PP_ALIGN.CENTER
-            r1 = p.add_run(); r1.text = f"{idx + 1}. {head_txt}" if len(head_txt) <= 22 else head_txt
-            r1.font.size = Pt(11); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
-            if tail_txt and len(tail_txt) <= 44:
+            r1 = p.add_run(); r1.text = f"{idx + 1}. {head_txt}" if len(head_txt) <= 30 else head_txt
+            r1.font.size = Pt(13); r1.font.bold = True; r1.font.color.rgb = RGBColor(*pal.get("text", (24, 24, 27)))
+            if tail_txt and len(tail_txt) <= 64:
                 p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
-                r2 = p2.add_run(); r2.text = tail_txt; r2.font.size = Pt(9); r2.font.color.rgb = RGBColor(*pal.get("muted", pal.get("text", (71, 85, 105))))
+                p2.space_before = Pt(3)
+                r2 = p2.add_run(); r2.text = tail_txt; r2.font.size = Pt(10.5); r2.font.color.rgb = RGBColor(*_shade(pal.get("muted", pal.get("text", (71, 85, 105))), -18))
 
             x_next = x + step_w
             if idx < n - 1:
-                conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(x_next - 0.05), Inches(mid_y), Inches(x_next + gate_w + 0.05), Inches(mid_y))
+                conn = s.shapes.add_connector(MSO_CONNECTOR_TYPE.STRAIGHT, Inches(x_next - 0.04), Inches(mid_y), Inches(x_next + gate_w + 0.04), Inches(mid_y))
                 conn.line.color.rgb = RGBColor(209, 213, 219)
-                conn.line.width = Pt(2)
+                conn.line.width = Pt(1.5)
 
-                gate = s.shapes.add_shape(MsoShape.DIAMOND, Inches(x_next), Inches(mid_y - 0.28), Inches(gate_w), Inches(0.56))
+                diamond_d = gate_w * 0.80
+                gate = s.shapes.add_shape(MsoShape.DIAMOND, Inches(x_next + (gate_w - diamond_d) / 2), Inches(mid_y - diamond_d / 2), Inches(diamond_d), Inches(diamond_d))
                 gate.fill.solid(); gate.fill.fore_color.rgb = RGBColor(*_shade(col, 18))
                 gate.line.color.rgb = RGBColor(*col)
                 gate.line.width = Pt(1)
                 tfc = gate.text_frame; tfc.clear(); tfc.word_wrap = True; tfc.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
                 pc = tfc.paragraphs[0]; pc.alignment = PP_ALIGN.CENTER
-                rc = pc.add_run(); rc.text = "✓"; rc.font.size = Pt(14); rc.font.bold = True; rc.font.color.rgb = RGBColor(*_contrast_text(_shade(col, 18)))
+                rc = pc.add_run(); rc.text = "✓"; rc.font.size = Pt(12); rc.font.bold = True; rc.font.color.rgb = RGBColor(255, 255, 255)
 
                 x = x_next + gate_w
             else:
                 x = x_next
-
     def _render_process_workflow(title_txt: str, items: List[str], *, forced: str | None = None) -> None:
         blob = _process_blob(title_txt, items)
         n = len(items)
@@ -11533,8 +11602,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         long_desc = (max_len >= 80) or (avg_len >= 55) or any(len(str(x)) >= 110 for x in (items or []))
 
         eligible: List[str] = ["BANDS"]
-        if governance and 4 <= n <= 6:
-            eligible.append("GATE")
         if cyclical and 4 <= n <= 6:
             eligible.append("CYCLE")
         if len(roles) >= 2 and n <= 6:
@@ -11553,9 +11620,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         _debug_variant(family="process_workflow", chosen=chosen, eligible=eligible, forced=forced_norm)
 
         v = chosen
-        if v == "GATE":
-            _render_process_milestone_gate(title_txt, items)
-            return
         if v == "CYCLE":
             _render_process_cycle(title_txt, items)
             return
@@ -11588,7 +11652,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             "CARDS": "CARDS",
             "VERTICAL": "VERTICAL",
             "CYCLE": "CYCLE",
-            "GATE": "GATE",
             "SWIMLANE": "SWIMLANE",
         }
         forced = variant_map.get(variant_raw)
