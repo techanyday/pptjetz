@@ -2720,6 +2720,56 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
       - Thank You slide (last)
     Does NOT add Background/Evolution unless present in the outline.
     """
+    slides = list(slides or [])
+    input_slide_count = len(slides)
+    non_title_image_count = sum(
+        1
+        for slide in slides
+        if str(slide.get("type") or "").strip().lower() == "image"
+        and str(slide.get("title") or "").strip().lower() not in {"title", "presentation title"}
+    )
+    if non_title_image_count < 2:
+        deck_topic = str(next((slide.get("title") for slide in slides if slide.get("title")), "Business Strategy")).strip()
+        insert_at = next(
+            (idx for idx, slide in enumerate(slides) if str(slide.get("type") or "").strip().lower() in {"thank_you", "thank-you"}),
+            len(slides),
+        )
+        generated_images = [
+            {
+                "type": "image",
+                "title": f"Business Applications of {deck_topic}",
+                "content": {
+                    "query": deck_topic,
+                    "layout": "split",
+                    "alt_text": deck_topic,
+                    "bullets": [
+                        f"Where {deck_topic} creates measurable business value",
+                        f"Operational changes required to apply {deck_topic}",
+                        f"Key risks and adoption constraints for {deck_topic}",
+                        f"Measures that show progress in {deck_topic}",
+                    ],
+                },
+                "_generated_image_slide": True,
+            },
+            {
+                "type": "image",
+                "title": f"Future Opportunities in {deck_topic}",
+                "content": {
+                    "query": deck_topic,
+                    "layout": "split",
+                    "alt_text": deck_topic,
+                    "bullets": [
+                        f"Emerging opportunities connected to {deck_topic}",
+                        f"Capabilities needed to scale {deck_topic}",
+                        f"Evidence that can guide future investment in {deck_topic}",
+                        f"Actions that convert insight into outcomes for {deck_topic}",
+                    ],
+                },
+                "_generated_image_slide": True,
+            },
+        ][: max(0, 2 - non_title_image_count)]
+        slides[insert_at:insert_at] = generated_images
+
     SLIDE_DEBUG = os.getenv("SLIDE_DEBUG", "0") == "1"
     if SLIDE_DEBUG:
         try:
@@ -2744,7 +2794,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         seed_salt = str((slides or [{}])[0].get("_deck_id") or "").strip()
     except Exception:
         seed_salt = ""
-    seed = f"{(theme_name or '').strip().upper()}|{seed_title}|{len(slides or [])}|{seed_salt}"
+    seed = f"{(theme_name or '').strip().upper()}|{seed_title}|{input_slide_count}|{seed_salt}"
     reset_variant_rotation(seed=seed)
     global IMPACT_MAP_VARIANT_INDEX
     IMPACT_MAP_VARIANT_INDEX = 0
@@ -4408,9 +4458,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             image_y = 0.34
             image_h = SLIDE_H_IN - 0.68
             _add_editorial_picture(s, asset["local_path"], image_x, image_y, image_w, image_h)
-            title_size = 38 if len(title) <= 34 else 34
-            title_y = 1.48 if narrative else 2.35
-            title_h = 1.75 if narrative else 2.35
+            if len(title) > 64:
+                title_size, title_h = 28, 2.65
+            elif len(title) > 42:
+                title_size, title_h = 31, 2.35
+            else:
+                title_size, title_h = 38, 1.85
+            title_y = 1.28 if narrative else 2.35
             _add_textbox(s, text_x, title_y, text_w, title_h, title, font_size_pt=title_size, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
             if narrative:
                 narrative_box = _add_textbox(s, text_x, title_y + title_h + 0.22, text_w, 2.20, narrative, font_size_pt=15.5, color=pal.get("text", (31, 41, 55)), word_wrap=True, auto_fit=True)
