@@ -7862,21 +7862,15 @@ def sitemap_xml_route() -> Any:
 
         {"loc": url_for('main.best_free_ai_presentation_makers_no_watermark_page', _external=True), "lastmod": "2026-04-29", "changefreq": "weekly", "priority": "0.8"},
 
-        {"loc": url_for('main.free_ai_presentation_generator_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
-
         {"loc": url_for('main.free_powerpoint_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
         {"loc": url_for('main.pptx_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
         {"loc": url_for('main.export_to_pptx_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
-        {"loc": url_for('main.free_ai_powerpoint_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-
-        {"loc": url_for('main.free_ai_slide_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_slide_generator_page', _external=True), "changefreq": "weekly", "priority": "0.9"},
 
         {"loc": url_for('main.free_ai_ppt_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-
-        {"loc": url_for('main.free_ai_presentation_maker_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
 
         {"loc": url_for('main.sales_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
@@ -7910,43 +7904,17 @@ def sitemap_xml_route() -> Any:
 
         {"loc": url_for('main.pitch_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
-        {"loc": url_for('main.investor_pitch_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-
-        {"loc": url_for('main.startup_pitch_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-
-        {"loc": url_for('main.board_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-
-        {"loc": url_for('main.ai_roadmap_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-
-        {"loc": url_for('main.swot_analysis_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-
-        {"loc": url_for('main.kpi_dashboard_slides_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-
         {"loc": url_for('main.risk_matrix_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
         {"loc": url_for('main.architecture_diagram_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
-        {"loc": url_for('main.free_presentation_generator_ai_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.free_ai_slides_generator_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.free_ai_slides_generator_online_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.free_ai_tool_to_create_slides_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.free_ai_presentation_maker_unlimited_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.unlimited_ai_slide_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.unlimited_ai_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.free_unlimited_ai_presentation_generator_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.free_unlimited_slide_generator_ai_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.ai_slide_generator_free_unlimited_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.generate_slides_from_text_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.generate_slides_from_text_free_ai_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.ai_powerpoint_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.free_ai_powerpoint_maker_unlimited_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.presentation_generator_ai_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.ai_ppt_maker_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.free_ai_ppt_maker_online_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.free_ai_slideshow_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.free_ai_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.create_slides_with_ai_free_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
-        {"loc": url_for('main.ai_presentation_builder_free_unlimited_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
 
     ]
 
