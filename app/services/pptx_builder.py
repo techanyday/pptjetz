@@ -4430,8 +4430,16 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         if narrative:
             narrative = narrative.rstrip(".") + "."
         words = narrative.split()
-        if len(words) > 90:
-            narrative = " ".join(words[:90]).rstrip(" ,.;:") + "."
+        max_narrative_words = 90
+        if len(title) > 80:
+            max_narrative_words = 42
+        elif len(title) > 60:
+            max_narrative_words = 54
+        elif len(title) > 42:
+            max_narrative_words = 68
+        if len(words) > max_narrative_words:
+            narrative = " ".join(words[:max_narrative_words]).rstrip(" ,.;:") + "."
+            words = narrative.split()
         asset = _stock_asset(sl, title)
         if not asset or not asset.get("local_path"):
             fallback = dict(sl)
@@ -4467,10 +4475,14 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             title_y = 1.28 if narrative else 2.35
             _add_textbox(s, text_x, title_y, text_w, title_h, title, font_size_pt=title_size, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
             if narrative:
-                narrative_box = _add_textbox(s, text_x, title_y + title_h + 0.22, text_w, 2.20, narrative, font_size_pt=15.5, color=pal.get("text", (31, 41, 55)), word_wrap=True, auto_fit=True)
+                narrative_y = title_y + title_h + 0.18
+                narrative_h = max(1.35, min(2.85, SLIDE_H_IN - narrative_y - 0.42))
+                narrative_font_size = 15.5 if len(words) <= 52 else 14.0
+                narrative_line_spacing = 1.18 if len(words) <= 52 else 1.05
+                narrative_box = _add_textbox(s, text_x, narrative_y, text_w, narrative_h, narrative, font_size_pt=narrative_font_size, color=pal.get("text", (31, 41, 55)), word_wrap=True, auto_fit=True)
                 try:
                     for paragraph in narrative_box.text_frame.paragraphs:
-                        paragraph.line_spacing = 1.38
+                        paragraph.line_spacing = narrative_line_spacing
                 except Exception:
                     pass
             _add_stock_attribution(s, asset, image_x + 0.22, SLIDE_H_IN - 0.34, image_w - 0.42)
