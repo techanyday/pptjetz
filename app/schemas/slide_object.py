@@ -80,7 +80,17 @@ class TimelineContent(BaseModel):
 
 class ImageContent(BaseModel):
     title: str | None = Field(default=None, max_length=255)
-    prompt: str = Field(..., max_length=400)  # text sent to DALL·E
+    prompt: str | None = Field(default=None, max_length=400)
+    query: str | None = Field(default=None, max_length=180)
+    layout: Literal["full_bleed", "split", "image_card", "quote_image"] = "split"
+    image_url: str | None = Field(default=None, max_length=2000)
+    thumbnail_url: str | None = Field(default=None, max_length=2000)
+    source_url: str | None = Field(default=None, max_length=2000)
+    source_name: str | None = Field(default=None, max_length=100)
+    creator: str | None = Field(default=None, max_length=255)
+    license: str | None = Field(default=None, max_length=100)
+    license_url: str | None = Field(default=None, max_length=2000)
+    attribution: str | None = Field(default=None, max_length=500)
     alt_text: str | None = Field(default=None, max_length=255)
 
 

@@ -3,10 +3,9 @@
 {% block content %}
 <div class="min-h-[70vh] py-6">
   <div class="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_300px] gap-6 px-4">
-    <!-- Left sidebar ad (sticky) -->
+    <!-- Left sidebar ad (static for Better Ads Standards compliance) -->
     <aside class="hidden xl:block">
-      <div class="sticky top-24">
-        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Download left ad slot">
+      <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Download left ad slot">
           <ins class="adsbygoogle"
                style="display:block; width:100%; min-height:600px;"
                data-ad-client="ca-pub-6405372608012962"
@@ -52,20 +51,18 @@
       </div>
     </main>
 
-    <!-- Right sidebar ad (sticky) -->
+    <!-- Right sidebar ad (static for Better Ads Standards compliance) -->
     <aside class="hidden xl:block">
-      <div class="sticky top-24">
+      <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Download right ad slot">
         {% if EZOIC_ENABLED %}
         <div id="ezoic-pub-ad-placeholder-104"></div>
         {% else %}
-          <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Download right ad slot">
             <ins class="adsbygoogle"
                  style="display:block; width:100%; min-height:600px;"
                  data-ad-client="ca-pub-6405372608012962"
                  data-ad-slot="9962977938"
                  data-ad-format="auto"
                  data-full-width-responsive="true"></ins>
-          </div>
         {% endif %}
       </div>
     </aside>
@@ -112,5 +109,17 @@ try {
   else { window.addEventListener('load', () => setTimeout(() => document.querySelectorAll('ins.adsbygoogle').forEach(() => push()), 150), { once: true }); }
 } catch (e) { console.warn(e); }
 </script>
+{% endif %}
+
+{% if ADS_ENABLED and ADSENSE_ENABLED %}
+<!-- AdSense: Download bottom Multiplex (DISPLAY: autorelaxed) -->
+<div class="my-10" aria-label="Advertisement">
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="ca-pub-6405372608012962"
+       data-ad-slot="4455667788"
+       data-ad-format="autorelaxed"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
 {% endif %}
 {% endblock %}

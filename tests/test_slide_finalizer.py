@@ -38,6 +38,7 @@ def test_finalize_slides_enforces_known_types_and_render_exact_and_fallback_meta
         "architecture",
         "pricing",
         "impact_effort_matrix",
+        "image",
         "thank_you",
         "cta",
         "bullets",
@@ -92,26 +93,26 @@ def test_finalize_slides_merges_short_bullet_fragments():
 
 
 def test_choose_slide_count_clamps_user_request_to_min_max():
-    assert choose_slide_count("Topic", user_requested_count=1, content_signal="") == 13
-    assert choose_slide_count("Topic", user_requested_count=10, content_signal="") == 13
-    assert choose_slide_count("Topic", user_requested_count=15, content_signal="") == 15
-    assert choose_slide_count("Topic", user_requested_count=99, content_signal="") == 15
+    assert choose_slide_count("Topic", user_requested_count=1, content_signal="") == 16
+    assert choose_slide_count("Topic", user_requested_count=10, content_signal="") == 16
+    assert choose_slide_count("Topic", user_requested_count=16, content_signal="") == 16
+    assert choose_slide_count("Topic", user_requested_count=99, content_signal="") == 18
 
 
 def test_choose_slide_count_infers_from_topic_length():
     short = "A brief update on Q1 results"
     medium = " ".join(["word"] * 140)
     long = " ".join(["word"] * 400)
-    assert choose_slide_count(short, user_requested_count=None, content_signal=short) == 13
-    assert 13 <= choose_slide_count(medium, user_requested_count=None, content_signal=medium) <= 14
-    assert choose_slide_count(long, user_requested_count=None, content_signal=long) == 15
+    assert choose_slide_count(short, user_requested_count=None, content_signal=short) == 16
+    assert 16 <= choose_slide_count(medium, user_requested_count=None, content_signal=medium) <= 16
+    assert choose_slide_count(long, user_requested_count=None, content_signal=long) == 18
 
 
 def test_build_slide_type_plan_enforces_length_and_anchors_and_rotation():
     topic = "Executive Briefing"
     input_text = "Discuss strategy, timeline, KPIs, and risks."
-    plan, meta = build_slide_type_plan(topic=topic, input_text=input_text, slide_count=13, theme_name="SLEEK")
-    assert len(plan) == 13
+    plan, meta = build_slide_type_plan(topic=topic, input_text=input_text, slide_count=16, theme_name="SLEEK")
+    assert len(plan) == 16
     assert plan[0] == "title"
     assert plan[1] == "agenda"
     assert plan[-1] == "thank_you"
@@ -160,6 +161,9 @@ def test_enforce_slide_count_postprocess_backfills_when_fill_call_fails():
         "double_column",
         "roadmap",
         "risk_matrix",
+        "image",
+        "before_after",
+        "architecture",
         "thank_you",
     ]
     slides = [
@@ -180,12 +184,12 @@ def test_enforce_slide_count_postprocess_backfills_when_fill_call_fails():
         input_text="Input",
         slides=slides,
         slide_type_plan=plan,
-        chosen_n=13,
+        chosen_n=16,
         deck_id="deck",
         user_id="user",
     )
 
-    assert len(out) == 13
+    assert len(out) == 16
     assert out[0].get("type") == "title"
     assert out[-1].get("type") in {"thank_you", "cta", "infographic", "risk_matrix"}
 
@@ -211,7 +215,7 @@ def test_enforce_slide_count_postprocess_accepts_partial_fill_then_backfills_res
 
         chat = _Chat()
 
-    plan = ["title", "agenda", "one_idea", "timeline", "comparison", "kpi", "key_takeaways", "infographic", "cards", "double_column", "roadmap", "risk_matrix", "thank_you"]
+    plan = ["title", "agenda", "one_idea", "timeline", "comparison", "kpi", "key_takeaways", "infographic", "cards", "double_column", "roadmap", "risk_matrix", "image", "before_after", "architecture", "thank_you"]
     slides = [
         {"type": "title", "title": "Deck", "content": {}},
         {"type": "agenda", "title": "Agenda", "content": {"bullets": ["A", "B"]}},
@@ -230,12 +234,12 @@ def test_enforce_slide_count_postprocess_accepts_partial_fill_then_backfills_res
         input_text="Input",
         slides=slides,
         slide_type_plan=plan,
-        chosen_n=13,
+        chosen_n=16,
         deck_id="deck",
         user_id="user",
     )
 
-    assert len(out) == 13
+    assert len(out) == 16
     assert any(str(s.get("title") or "") == "Extra" for s in out if isinstance(s, dict))
 
 

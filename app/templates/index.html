@@ -161,7 +161,18 @@
       </div>
     </section>
 
-    
+    {% if ADS_ENABLED and ADSENSE_ENABLED %}
+    <!-- AdSense: Between carousel and features (slot 8765432101) -->
+    <div class="my-8">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-6405372608012962"
+           data-ad-slot="8765432101"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    {% endif %}
 
     <!-- Features Section -->
     <div class="py-12 bg-gray-50 rounded-xl">
@@ -197,6 +208,19 @@
     </div>
 
     {% if ADS_ENABLED and ADSENSE_ENABLED %}
+    <!-- AdSense: Between features and below-features (slot 9876543210) -->
+    <div class="my-8">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-6405372608012962"
+           data-ad-slot="9876543210"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    {% endif %}
+
+    {% if ADS_ENABLED and ADSENSE_ENABLED %}
     <!-- AdSense: Landing page below-features unit (slot 8103850440) -->
     <div class="my-8">
       <ins class="adsbygoogle"
@@ -210,12 +234,12 @@
     {% endif %}
 
     {% if ADS_ENABLED and ADSENSE_ENABLED %}
-    <!-- Sidebars (shown on >= 1280px widths) -->
+    <!-- Sidebars (shown on >= 1280px widths) - static placement for Better Ads Standards compliance -->
     <style>
     @media (min-width: 1280px){
-      .sidebar-ad{position:fixed; top:120px; width:300px; z-index:10;}
-      .sidebar-left{left:10px;}
-      .sidebar-right{right:10px;}
+      .sidebar-ad{width:300px;}
+      .sidebar-left{float:left; margin-left:10px;}
+      .sidebar-right{float:right; margin-right:10px;}
     }
     @media (max-width: 1279px){ .sidebar-ad{ display:none !important; } }
     </style>

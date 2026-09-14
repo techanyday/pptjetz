@@ -194,9 +194,9 @@
     {% if request.path in _utility_paths %}
     <style>
     @media (min-width: 1280px){
-      .util-sidebar-ad{position:fixed; top:120px; width:300px; z-index:10;}
-      .util-sidebar-left{left:10px;}
-      .util-sidebar-right{right:10px;}
+      .util-sidebar-ad{width:300px;}
+      .util-sidebar-left{float:left; margin-left:10px;}
+      .util-sidebar-right{float:right; margin-right:10px;}
     }
     @media (max-width: 1279px){ .util-sidebar-ad{ display:none !important; } }
     </style>

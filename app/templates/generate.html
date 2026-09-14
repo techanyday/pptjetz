@@ -117,6 +117,22 @@
         </div>
         {% endif %}
 
+    </div>
+</div>
+
+{% if ADS_ENABLED and ADSENSE_ENABLED %}
+<!-- AdSense: Between form and preview (slot 1122334455) -->
+<div class="max-w-4xl mx-auto my-6">
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="ca-pub-6405372608012962"
+       data-ad-slot="1122334455"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+{% endif %}
+
 {% if EZOIC_ENABLED %}
 <style>
 @media (min-width: 1280px){
@@ -127,17 +143,8 @@
 @media (max-width: 1279px){ .gen-sidebar-ad{ display:none !important; } }
 </style>
 <div class="gen-sidebar-ad gen-sidebar-left">
-  <div id="ezoic-pub-ad-placeholder-104"></div>
 </div>
-<div class="gen-sidebar-ad gen-sidebar-right">
-  <div id="ezoic-pub-ad-placeholder-106"></div>
-</div>
-<script>
-  ezstandalone?.cmd.push(function(){ ezstandalone.showAds(101,111,104,106); });
-  </script>
 {% endif %}
-    </div>
-</div>
 
 <!-- Preview Section -->
 <div id="previewSection" class="max-w-4xl mx-auto mt-8 hidden">
@@ -181,12 +188,12 @@
 </div>
 
 {% if ADS_ENABLED and ADSENSE_ENABLED %}
-<!-- Generate page sidebar (left, desktop only) -->
+<!-- Generate page sidebar (left, desktop only) - static placement for Better Ads Standards compliance -->
 <style>
 @media (min-width: 1280px){
-  .gen-sidebar-ad{position:fixed; top:120px; width:300px; z-index:10;}
-  .gen-sidebar-left{left:10px;}
-  .gen-sidebar-right{right:10px;}
+  .gen-sidebar-ad{width:300px;}
+  .gen-sidebar-left{float:left; margin-left:10px;}
+  .gen-sidebar-right{float:right; margin-right:10px;}
 }
 @media (max-width: 1279px){ .gen-sidebar-ad{ display:none !important; } }
 </style>
