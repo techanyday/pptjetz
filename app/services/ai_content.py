@@ -61,7 +61,7 @@ def _join_readable(parts: List[str]) -> str:
     return f"{', '.join(items[:-1])}, and {items[-1]}"
 
 
-def _limit_one_idea_text(txt: str, *, fallback_subject: str = "This topic") -> str:
+def _limit_one_idea_text(txt: str, *, fallback_subject: str = "This topic", preserve_ai: bool = False) -> str:
     clean = re.sub(r"\s+", " ", str(txt or "")).strip()
     if not clean:
         return ""
@@ -79,11 +79,17 @@ def _limit_one_idea_text(txt: str, *, fallback_subject: str = "This topic") -> s
     if kept:
         return " ".join(kept).strip()
 
-    subject = re.sub(r"\s+", " ", str(fallback_subject or "This topic")).strip() or "This topic"
-    fallback = f"{subject} matters because it helps teams focus on high-value opportunities and make better decisions earlier."
-    if len(fallback) <= 230:
-        return fallback
-    trimmed = fallback[:230]
+    # Only use generic fallback if preserve_ai is False
+    if not preserve_ai:
+        subject = re.sub(r"\s+", " ", str(fallback_subject or "This topic")).strip() or "This topic"
+        fallback = f"{subject} matters because it helps teams focus on high-value opportunities and make better decisions earlier."
+        if len(fallback) <= 230:
+            return fallback
+        trimmed = fallback[:230]
+        return (trimmed.rsplit(" ", 1)[0] or trimmed).rstrip(",.;:- ")
+    
+    # If preserve_ai is True, just truncate the original text
+    trimmed = clean[:230]
     return (trimmed.rsplit(" ", 1)[0] or trimmed).rstrip(",.;:- ")
 
 
@@ -143,11 +149,22 @@ def compose_one_idea_intro_insight(subject: str, *, agenda_topics: List[str] | N
     return _limit_one_idea_text(txt, fallback_subject=anchor)
 
 
-def normalize_one_idea_explainer(headline: str, explainer: str, *, fallback_subject: str = "", agenda_topics: List[str] | None = None) -> str:
+def normalize_one_idea_explainer(headline: str, explainer: str, *, fallback_subject: str = "", agenda_topics: List[str] | None = None, preserve_ai: bool = False) -> str:
     txt = re.sub(r"\s+", " ", str(explainer or "")).strip()
     subject = re.sub(r"\s+", " ", str(fallback_subject or headline or "")).strip()
     if not txt:
         return ""
+
+    # If preserve_ai is True, only do basic cleanup without replacing with generic fallbacks
+    if preserve_ai:
+        # Just remove meta-phrases about the slide itself
+        low = txt.lower()
+        if low.startswith("this slide") or low.startswith("this presentation") or low.startswith("an overview of") or low.startswith("a summary of"):
+            # Remove the meta-phrase prefix
+            match = re.search(r"(?:this slide|this presentation|an overview of|a summary of)\s+(.+)", txt, flags=re.IGNORECASE)
+            if match:
+                txt = match.group(1).strip()
+        return _limit_one_idea_text(txt, fallback_subject=subject or headline or "This topic", preserve_ai=True)
 
     low = txt.lower()
     match = re.search(r"what\s+(.+?)\s+is,\s*why\s+it\s+matters", txt, flags=re.IGNORECASE)
@@ -860,10 +877,10 @@ def enforce_slide_count_postprocess(
                 }
             if t == "image":
                 image_titles = [
-                    f"Business Applications of {short_topic}",
-                    f"Implementation Priorities for {short_topic}",
-                    f"Future Opportunities in {short_topic}",
-                    f"Operating Model Changes from {short_topic}",
+                    short_topic,
+                    "Implementation Priorities",
+                    "Future Opportunities",
+                    "Operating Model Changes",
                 ]
                 image_title = image_titles[(idx - 1) % len(image_titles)]
                 return {
@@ -873,12 +890,7 @@ def enforce_slide_count_postprocess(
                         "query": short_topic,
                         "layout": "split",
                         "alt_text": short_topic,
-                        "bullets": [
-                            f"Where {short_topic} creates measurable business value",
-                            f"Operational changes required to apply {short_topic}",
-                            f"Key risks and adoption constraints for {short_topic}",
-                            f"Measures that show progress in {short_topic}",
-                        ],
+                        "caption": f"{short_topic} becomes meaningful when it is tied to a concrete workflow, decision, or customer outcome. Teams usually succeed by assigning ownership, aligning the rollout to business goals, and measuring results as they go. The slide turns the topic into one connected idea instead of a loose collection of themes.",
                     },
                 }
             if t == "pricing":
@@ -1232,6 +1244,7 @@ def build_prompt(
                             "visual_hint": {"type": "string"},
                             "image_query": {"type": "string"},
                             "image_layout": {"type": "string"},
+                            "caption": {"type": "string"},
                             "image_url": {"type": "string"},
                             "source_url": {"type": "string"},
                             "source_name": {"type": "string"},
@@ -1257,9 +1270,22 @@ def build_prompt(
             "Bullets must be non-duplicative, 4–14 words, informative, and TOPIC-SPECIFIC. Avoid generic boilerplate such as 'leveraging X to improve KPIs'.",
             "Write executive-ready content: specific mechanisms, impacts, and tradeoffs. Avoid vague claims (e.g., 'critical', 'accelerated', 'important') unless you add a short 'because/so-what' clause.",
             "For slides after the Agenda, prefer rich visual types (cards, comparison/table, infographic, timeline, roadmap, swot, risk_matrix, before_after, architecture, image) over plain bullets.",
-            "Image slides must include content.image_query, content.image_layout, concise supporting bullets, and should be used only when a relevant real-world visual improves the narrative.",
+            "Image slides must include content.image_query, content.image_layout, and content.caption as a complete paragraph (not bullet points). Use image slides only when a relevant real-world visual improves the narrative.",
+            "IMAGE SLIDE CAPTION: The content.caption must be a single coherent paragraph of 3-5 sentences (70-120 words) that explains the image context and relevance. Do NOT use bullet points or a list of separate points joined together.",
+            "IMAGE SLIDE CAPTION: Do NOT use content.bullets or content.points for image slides. Use ONLY content.caption as a paragraph.",
+            "IMAGE SLIDE CAPTION: Write in natural prose with proper sentences, not fragmented phrases or bullet-style points. The caption should be substantive and detailed, explaining the actual subject matter with specific context, mechanisms, or implications.",
+            "IMAGE SLIDE CAPTION: CRITICAL: Do NOT write a list of topics, headings, or keywords. The caption must be a continuous explanatory paragraph that describes HOW something works, WHY it matters, or WHAT relationships exist between components.",
+            "IMAGE SLIDE CAPTION: CRITICAL: Explain the subject matter as if writing a short encyclopedia entry or textbook paragraph. Focus on mechanisms, processes, causal relationships, or practical implications. Avoid enumerating features or listing subtopics.",
+            "IMAGE SLIDE CAPTION: CRITICAL: Example of BAD caption: 'AI agents include autonomous systems, decision-making capabilities, tool integration, and learning mechanisms. These enable various applications across industries.' (This is a topic list).",
+            "IMAGE SLIDE CAPTION: CRITICAL: Example of GOOD caption: 'AI agents operate autonomously by pursuing objectives through coordinated actions and tool use without human intervention. They break complex workflows into steps, adapt based on environmental feedback, and make intermediate decisions at each stage. This capability enables organizations to scale operations while maintaining consistency and reducing manual overhead in their processes.' (This explains HOW it works).",
             "Title and one_idea slides may include content.visual with image_query and layout metadata for guaranteed visual treatment.",
             "Use type 'bullets' ONLY for the Agenda slide and as a last-resort fallback when no other slide type fits.",
+            "ONE_IDEA SLIDES: When type is 'one_idea', the slide must communicate a single central insight about the topic. Use content.headline for the insight statement and content.explainer for the explanation.",
+            "ONE_IDEA EXPLAINER: Provide a general overview of the topic and highlight ONE very important point that is central to understanding it. Do NOT just list benefits.",
+            "ONE_IDEA EXPLAINER: The explainer must be SPECIFIC to the actual topic. Do NOT use generic templates like 'helps teams focus on highest-value opportunities' or 'make better decisions earlier'.",
+            "ONE_IDEA EXPLAINER: Explain what the topic is fundamentally about and why it matters as a central concept (e.g., for cybersecurity, explain that it's about protecting systems from threats; for payroll, explain it's about accurate compensation management; for AI agents, explain autonomous goal-directed behavior).",
+            "ONE_IDEA EXPLAINER: Focus on the core essence or central thesis of the topic, not just practical benefits or applications.",
+            "ONE_IDEA EXPLAINER: Do NOT use phrases like 'matters because it helps teams focus on...' or similar generic benefit-focused patterns.",
             "COHERENCE & ORDER: All slides after the agenda MUST map to the agenda bullets in sequence (1 slide per agenda bullet; do not group multiple slides under one bullet).",
             "TITLE PARAPHRASING: Each mapped slide's TITLE must closely paraphrase its agenda bullet (share key terms); do not use generic labels.",
             "CONTENT ALIGNMENT: Each mapped slide's CONTENT (bullets/points/table cells) must elaborate the mapped agenda bullet and share key terms.",
@@ -2523,6 +2549,48 @@ def derive_topic_comparison_table(*, deck_title: str, topic: str, input_text: st
         return None
 
 
+def _validate_one_idea_content(headline: str, explainer: str) -> bool:
+    """
+    Validate that One Idea content is not generic or repetitive.
+    Returns True if content passes validation, False otherwise.
+    """
+    if not explainer:
+        return False
+    
+    low = explainer.lower()
+    
+    # Check for known generic fallback phrases
+    generic_patterns = [
+        "matters because it helps teams focus on the highest-value opportunities",
+        "matters because it helps teams focus on high-value opportunities",
+        "make better decisions earlier",
+        "reshape decisions, execution, and measurable business results",
+        "improve how people work, make decisions, and create practical value",
+        "change how teams work, decide, or deliver value in practice",
+    ]
+    
+    for pattern in generic_patterns:
+        if pattern in low:
+            return False
+    
+    # Check if explainer is too short (less than 15 words)
+    word_count = len(re.findall(r"[A-Za-z0-9]+", explainer))
+    if word_count < 15:
+        return False
+    
+    # Check if explainer is just repeating the headline
+    headline_words = set(re.findall(r"[A-Za-z0-9]+", headline.lower()))
+    explainer_words = set(re.findall(r"[A-Za-z0-9]+", low))
+    
+    # If more than 70% of explainer words are in headline, it's likely just repetition
+    if headline_words and explainer_words:
+        overlap = len(headline_words & explainer_words) / len(explainer_words)
+        if overlap > 0.7:
+            return False
+    
+    return True
+
+
 def derive_one_idea_intro(
     *,
     deck_title: str,
@@ -2551,55 +2619,76 @@ def derive_one_idea_intro(
             "Headline: a presentation-level statement of the core idea; avoid using a single agenda item as the headline; at most 16 words.",
             "Explainer: usually 2 compact sentences in simple language, about 35-60 words total.",
             "Do not mention the slide, deck, presentation, or bullets.",
-            "State the core idea as an insight or thesis, not as an overview or summary of the topic.",
-            "Make it feel like the opening insight for the full presentation: explain why the topic matters and what core opportunities, constraints, or themes the rest will unpack.",
+            "Provide a general overview of the topic and highlight ONE very important point that is central to understanding it.",
+            "Focus on the core essence or central thesis of the topic, not just practical benefits or applications.",
             "Do not use phrases like 'this slide explains', 'an overview of', or 'what X is, why it matters'.",
-            "Describe the topic itself and its impact, not what the slide will cover.",
+            "Explain what the topic is fundamentally about and why it matters as a central concept.",
+            "CRITICAL: The explainer must be SPECIFIC to the actual topic. Do NOT use generic templates like 'helps teams focus on highest-value opportunities' or 'make better decisions earlier'.",
+            "CRITICAL: Do NOT just list benefits. Focus on the central insight or fundamental nature of the topic.",
+            "CRITICAL: For example: for cybersecurity, explain that it's fundamentally about protecting systems from unauthorized access; for payroll, explain it's about accurate and timely compensation; for AI agents, explain autonomous goal-directed behavior.",
+            "CRITICAL: Avoid vague business language unless it is genuinely relevant to the specific topic.",
             "No lists, numbering, or emojis.",
         ],
     }
-    try:
-        resp = client.chat.completions.create(
-            model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You output ONLY a compact JSON object with keys 'headline' and 'explainer'; no prose or markdown.",
-                },
-                {"role": "user", "content": _json_dump(payload)},
-            ],
-            temperature=0.25,
-            max_tokens=MAX_TOKENS_ONE_IDEA_INTRO,
-        )
-        _log_llm_call(
-            resp=resp,
-            model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
-            route="derive_one_idea_intro",
-            deck_id=deck_id,
-            export_id=deck_id,
-            user_id=user_id,
-        )
-        import json
-        raw = (resp.choices[0].message.content or "").strip()
-        obj = json.loads(raw)
-        if not isinstance(obj, dict):
+    
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        try:
+            resp = client.chat.completions.create(
+                model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You output ONLY a compact JSON object with keys 'headline' and 'explainer'; no prose or markdown.",
+                    },
+                    {"role": "user", "content": _json_dump(payload)},
+                ],
+                temperature=0.25,
+                max_tokens=MAX_TOKENS_ONE_IDEA_INTRO,
+            )
+            _log_llm_call(
+                resp=resp,
+                model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
+                route="derive_one_idea_intro",
+                deck_id=deck_id,
+                export_id=deck_id,
+                user_id=user_id,
+            )
+            import json
+            raw = (resp.choices[0].message.content or "").strip()
+            obj = json.loads(raw)
+            if not isinstance(obj, dict):
+                return None
+            headline = str(obj.get("headline") or "").strip()
+            explainer = str(obj.get("explainer") or "").strip()
+            if not headline and not explainer:
+                return None
+            
+            # Validate content quality
+            if not _validate_one_idea_content(headline, explainer):
+                if attempt < max_retries:
+                    # Add feedback for retry
+                    payload["feedback"] = "Previous attempt was too generic or repetitive. Be more specific to the actual topic."
+                    continue
+                # If all retries failed, return the last attempt anyway (better than nothing)
+            
+            headline = normalize_one_idea_headline(headline, deck_title=deck_title, agenda_topics=agenda_topics)
+            if explainer:
+                parts = re.split(r"(?<=[.!?])\s+", explainer.strip())
+                parts = [p for p in parts if p]
+                explainer = " ".join(parts[:2]).strip()
+                # Pass preserve_ai=True to avoid replacing AI-generated content with generic fallbacks
+                explainer = normalize_one_idea_explainer(headline, explainer, fallback_subject=deck_title, agenda_topics=agenda_topics, preserve_ai=True)
+            if headline and len(headline) > 140:
+                h_trim = headline[:140]
+                headline = (h_trim.rsplit(" ", 1)[0] or h_trim).rstrip(",.;:- ")
+            return {"headline": headline, "explainer": explainer}
+        except Exception:
+            if attempt < max_retries:
+                continue
             return None
-        headline = str(obj.get("headline") or "").strip()
-        explainer = str(obj.get("explainer") or "").strip()
-        if not headline and not explainer:
-            return None
-        headline = normalize_one_idea_headline(headline, deck_title=deck_title, agenda_topics=agenda_topics)
-        if explainer:
-            parts = re.split(r"(?<=[.!?])\s+", explainer.strip())
-            parts = [p for p in parts if p]
-            explainer = " ".join(parts[:2]).strip()
-            explainer = normalize_one_idea_explainer(headline, explainer, fallback_subject=deck_title, agenda_topics=agenda_topics)
-        if headline and len(headline) > 140:
-            h_trim = headline[:140]
-            headline = (h_trim.rsplit(" ", 1)[0] or h_trim).rstrip(",.;:- ")
-        return {"headline": headline, "explainer": explainer}
-    except Exception:
-        return None
+    
+    return None
 
 
 def _quality_issues(slides: List[Dict[str, Any]]) -> Tuple[List[str], List[str]]:

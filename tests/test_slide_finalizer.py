@@ -92,6 +92,28 @@ def test_finalize_slides_merges_short_bullet_fragments():
     ]
 
 
+def test_finalize_slides_rewrites_fragmented_image_caption_into_coherent_paragraph():
+    slides = [
+        {
+            "type": "image",
+            "title": "Business Applications of 5G Technology",
+            "content": {
+                "query": "5G Technology",
+                "layout": "split",
+                "caption": "Smart factories, remote surgery, connected logistics, and autonomous vehicles.",
+            },
+        }
+    ]
+
+    out = finalize_slides(slides)
+    caption = str((out[0].get("content") or {}).get("caption") or "")
+    assert caption.startswith("Business Applications of 5G Technology matters most")
+    assert "connected idea" in caption
+    assert "This visual" not in caption
+    assert "Smart factories" not in caption
+    assert len(caption.split()) >= 34
+
+
 def test_choose_slide_count_clamps_user_request_to_min_max():
     assert choose_slide_count("Topic", user_requested_count=1, content_signal="") == 16
     assert choose_slide_count("Topic", user_requested_count=10, content_signal="") == 16
@@ -192,6 +214,13 @@ def test_enforce_slide_count_postprocess_backfills_when_fill_call_fails():
     assert len(out) == 16
     assert out[0].get("type") == "title"
     assert out[-1].get("type") in {"thank_you", "cta", "infographic", "risk_matrix"}
+    image_sl = next(s for s in out if s.get("type") == "image")
+    caption = str((image_sl.get("content") or {}).get("caption") or "")
+    assert caption.startswith("Deck becomes meaningful when")
+    assert "connected idea" in caption
+    assert "This visual" not in caption
+    assert "creates measurable business value" not in caption
+    assert len(caption.split()) >= 34
 
 
 def test_enforce_slide_count_postprocess_accepts_partial_fill_then_backfills_rest():

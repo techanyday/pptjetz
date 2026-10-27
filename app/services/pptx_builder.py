@@ -2730,6 +2730,13 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     )
     if non_title_image_count < 2:
         deck_topic = str(next((slide.get("title") for slide in slides if slide.get("title")), "Business Strategy")).strip()
+        # Prefer the descriptive subtitle as the grammatical subject
+        # ("Title: The Real Topic" -> "The Real Topic") so captions read naturally.
+        _parts = [p.strip() for p in re.split(r"[:–—|]", deck_topic) if p.strip()]
+        raw_subj = (_parts[-1] if len(_parts) > 1 else deck_topic).strip() or deck_topic
+        raw_subj = re.sub(r"^(the power of|unleashing the future|understanding|introduction to|overview of|exploring)\s+", "", raw_subj, flags=re.IGNORECASE)
+        subj = " ".join(raw_subj.split()[:7]) or raw_subj or deck_topic
+        subj_in = re.sub(r"^(the|a|an)\s+", "", subj, flags=re.IGNORECASE) or subj
         insert_at = next(
             (idx for idx, slide in enumerate(slides) if str(slide.get("type") or "").strip().lower() in {"thank_you", "thank-you"}),
             len(slides),
@@ -2737,33 +2744,23 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         generated_images = [
             {
                 "type": "image",
-                "title": f"Business Applications of {deck_topic}",
+                "title": subj,
                 "content": {
                     "query": deck_topic,
                     "layout": "split",
                     "alt_text": deck_topic,
-                    "bullets": [
-                        f"Where {deck_topic} creates measurable business value",
-                        f"Operational changes required to apply {deck_topic}",
-                        f"Key risks and adoption constraints for {deck_topic}",
-                        f"Measures that show progress in {deck_topic}",
-                    ],
+                    "caption": f"{subj} creates the most value when organizations apply it to clear operational priorities instead of treating it as a broad concept. Execution usually depends on clear ownership, phased adoption, and metrics tied to speed, quality, or growth. The slide keeps attention on how the idea works in practice and where it can produce results.",
                 },
                 "_generated_image_slide": True,
             },
             {
                 "type": "image",
-                "title": f"Future Opportunities in {deck_topic}",
+                "title": "Future Opportunities",
                 "content": {
                     "query": deck_topic,
                     "layout": "split",
                     "alt_text": deck_topic,
-                    "bullets": [
-                        f"Emerging opportunities connected to {deck_topic}",
-                        f"Capabilities needed to scale {deck_topic}",
-                        f"Evidence that can guide future investment in {deck_topic}",
-                        f"Actions that convert insight into outcomes for {deck_topic}",
-                    ],
+                    "caption": f"New opportunities in {subj_in} emerge as customer expectations, market conditions, and enabling technologies evolve. Capturing them requires focused investment, coordination across teams, and proof from early wins before scaling. The slide points to where expansion is most credible and how leaders can pursue it without losing discipline.",
                 },
                 "_generated_image_slide": True,
             },
@@ -4416,29 +4413,50 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
     def render_image(sl):
         c = _content(sl)
         title = str(sl.get("title") or "Visual Insight").strip()
-        bullets = c.get("bullets") or c.get("points") or []
-        if not isinstance(bullets, list):
-            bullets = [str(bullets)] if bullets else []
-        bullets = [str(x).strip() for x in bullets if str(x).strip()][:6]
         layout = str(c.get("layout") or c.get("image_layout") or "split").strip().lower()
-        narrative_parts = []
-        for item in bullets:
-            clean = re.sub(r"^[•\-–—\d.) ]+", "", item).strip()
-            if clean:
-                narrative_parts.append(clean.rstrip(".;:!?"))
-        narrative = ". ".join(narrative_parts).strip()
-        if narrative:
-            narrative = narrative.rstrip(".") + "."
+        # Prefer caption as a complete paragraph, fall back to bullets
+        caption = c.get("caption") or ""
+        if caption:
+            narrative = str(caption).strip()
+            bullets = []
+        else:
+            # Fallback: convert bullets to a proper paragraph
+            bullets = c.get("bullets") or c.get("points") or []
+            if not isinstance(bullets, list):
+                bullets = [str(bullets)] if bullets else []
+            bullets = [str(x).strip() for x in bullets if str(x).strip()][:6]
+            narrative_parts = []
+            for item in bullets:
+                clean = re.sub(r"^[•\-–—\d.) ]+", "", item).strip()
+                if clean:
+                    # Ensure it's a complete sentence
+                    if not clean.endswith(('.','!','?')):
+                        clean = clean + "."
+                    narrative_parts.append(clean)
+            narrative = " ".join(narrative_parts).strip()
+            if narrative:
+                narrative = narrative.rstrip(".") + "."
         words = narrative.split()
-        max_narrative_words = 90
+        # For image slides, allow more words to accommodate multi-sentence captions
+        max_narrative_words = 72
         if len(title) > 80:
-            max_narrative_words = 42
+            max_narrative_words = 44
         elif len(title) > 60:
-            max_narrative_words = 54
+            max_narrative_words = 56
         elif len(title) > 42:
-            max_narrative_words = 68
+            max_narrative_words = 64
         if len(words) > max_narrative_words:
-            narrative = " ".join(words[:max_narrative_words]).rstrip(" ,.;:") + "."
+            # Truncate at sentence boundary to avoid fragments
+            truncated_words = words[:max_narrative_words]
+            # Find the last sentence ending
+            last_sentence_end = -1
+            for i, word in enumerate(reversed(truncated_words)):
+                if word.rstrip('.,;:!?') != word:
+                    last_sentence_end = len(truncated_words) - i
+                    break
+            if last_sentence_end > 0:
+                truncated_words = truncated_words[:last_sentence_end]
+            narrative = " ".join(truncated_words).rstrip(" ,.;:") + "."
             words = narrative.split()
         asset = _stock_asset(sl, title)
         if not asset or not asset.get("local_path"):
@@ -4466,19 +4484,21 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             image_y = 0.34
             image_h = SLIDE_H_IN - 0.68
             _add_editorial_picture(s, asset["local_path"], image_x, image_y, image_w, image_h)
-            if len(title) > 64:
-                title_size, title_h = 28, 2.65
+            if len(title) > 78:
+                title_size, title_h = 24, 3.05
+            elif len(title) > 58:
+                title_size, title_h = 27, 2.75
             elif len(title) > 42:
-                title_size, title_h = 31, 2.35
+                title_size, title_h = 30, 2.35
             else:
-                title_size, title_h = 38, 1.85
+                title_size, title_h = 36, 1.85
             title_y = 1.28 if narrative else 2.35
             _add_textbox(s, text_x, title_y, text_w, title_h, title, font_size_pt=title_size, bold=True, color=TITLE_COL, word_wrap=True, auto_fit=True)
             if narrative:
                 narrative_y = title_y + title_h + 0.18
-                narrative_h = max(1.35, min(2.85, SLIDE_H_IN - narrative_y - 0.42))
-                narrative_font_size = 15.5 if len(words) <= 52 else 14.0
-                narrative_line_spacing = 1.18 if len(words) <= 52 else 1.05
+                narrative_h = max(1.40, min(3.00, SLIDE_H_IN - narrative_y - 0.42))
+                narrative_font_size = 15.0 if len(words) <= 40 else (13.6 if len(words) <= 56 else 12.8)
+                narrative_line_spacing = 1.12 if len(words) <= 40 else 1.0
                 narrative_box = _add_textbox(s, text_x, narrative_y, text_w, narrative_h, narrative, font_size_pt=narrative_font_size, color=pal.get("text", (31, 41, 55)), word_wrap=True, auto_fit=True)
                 try:
                     for paragraph in narrative_box.text_frame.paragraphs:

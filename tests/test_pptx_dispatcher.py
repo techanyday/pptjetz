@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import pytest
+from PIL import Image
+from pptx import Presentation
 
 from app.services import pptx_builder
 from app.services.pptx_builder import _choose_impact_map_variant, build_pptx_from_slides
@@ -54,3 +56,34 @@ def test_build_pptx_from_slides_resets_impact_map_variant_index_per_deck(tmp_pat
     out2 = tmp_path / "b.pptx"
     build_pptx_from_slides(slides, str(out2), theme_name="SLEEK")
     assert pptx_builder.IMPACT_MAP_VARIANT_INDEX >= 1
+
+
+def test_build_pptx_from_slides_injected_image_caption_is_coherent(tmp_path, monkeypatch):
+    img = tmp_path / "stub.png"
+    Image.new("RGB", (32, 32), (255, 255, 255)).save(img)
+
+    monkeypatch.setattr(
+        pptx_builder,
+        "resolve_stock_image",
+        lambda query, output_dir=None, used_urls=None: {"local_path": str(img)},
+    )
+
+    out = tmp_path / "images.pptx"
+    slides = [
+        {"type": "title", "title": "Unleashing the Future: The Impact and Potential of 5G Technology"},
+        {"type": "thank_you", "title": "Thank You"},
+    ]
+
+    build_pptx_from_slides(slides, str(out), theme_name="SLEEK")
+
+    prs = Presentation(str(out))
+    full_text = "\n".join(
+        shape.text
+        for slide in prs.slides
+        for shape in slide.shapes
+        if hasattr(shape, "text") and str(shape.text).strip()
+    )
+
+    assert "The Impact and Potential of 5G Technology creates the most value" in full_text
+    assert "This visual" not in full_text
+    assert "creates measurable business value" not in full_text

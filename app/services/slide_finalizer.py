@@ -432,6 +432,73 @@ def normalize_slide(slide: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(rp, list):
             c["right_points"] = _clean_list_text(rp, max_n=8)
 
+    if t == "image":
+        # Ensure image slides use caption instead of bullets
+        caption = c.get("caption") or ""
+        if not caption:
+            bullets = c.get("bullets") or c.get("points") or []
+            if isinstance(bullets, list) and bullets:
+                # Convert bullets to a proper paragraph
+                import re
+                narrative_parts = []
+                for item in bullets:
+                    clean = re.sub(r"^[•\-–—\d.) ]+", "", str(item).strip())
+                    if clean:
+                        # Ensure it's a complete sentence
+                        if not clean.endswith(('.','!','?')):
+                            clean = clean + "."
+                        narrative_parts.append(clean)
+                if narrative_parts:
+                    caption = " ".join(narrative_parts).strip()
+                    if caption:
+                        c["caption"] = caption
+                        # Remove bullets to prevent fallback
+                        c.pop("bullets", None)
+                        c.pop("points", None)
+        # Validate and fix caption quality
+        if c.get("caption"):
+            caption = str(c["caption"]).strip()
+            # Better sentence counting: split on sentence-ending punctuation
+            import re
+            sentences = re.split(r'[.!?]+\s+', caption)
+            sentences = [s.strip() for s in sentences if s.strip()]
+            sentence_count = len(sentences)
+            
+            # Check if caption is too short or has too few sentences
+            word_count = len(caption.split())
+            
+            # Detect topic-list style: many short phrases with commas or "include/encompass/feature" patterns
+            topic_list_patterns = [
+                r'include[s]?\s+(?:\w+,\s*){2,}',  # "includes X, Y, Z"
+                r'feature[s]?\s+(?:\w+,\s*){2,}',  # "features X, Y, Z"
+                r'consist[s]?\s+(?:of\s+)?(?:\w+,\s*){2,}',  # "consists of X, Y, Z"
+                r'comprise[s]?\s+(?:\w+,\s*){2,}',  # "comprises X, Y, Z"
+                r'are\s+(?:\w+,\s*){3,}',  # "are X, Y, Z, W"
+            ]
+            is_topic_list = any(re.search(pattern, caption, re.IGNORECASE) for pattern in topic_list_patterns)
+            
+            # Also detect if sentences are too short on average (indicates list-like structure)
+            avg_sentence_length = word_count / sentence_count if sentence_count > 0 else 0
+            is_short_sentences = avg_sentence_length < 10  # Less than 10 words per sentence suggests list
+            
+            # Require at least 2 sentences and enough detail to read as a coherent paragraph.
+            # Also reject topic-list style captions.
+            if sentence_count < 2 or word_count < 34 or is_topic_list or (is_short_sentences and word_count < 45):
+                topic = re.sub(r"\s+", " ", str(title or "this topic")).strip() or "this topic"
+                c["caption"] = (
+                    f"{topic} matters most when it is tied to a specific workflow, decision, or customer outcome. "
+                    f"Teams usually succeed when they assign ownership, pace the rollout, and measure results against clear business goals. "
+                    f"Framed this way, the slide reads as one connected idea instead of a stack of separate talking points."
+                )
+        # Ensure caption exists with substantive content
+        if not c.get("caption"):
+            topic = re.sub(r"\s+", " ", str(title or "this topic")).strip() or "this topic"
+            c["caption"] = (
+                f"{topic} matters most when it is tied to a specific workflow, decision, or customer outcome. "
+                f"Teams usually succeed when they assign ownership, pace the rollout, and measure results against clear business goals. "
+                f"Framed this way, the slide reads as one connected idea instead of a stack of separate talking points."
+            )
+
     if t in {"comparison", "table"}:
         tbl = c.get("table")
         if not isinstance(tbl, dict):
@@ -783,12 +850,7 @@ def _ensure_nonempty_slide_content(sl: Dict[str, Any]) -> Dict[str, Any]:
         return sl
 
     # Enforce minimum density (no placeholders).
-    if t == "image":
-        b = _clean_list_text(c.get("bullets"), max_n=12)
-        c["bullets"] = _image_slide_points(title, b)
-        sl["content"] = c
-        return sl
-
+    # Note: image slides use captions instead of bullets, handled in normalize_slide
     if t in {"bullets", "infographic", "key_takeaways"}:
         b = _clean_list_text(c.get("bullets"), max_n=12)
         min_n = 4 if t in {"infographic", "key_takeaways"} else 4
