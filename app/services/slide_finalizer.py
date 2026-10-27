@@ -488,7 +488,7 @@ def normalize_slide(slide: Dict[str, Any]) -> Dict[str, Any]:
                 c["caption"] = (
                     f"{topic} matters most when it is tied to a specific workflow, decision, or customer outcome. "
                     f"Teams usually succeed when they assign ownership, pace the rollout, and measure results against clear business goals. "
-                    f"Framed this way, the slide reads as one connected idea instead of a stack of separate talking points."
+                    f"Framed this way, the concept becomes clearer, more concrete, and easier to apply in real operating contexts."
                 )
         # Ensure caption exists with substantive content
         if not c.get("caption"):
@@ -496,7 +496,7 @@ def normalize_slide(slide: Dict[str, Any]) -> Dict[str, Any]:
             c["caption"] = (
                 f"{topic} matters most when it is tied to a specific workflow, decision, or customer outcome. "
                 f"Teams usually succeed when they assign ownership, pace the rollout, and measure results against clear business goals. "
-                f"Framed this way, the slide reads as one connected idea instead of a stack of separate talking points."
+                f"Framed this way, the concept becomes clearer, more concrete, and easier to apply in real operating contexts."
             )
 
     if t in {"comparison", "table"}:

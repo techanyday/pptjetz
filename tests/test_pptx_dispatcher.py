@@ -85,5 +85,7 @@ def test_build_pptx_from_slides_injected_image_caption_is_coherent(tmp_path, mon
     )
 
     assert "The Impact and Potential of 5G Technology creates the most value" in full_text
+    assert "specific use cases" in full_text
     assert "This visual" not in full_text
+    assert "The slide" not in full_text
     assert "creates measurable business value" not in full_text

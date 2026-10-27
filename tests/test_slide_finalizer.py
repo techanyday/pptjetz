@@ -108,8 +108,9 @@ def test_finalize_slides_rewrites_fragmented_image_caption_into_coherent_paragra
     out = finalize_slides(slides)
     caption = str((out[0].get("content") or {}).get("caption") or "")
     assert caption.startswith("Business Applications of 5G Technology matters most")
-    assert "connected idea" in caption
+    assert "clearer, more concrete" in caption
     assert "This visual" not in caption
+    assert "The slide" not in caption
     assert "Smart factories" not in caption
     assert len(caption.split()) >= 34
 
@@ -217,8 +218,9 @@ def test_enforce_slide_count_postprocess_backfills_when_fill_call_fails():
     image_sl = next(s for s in out if s.get("type") == "image")
     caption = str((image_sl.get("content") or {}).get("caption") or "")
     assert caption.startswith("Deck becomes meaningful when")
-    assert "connected idea" in caption
+    assert "practical, focused" in caption
     assert "This visual" not in caption
+    assert "The slide" not in caption
     assert "creates measurable business value" not in caption
     assert len(caption.split()) >= 34
 
