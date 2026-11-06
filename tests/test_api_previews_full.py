@@ -24,3 +24,34 @@ def test_loading_polls_generate_status() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     tpl = (repo_root / "app" / "templates" / "loading.html").read_text(encoding="utf-8")
     assert "/api/generate/" in tpl
+
+
+def test_homepage_allows_generation_without_login() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    tpl = (repo_root / "app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "No sign-in required" in tpl
+    assert "Login with Google (optional)" in tpl
+    assert "url_for('main.generate_page')" in tpl
+    assert "Get Started" not in tpl
+
+
+def test_public_templates_do_not_claim_google_sign_in_is_required() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    templates_dir = repo_root / "app" / "templates"
+    forbidden = [
+        "Google sign-in required",
+        "Google sign-in to start",
+        "with Google sign-in to start",
+        "Sign in with Google to start creating decks",
+        "Sign in with Google to create and download decks",
+        "uses Google sign-in to start",
+        "requires no sign-in required to start",
+    ]
+
+    for path in templates_dir.rglob("*.html"):
+        text = path.read_text(encoding="utf-8")
+        if path.name == "index.html":
+            assert "Login with Google (optional)" in text
+        for phrase in forbidden:
+            assert phrase not in text, f"{path} still contains: {phrase}"

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
 {% block title %}AI Training Presentation Generator (Free) | PPTJet{% endblock %}
-{% block description %}Generate training presentations with AI. Create an editable PowerPoint (.pptx) for onboarding, SOPs, workshops, and enablement — free and unlimited with Google sign-in to start.{% endblock %}
+{% block description %}Generate training presentations with AI. Create an editable PowerPoint (.pptx) for onboarding, SOPs, workshops, and enablement — free and unlimited with no sign-in required to start.{% endblock %}
 {% block og_title %}AI Training Presentation Generator (Free) | PPTJet{% endblock %}
-{% block og_description %}Generate training presentations with AI. Create an editable PowerPoint (.pptx) for onboarding, SOPs, workshops, and enablement — free and unlimited with Google sign-in to start.{% endblock %}
+{% block og_description %}Generate training presentations with AI. Create an editable PowerPoint (.pptx) for onboarding, SOPs, workshops, and enablement — free and unlimited with no sign-in required to start.{% endblock %}
 {% block tw_title %}AI Training Presentation Generator (Free) | PPTJet{% endblock %}
-{% block tw_description %}Generate training presentations with AI. Create an editable PowerPoint (.pptx) for onboarding, SOPs, workshops, and enablement — free and unlimited with Google sign-in to start.{% endblock %}
+{% block tw_description %}Generate training presentations with AI. Create an editable PowerPoint (.pptx) for onboarding, SOPs, workshops, and enablement — free and unlimited with no sign-in required to start.{% endblock %}
 
 {% block head_extra %}
 <script type="application/ld+json">
@@ -27,7 +27,7 @@
   "mainEntity": [
     {"@type": "Question", "name": "Can I generate onboarding and SOP training decks?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet can draft onboarding, SOP, and workshop training slides from your outline or notes."}},
     {"@type": "Question", "name": "Is the export editable?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. You download a standard .pptx and can edit it in PowerPoint."}},
-    {"@type": "Question", "name": "Is PPTJet free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet is free and supports unlimited exports. Sign in with Google to create and download decks."}}
+    {"@type": "Question", "name": "Is PPTJet free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet is free and supports unlimited exports. Create and download decks without signing in."}}
   ]
 }
 </script>
@@ -144,7 +144,7 @@
         </div>
         <div>
           <dt class="text-lg font-semibold text-gray-900">Is PPTJet free?</dt>
-          <dd class="mt-2 text-gray-700">Yes. PPTJet supports free, unlimited generation and exports. Sign in with Google to create and download decks.</dd>
+          <dd class="mt-2 text-gray-700">Yes. PPTJet supports free, unlimited generation and exports. Create and download decks without signing in.</dd>
         </div>
       </dl>
     </section>
@@ -162,7 +162,7 @@
       <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 class="text-lg font-bold text-gray-900">Create a training deck draft now</h2>
-          <p class="mt-1 text-gray-700">Free & unlimited. Google sign-in required. Draft structure fast, then add your SOPs and examples.</p>
+          <p class="mt-1 text-gray-700">Free & unlimited. No sign-in required. Draft structure fast, then add your SOPs and examples.</p>
         </div>
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Start Creating for Free</a>
       </div>

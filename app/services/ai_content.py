@@ -11,6 +11,7 @@ import logging
 import re
 import uuid
 import requests
+from .content_synthesis import compose_image_caption
 
 
 MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "800"))
@@ -890,7 +891,7 @@ def enforce_slide_count_postprocess(
                         "query": short_topic,
                         "layout": "split",
                         "alt_text": short_topic,
-                        "caption": f"{short_topic} becomes meaningful when it is tied to a concrete workflow, decision, or customer outcome. Teams usually succeed by assigning ownership, aligning the rollout to business goals, and measuring results as they go. Taken together, these choices turn the concept into something practical, focused, and easier to apply.",
+                        "caption": compose_image_caption(image_title, query=topic),
                     },
                 }
             if t == "pricing":

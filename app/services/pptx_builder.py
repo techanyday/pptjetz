@@ -12,7 +12,7 @@ import colorsys
 import hashlib
 from pptx import Presentation  # type: ignore
 from pptx.util import Inches, Pt
-from .content_synthesis import synthesize_key_concepts, is_placeholder, BANNED
+from .content_synthesis import synthesize_key_concepts, is_placeholder, BANNED, compose_image_caption
 from .ai_content import normalize_one_idea_explainer, normalize_one_idea_headline, compose_one_idea_intro_insight
 from .stock_images import resolve_stock_image
 from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE, MSO_ANCHOR  # type: ignore
@@ -2736,7 +2736,6 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
         raw_subj = (_parts[-1] if len(_parts) > 1 else deck_topic).strip() or deck_topic
         raw_subj = re.sub(r"^(the power of|unleashing the future|understanding|introduction to|overview of|exploring)\s+", "", raw_subj, flags=re.IGNORECASE)
         subj = " ".join(raw_subj.split()[:7]) or raw_subj or deck_topic
-        subj_in = re.sub(r"^(the|a|an)\s+", "", subj, flags=re.IGNORECASE) or subj
         insert_at = next(
             (idx for idx, slide in enumerate(slides) if str(slide.get("type") or "").strip().lower() in {"thank_you", "thank-you"}),
             len(slides),
@@ -2749,7 +2748,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     "query": deck_topic,
                     "layout": "split",
                     "alt_text": deck_topic,
-                    "caption": f"{subj} creates the most value when organizations apply it to clear operational priorities instead of treating it as a broad concept. Execution usually depends on clear ownership, phased adoption, and metrics tied to speed, quality, or growth. Strong results usually come from applying the capability to specific use cases and improving it over time.",
+                    "caption": compose_image_caption(subj, query=deck_topic),
                 },
                 "_generated_image_slide": True,
             },
@@ -2760,7 +2759,7 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
                     "query": deck_topic,
                     "layout": "split",
                     "alt_text": deck_topic,
-                    "caption": f"New opportunities in {subj_in} emerge as customer expectations, market conditions, and enabling technologies evolve. Capturing them requires focused investment, coordination across teams, and proof from early wins before scaling. Organizations that test high-potential use cases early are better positioned to expand without losing discipline.",
+                    "caption": compose_image_caption("Future Opportunities", query=deck_topic),
                 },
                 "_generated_image_slide": True,
             },
@@ -4420,22 +4419,15 @@ def build_pptx_from_slides(slides: List[Dict[str, Any]], out_path: str, *, theme
             narrative = str(caption).strip()
             bullets = []
         else:
-            # Fallback: convert bullets to a proper paragraph
             bullets = c.get("bullets") or c.get("points") or []
             if not isinstance(bullets, list):
                 bullets = [str(bullets)] if bullets else []
             bullets = [str(x).strip() for x in bullets if str(x).strip()][:6]
-            narrative_parts = []
-            for item in bullets:
-                clean = re.sub(r"^[•\-–—\d.) ]+", "", item).strip()
-                if clean:
-                    # Ensure it's a complete sentence
-                    if not clean.endswith(('.','!','?')):
-                        clean = clean + "."
-                    narrative_parts.append(clean)
-            narrative = " ".join(narrative_parts).strip()
-            if narrative:
-                narrative = narrative.rstrip(".") + "."
+            narrative = compose_image_caption(
+                title,
+                query=str(c.get("query") or c.get("image_query") or title).strip(),
+                bullets=bullets,
+            ) if bullets else ""
         words = narrative.split()
         # For image slides, allow more words to accommodate multi-sentence captions
         max_narrative_words = 72

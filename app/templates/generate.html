@@ -445,7 +445,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const draft = {
       title: '',
       subtitle: '',
-      presenter: '{{ user.name }}',
+      presenter: {{ (user.name if user.is_authenticated else '') | tojson | safe }},
       date: '',
       input_text: prompt,
       intent: selectedIntent || document.getElementById('intent_value').value || '',

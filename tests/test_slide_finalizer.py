@@ -92,26 +92,26 @@ def test_finalize_slides_merges_short_bullet_fragments():
     ]
 
 
-def test_finalize_slides_rewrites_fragmented_image_caption_into_coherent_paragraph():
+def test_finalize_slides_rewrites_fragmented_image_caption_into_context_aware_paragraph():
     slides = [
         {
             "type": "image",
-            "title": "Business Applications of 5G Technology",
+            "title": "The Role of AI in Cinema Innovation",
             "content": {
-                "query": "5G Technology",
+                "query": "AI in Cinema Innovation",
                 "layout": "split",
-                "caption": "Smart factories, remote surgery, connected logistics, and autonomous vehicles.",
+                "caption": "Editing support, shot planning, subtitle generation, and audience analysis.",
             },
         }
     ]
 
     out = finalize_slides(slides)
     caption = str((out[0].get("content") or {}).get("caption") or "")
-    assert caption.startswith("Business Applications of 5G Technology matters most")
-    assert "clearer, more concrete" in caption
+    assert caption.startswith("In Cinema Innovation, AI is starting to reshape editing support, shot planning, and subtitle generation.")
+    assert "pattern recognition" in caption
+    assert not caption.startswith("The Role of AI in Cinema Innovation")
     assert "This visual" not in caption
     assert "The slide" not in caption
-    assert "Smart factories" not in caption
     assert len(caption.split()) >= 34
 
 
@@ -217,8 +217,8 @@ def test_enforce_slide_count_postprocess_backfills_when_fill_call_fails():
     assert out[-1].get("type") in {"thank_you", "cta", "infographic", "risk_matrix"}
     image_sl = next(s for s in out if s.get("type") == "image")
     caption = str((image_sl.get("content") or {}).get("caption") or "")
-    assert caption.startswith("Deck becomes meaningful when")
-    assert "practical, focused" in caption
+    assert caption.startswith("Adoption becomes more practical when Deck supports one measurable workflow, faster feedback, and stronger execution.")
+    assert "repeatable work, clearer decisions, or stronger customer outcomes" in caption
     assert "This visual" not in caption
     assert "The slide" not in caption
     assert "creates measurable business value" not in caption

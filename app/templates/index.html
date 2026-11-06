@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
 {% block title %}100% Free AI Presentation Generator – Unlimited PowerPoint Exports | PPTJet{% endblock %}
-{% block description %}Create 100% free AI-generated PowerPoint presentations in seconds. Unlimited exports, no watermark. Sign in with Google and download instantly with PPTJet.{% endblock %}
+{% block description %}Create 100% free AI-generated PowerPoint presentations in seconds. Unlimited exports, no watermark, and no sign-in required to start with PPTJet.{% endblock %}
 {% block og_title %}100% Free AI Presentation Generator – Unlimited PowerPoint Exports{% endblock %}
-{% block og_description %}Create 100% free AI-generated PowerPoint presentations in seconds. Unlimited exports, no watermark. Sign in with Google and download instantly with PPTJet.{% endblock %}
+{% block og_description %}Create 100% free AI-generated PowerPoint presentations in seconds. Unlimited exports, no watermark, and no sign-in required to start with PPTJet.{% endblock %}
 {% block tw_title %}100% Free AI Presentation Generator – Unlimited PowerPoint Exports{% endblock %}
-{% block tw_description %}Create 100% free AI-generated PowerPoint presentations in seconds. Unlimited exports, no watermark. Sign in with Google and download instantly with PPTJet.{% endblock %}
+{% block tw_description %}Create 100% free AI-generated PowerPoint presentations in seconds. Unlimited exports, no watermark, and no sign-in required to start with PPTJet.{% endblock %}
 
 {% block content %}
 <div class="flex justify-end p-4 bg-gray-100">
@@ -17,7 +17,7 @@
         </div>
         <a href="{{ url_for('main.logout') }}" class="text-red-600 hover:text-red-800">Logout</a>
         {% else %}
-        <a href="{{ url_for('main.login') }}" class="text-blue-600 hover:text-blue-800">Login with Google</a>
+        <a href="{{ url_for('main.login') }}" class="text-blue-600 hover:text-blue-800">Login with Google (optional)</a>
         {% endif %}
 
     
@@ -28,7 +28,7 @@
     <!-- Hero Section -->
     <div class="text-center py-16 sm:py-24">
         <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4">Create Smart AI PowerPoint Presentations in 60 Seconds – 100% Free</h1>
-        <p class="text-xl text-gray-600 mb-4 max-w-3xl mx-auto">Create 100% free AI-generated PowerPoint presentations in seconds. Unlimited exports, no watermark. Sign in with Google and download instantly with PPTJet.</p>
+        <p class="text-xl text-gray-600 mb-4 max-w-3xl mx-auto">Create 100% free AI-generated PowerPoint presentations in seconds. Unlimited exports, no watermark, and no sign-in required to start. Google login is optional if you want account features later.</p>
         {% if ADS_ENABLED and ADSENSE_ENABLED %}
         <!-- AdSense: HERO_TOP (moved here to be above-the-fold on mobile) -->
         <div class="mb-6">
@@ -41,15 +41,9 @@
           <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
         </div>
         {% endif %}
-        {% if user.is_authenticated %}
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
             Start Creating
         </a>
-        {% else %}
-        <a href="{{ url_for('main.login') }}" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-            Get Started
-        </a>
-        {% endif %}
         <div class="mt-4 text-sm text-gray-500 flex flex-wrap items-center justify-center gap-x-2 gap-y-2">
             <span>Trusted: 100% free</span>
             <span aria-hidden="true">•</span>
@@ -57,7 +51,7 @@
             <span aria-hidden="true">•</span>
             <span>No watermark</span>
             <span aria-hidden="true">•</span>
-            <span>Google sign-in required</span>
+            <span>No sign-in required</span>
             <span aria-hidden="true">•</span>
             <a href="https://www.saashub.com/pptjet?utm_source=badge&utm_campaign=badge&utm_content=pptjet&badge_variant=color&badge_kind=approved" target="_blank" rel="noopener noreferrer nofollow" aria-label="PPTJet listed on SaaSHub" class="inline-flex items-center gap-1.5 text-gray-600 hover:text-blue-600">
                 <span class="leading-none">Listed on SaaSHub</span>

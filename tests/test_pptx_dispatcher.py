@@ -84,8 +84,8 @@ def test_build_pptx_from_slides_injected_image_caption_is_coherent(tmp_path, mon
         if hasattr(shape, "text") and str(shape.text).strip()
     )
 
-    assert "The Impact and Potential of 5G Technology creates the most value" in full_text
-    assert "specific use cases" in full_text
+    assert "Adoption becomes more practical when 5G Technology supports connected devices, low-latency services, and real-time operations." in full_text
+    assert "Higher bandwidth and lower latency make those workflows more dependable" in full_text
     assert "This visual" not in full_text
     assert "The slide" not in full_text
     assert "creates measurable business value" not in full_text

@@ -2,11 +2,11 @@
 {% block canonical_url %}https://pptjet.com/generate-slides-from-text{% endblock %}
 
 {% block title %}Generate Slides from Text Free AI (Unlimited) | PPTJet{% endblock %}
-{% block description %}Generate slides from text with free AI in seconds. Paste notes or paragraphs and export an editable PowerPoint (.pptx) — unlimited drafts and Google sign-in to start.{% endblock %}
+{% block description %}Generate slides from text with free AI in seconds. Paste notes or paragraphs and export an editable PowerPoint (.pptx) — unlimited drafts and no sign-in required to start.{% endblock %}
 {% block og_title %}Generate Slides from Text Free AI (Unlimited) | PPTJet{% endblock %}
-{% block og_description %}Generate slides from text with free AI in seconds. Paste notes or paragraphs and export an editable PowerPoint (.pptx) — unlimited drafts and Google sign-in to start.{% endblock %}
+{% block og_description %}Generate slides from text with free AI in seconds. Paste notes or paragraphs and export an editable PowerPoint (.pptx) — unlimited drafts and no sign-in required to start.{% endblock %}
 {% block tw_title %}Generate Slides from Text Free AI (Unlimited) | PPTJet{% endblock %}
-{% block tw_description %}Generate slides from text with free AI in seconds. Paste notes or paragraphs and export an editable PowerPoint (.pptx) — unlimited drafts and Google sign-in to start.{% endblock %}
+{% block tw_description %}Generate slides from text with free AI in seconds. Paste notes or paragraphs and export an editable PowerPoint (.pptx) — unlimited drafts and no sign-in required to start.{% endblock %}
 
 {% block head_extra %}
 <script type="application/ld+json">
@@ -27,7 +27,7 @@
   "@type": "FAQPage",
   "mainEntity": [
     {"@type": "Question", "name": "Can I generate slides from a long document with free AI?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Paste your text and PPTJet will draft slide titles and bullets. You can export to .pptx and refine in PowerPoint."}},
-    {"@type": "Question", "name": "Is it free and unlimited?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet supports unlimited slide generation and exports. Sign in with Google to start creating decks."}},
+    {"@type": "Question", "name": "Is it free and unlimited?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet supports unlimited slide generation and exports. You can start creating decks without signing in."}},
     {"@type": "Question", "name": "Will I get an editable PowerPoint file?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. PPTJet exports a standard .pptx that you can edit in Microsoft PowerPoint."}},
     {"@type": "Question", "name": "What format works best?", "acceptedAnswer": {"@type": "Answer", "text": "Short sections with headings and bullets work best, but paragraphs are fine when you include audience, goal, and slide count."}}
   ]
@@ -53,7 +53,7 @@
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Generate your slides from text</a>
         <a href="{{ url_for('main.generate_slides_from_text_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">See the main text-to-slides page</a>
       </div>
-      <p class="mt-3 text-sm text-gray-600">Free. Unlimited drafts. Google sign-in required.</p>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited drafts. No sign-in required.</p>
     </header>
 
     <section class="mt-10" aria-labelledby="what-it-does">
@@ -198,7 +198,7 @@
         </div>
         <div>
           <dt class="text-lg font-semibold text-gray-900">Is it free and unlimited?</dt>
-          <dd class="mt-2 text-gray-700">Yes. Unlimited drafts and exports are free. Sign in with Google to create and download decks.</dd>
+          <dd class="mt-2 text-gray-700">Yes. Unlimited drafts and exports are free. Create and download decks without signing in.</dd>
         </div>
       </dl>
     </section>
@@ -209,7 +209,7 @@
       <div class="mt-5">
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-7 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-semibold">Start your free presentation</a>
       </div>
-      <p class="mt-3 text-sm text-gray-600">Free. Unlimited drafts. Google sign-in required.</p>
+      <p class="mt-3 text-sm text-gray-600">Free. Unlimited drafts. No sign-in required.</p>
     </section>
 
     <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="internal-links">
