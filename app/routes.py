@@ -147,6 +147,52 @@ THEME_OPTIONS = [
 
 
 
+def _theme_slug(theme_name: str) -> str:
+
+    slug = re.sub(r"[^a-z0-9]+", "-", str(theme_name or "").strip().lower()).strip("-")
+
+    return slug or "theme"
+
+
+
+def _theme_display_name(theme_name: str) -> str:
+
+    theme = str(theme_name or "").strip()
+
+    if theme == "prime_meridian":
+
+        return "PRIME MERIDIAN"
+
+    return theme.upper()
+
+
+
+def _theme_entries() -> List[Dict[str, str]]:
+
+    return [
+
+        {"name": theme_name, "slug": _theme_slug(theme_name), "display_name": _theme_display_name(theme_name)}
+
+        for theme_name in THEME_OPTIONS
+
+    ]
+
+
+
+def _theme_name_from_slug(theme_slug: str) -> str | None:
+
+    slug = _theme_slug(theme_slug)
+
+    for theme_name in THEME_OPTIONS:
+
+        if _theme_slug(theme_name) == slug:
+
+            return theme_name
+
+    return None
+
+
+
 # Root directory for per-request preview images (legacy temp + static web-served)
 
 PREVIEW_ROOT = os.path.join(os.getcwd(), "tmp_previews")
@@ -1224,11 +1270,48 @@ def generate_page() -> Any:
 
 @bp.get("/select-theme")
 def select_theme_page() -> Any:
+    theme_entries = _theme_entries()
+    if not theme_entries:
+        return redirect(url_for("main.generate_page"))
+    return redirect(url_for("main.select_theme_detail_page", theme_slug=theme_entries[0]["slug"]))
+
+
+@bp.get("/select-theme/<theme_slug>")
+def select_theme_detail_page(theme_slug: str) -> Any:
     from app.services.pptx_builder import THEME_PALETTES
+
+    theme_name = _theme_name_from_slug(theme_slug)
+    if not theme_name:
+        abort(404)
+
+    canonical_slug = _theme_slug(theme_name)
+    if theme_slug != canonical_slug:
+        return redirect(url_for("main.select_theme_detail_page", theme_slug=canonical_slug))
+
+    theme_entries = _theme_entries()
+    current_index = next((idx for idx, entry in enumerate(theme_entries) if entry["name"] == theme_name), 0)
+    current_entry = theme_entries[current_index]
+    prev_entry = theme_entries[current_index - 1] if current_index > 0 else None
+    next_entry = theme_entries[current_index + 1] if current_index + 1 < len(theme_entries) else None
+
+    theme_key = str(theme_name or "").strip().upper()
+    current_palette = (
+        THEME_PALETTES.get(theme_key)
+        or THEME_PALETTES.get(theme_key.replace(" ", "_"))
+        or THEME_PALETTES.get(str(theme_name or "").strip())
+        or {}
+    )
+
     return render_template(
         "select_theme.html",
-        themes=THEME_OPTIONS,
-        palettes=THEME_PALETTES,
+        theme_entries=theme_entries,
+        current_entry=current_entry,
+        current_theme=theme_name,
+        current_palette=current_palette,
+        current_index=current_index,
+        total_themes=len(theme_entries),
+        prev_entry=prev_entry,
+        next_entry=next_entry,
         user=current_user,
     )
 

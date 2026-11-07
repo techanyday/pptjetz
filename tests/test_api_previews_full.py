@@ -55,3 +55,19 @@ def test_public_templates_do_not_claim_google_sign_in_is_required() -> None:
             assert "Login with Google (optional)" in text
         for phrase in forbidden:
             assert phrase not in text, f"{path} still contains: {phrase}"
+
+
+def test_theme_selection_uses_separate_theme_routes() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    routes_py = (repo_root / "app" / "routes.py").read_text(encoding="utf-8")
+    select_theme_tpl = (repo_root / "app" / "templates" / "select_theme.html").read_text(encoding="utf-8")
+    generate_tpl = (repo_root / "app" / "templates" / "generate.html").read_text(encoding="utf-8")
+
+    assert '@bp.get("/select-theme/<theme_slug>")' in routes_py
+    assert 'redirect(url_for("main.select_theme_detail_page"' in routes_py
+    assert "url_for('main.select_theme_detail_page', theme_slug=prev_entry.slug)" in select_theme_tpl
+    assert "url_for('main.select_theme_detail_page', theme_slug=next_entry.slug)" in select_theme_tpl
+    assert "Why choose" not in select_theme_tpl
+    assert 'id="generateBtn"' in select_theme_tpl
+    assert "const currentTheme = JSON.parse('{{ current_theme | tojson | safe }}');" in select_theme_tpl
+    assert "window.location.assign({{ url_for('main.select_theme_page') | tojson | safe }});" in generate_tpl
