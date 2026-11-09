@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block canonical_url %}https://pptjet.com/ai-presentation-generator{% endblock %}
+{% block canonical_url %}https://pptjet.com/free-ai-presentation-generator{% endblock %}
 
 {% block title %}Free Unlimited AI Presentation Generator | PPTJet{% endblock %}
 {% block description %}Free unlimited AI presentation generator for structured decks in seconds. Unlimited drafts and exports, editable PowerPoint (.pptx), and no sign-in required to start.{% endblock %}
@@ -18,7 +18,7 @@
   "operatingSystem": "Web",
   "url": "https://pptjet.com/free-unlimited-ai-presentation-generator",
   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
-  "description": "PPTJet is a free unlimited AI presentation generator that creates structured slide decks, exports an editable PowerPoint (.pptx) file, and supports unlimited drafts and exports. Sign in with Google to start."
+  "description": "PPTJet is a free unlimited AI presentation generator that creates structured slide decks, exports an editable PowerPoint (.pptx) file, supports unlimited drafts and exports, and does not require sign-in to start."
 }
 </script>
 <script type="application/ld+json">
@@ -84,7 +84,7 @@
       <p class="mt-4 text-lg text-gray-700">
         A <strong>free unlimited AI presentation generator</strong> is useful when you treat it like a drafting system.
         You generate a baseline, learn what’s missing, adjust constraints, and generate again until the storyline is clear.
-        Sign in with Google to generate unlimited drafts and exports, then edit the real <strong>.pptx</strong> in PowerPoint.
+        You can generate unlimited drafts and exports without signing in to start, then edit the real <strong>.pptx</strong> in PowerPoint.
       </p>
       <p class="mt-3 text-gray-700">
         Unlimited matters because presentations are rarely finished in one pass.
@@ -94,10 +94,11 @@
       </p>
       <p class="mt-3 text-sm text-gray-600">Last updated: April 30, 2026</p>
       <p class="mt-3 text-gray-700">
-        If your query is specifically for a free AI presentation maker, compare this page with
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_presentation_maker_page') }}">free AI presentation maker</a>
-        and
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_presentation_maker_unlimited_page') }}">free AI presentation maker unlimited</a>.
+        If your query is specifically for the broader free presentation workflow, compare this page with the
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_presentation_generator_page') }}">free AI presentation generator</a>
+        page and the broader
+        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a>
+        guide.
       </p>
       <div class="mt-6 flex flex-col sm:flex-row gap-3">
         <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">Generate a free unlimited deck</a>

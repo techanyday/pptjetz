@@ -7937,6 +7937,8 @@ def sitemap_xml_route() -> Any:
 
         {"loc": url_for('main.ai_presentation_generator_page', _external=True), "lastmod": "2026-04-29", "changefreq": "weekly", "priority": "0.8"},
 
+        {"loc": url_for('main.free_ai_presentation_generator_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.9"},
+
         {"loc": url_for('main.best_ai_presentation_generators_2026_page', _external=True), "lastmod": "2026-04-29", "changefreq": "weekly", "priority": "0.9"},
 
         {"loc": url_for('main.pptjet_vs_canva_page', _external=True), "lastmod": "2026-04-29", "changefreq": "weekly", "priority": "0.8"},
@@ -7994,6 +7996,7 @@ def sitemap_xml_route() -> Any:
         {"loc": url_for('main.free_ai_tool_to_create_slides_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.generate_slides_from_text_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.ai_powerpoint_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_powerpoint_generator_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.ai_ppt_maker_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.free_ai_slideshow_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
         {"loc": url_for('main.free_ai_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},

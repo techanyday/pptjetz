@@ -71,3 +71,32 @@ def test_theme_selection_uses_separate_theme_routes() -> None:
     assert 'id="generateBtn"' in select_theme_tpl
     assert "const currentTheme = JSON.parse('{{ current_theme | tojson | safe }}');" in select_theme_tpl
     assert "window.location.assign({{ url_for('main.select_theme_page') | tojson | safe }});" in generate_tpl
+
+
+def test_free_generator_cluster_consolidates_canonicals_and_copy() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    templates_dir = repo_root / "app" / "templates"
+    routes_py = (repo_root / "app" / "routes.py").read_text(encoding="utf-8")
+
+    expected_canonicals = {
+        "free_ai_presentation_generator.html": "https://pptjet.com/free-ai-presentation-generator",
+        "free_presentation_generator_ai.html": "https://pptjet.com/free-ai-presentation-generator",
+        "free_ai_presentation_maker.html": "https://pptjet.com/free-ai-presentation-generator",
+        "free_ai_presentation_maker_unlimited.html": "https://pptjet.com/free-ai-presentation-generator",
+        "unlimited_ai_presentation_generator.html": "https://pptjet.com/free-ai-presentation-generator",
+        "free_unlimited_ai_presentation_generator.html": "https://pptjet.com/free-ai-presentation-generator",
+        "ai_presentation_builder_free_unlimited.html": "https://pptjet.com/free-ai-presentation-generator",
+        "free_ai_powerpoint_generator.html": "https://pptjet.com/free-ai-powerpoint-generator",
+    }
+
+    for name, canonical in expected_canonicals.items():
+        text = (templates_dir / name).read_text(encoding="utf-8")
+        assert canonical in text, f"{name} should canonicalize to {canonical}"
+        assert "Sign in with Google" not in text, f"{name} still contains stale sign-in copy"
+
+    for name in ["ai_presentation_generator.html", "presentation_generator_ai.html", "ai_powerpoint_generator.html", "free_ai_slide_generator.html"]:
+        text = (templates_dir / name).read_text(encoding="utf-8")
+        assert "Sign in with Google" not in text, f"{name} still contains stale sign-in copy"
+
+    assert "url_for('main.free_ai_presentation_generator_page'" in routes_py
+    assert "url_for('main.free_ai_powerpoint_generator_page'" in routes_py
