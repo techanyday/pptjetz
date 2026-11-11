@@ -21,7 +21,7 @@
     "price": "0",
     "priceCurrency": "USD"
   },
-  "description": "PPTJet is a free AI presentation generator for product managers. Convert PRDs, discovery notes, and launch plans into a structured, editable PowerPoint (.pptx) deck with clear narrative and visual slide layouts. Sign in with Google to start."
+  "description": "PPTJet is a free AI presentation generator for product managers. Convert PRDs, discovery notes, and launch plans into a structured, editable PowerPoint (.pptx) deck with clear narrative and visual slide layouts. No sign-in required to start."
 }
 </script>
 <script type="application/ld+json">
@@ -100,184 +100,127 @@
 {% endblock %}
 
 {% block content %}
-<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
-    <header>
-      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Presentation Generator for Product Managers</h1>
-      <p class="mt-4 text-lg text-gray-700">
-        Product work is communication work. You write a PRD, you align a team, you pitch a roadmap, you explain trade-offs, and you update stakeholders.
-        The content usually exists in fragments: research notes, Jira tickets, launch checklists, and Slack threads.
-        The hard part is turning those fragments into a short slide story that supports a decision.
-      </p>
-      <p class="mt-3 text-gray-700">
-        PPTJet helps you generate a clear, structured deck draft for common product moments: roadmap reviews, quarterly planning, launch readiness, and executive updates.
-        It’s <strong>free</strong>, supports <strong>unlimited exports</strong>, and produces an editable <strong>.pptx</strong> you can refine in PowerPoint.
-      </p>
-      <p class="mt-3 text-sm text-gray-600">Last updated: April 30, 2026</p>
-      <p class="mt-3 text-gray-700">
-        If you are benchmarking PM tooling choices, review our
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.best_ai_presentation_generators_2026_page') }}">AI presentation generators comparison for 2026</a>
-        and
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_gamma_page') }}">PPTJet vs Gamma for product storytelling</a>.
-      </p>
-      <div class="mt-6 flex flex-col sm:flex-row gap-3">
-        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
-          Generate a product deck
-        </a>
-        <a href="{{ url_for('main.ai_business_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
-          Explore business slide types
-        </a>
+<main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+  <article class="space-y-10">
+    <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-violet-900 text-white shadow-2xl">
+      <div class="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-violet-400 opacity-20 blur-3xl"></div>
+      <div class="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-cyan-300 opacity-10 blur-3xl"></div>
+      <div class="relative grid grid-cols-1 gap-10 p-8 sm:p-10 lg:grid-cols-2 lg:p-12">
+        <div>
+          <div class="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-violet-100">Roadmaps, launches, and stakeholder decks with better structure</div>
+          <h1 class="mt-6 text-4xl font-extrabold leading-tight sm:text-5xl">AI presentation generator for product managers who need sharper stakeholder communication</h1>
+          <p class="mt-5 text-lg text-slate-200">Product work already lives in docs, tickets, notes, metrics, and launch plans. The harder step is turning those fragments into a presentation that helps people align on what matters.</p>
+          <p class="mt-4 text-slate-300">PPTJet gives you a stronger starting point for roadmap reviews, quarterly planning, launch readiness, and product strategy decks — with editable .pptx export and no sign-in required to start.</p>
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-slate-900 hover:bg-slate-100">Generate a product deck</a>
+            <a href="{{ url_for('main.ai_roadmap_generator_page') }}" class="inline-flex items-center justify-center rounded-xl border border-white/20 px-6 py-3 font-semibold text-white hover:bg-white/10">Explore roadmap slides</a>
+          </div>
+          <div class="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3 text-sm">
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Decision-ready</div>
+              <div class="mt-1 text-slate-200">align teams faster with cleaner slide flow</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Visual</div>
+              <div class="mt-1 text-slate-200">use roadmap, KPI, and risk structures more naturally</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Editable .pptx</div>
+              <div class="mt-1 text-slate-200">finish the deck in PowerPoint before the review</div>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
+          <div class="rounded-2xl bg-white p-4 shadow-xl">
+            <img src="{{ url_for('static', filename='images/visual_proof/slide6.png') }}?v=4" alt="Product presentation slide preview" class="w-full rounded-xl border border-slate-200">
+          </div>
+          <div class="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+            <div class="text-sm font-semibold text-white">Built for PM decks that need a storyline, not just more bullets</div>
+            <p class="mt-2 text-sm text-slate-300">Move from PRD fragments to a deck that shows context, priorities, roadmap, metrics, and the actual decision you need.</p>
+          </div>
+        </div>
       </div>
-    </header>
-
-    <section class="mt-10" aria-labelledby="pm-use-cases">
-      <h2 id="pm-use-cases" class="text-2xl font-bold text-gray-900">When Product Managers Use Slides (and Why AI Helps)</h2>
-      <p class="mt-3 text-gray-700">
-        PM decks tend to be time-sensitive. A decision meeting is tomorrow. A roadmap review is next week. A launch depends on alignment today.
-        In those moments, you don’t need perfect wording. You need a strong structure with the right sections in the right order.
-        PPTJet is designed to draft that structure quickly so you can spend your time on product judgment.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Roadmap reviews</strong>: themes, milestones, dependencies, and what changes.</li>
-        <li><strong>Quarterly planning</strong>: priorities, impact, capacity, and trade-offs.</li>
-        <li><strong>Stakeholder updates</strong>: what shipped, what’s next, and what’s blocked.</li>
-        <li><strong>Launch readiness</strong>: scope, risks, GTM plan, and success metrics.</li>
-        <li><strong>Decision docs on slides</strong>: options, pros/cons, and a recommendation.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        If your meeting is more about a weekly update than strategy, the
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.project_status_update_presentation_page') }}">project status update presentation</a>
-        page is a good fit.
-      </p>
     </section>
 
-    <section class="mt-10" aria-labelledby="pm-storyline">
-      <h2 id="pm-storyline" class="text-2xl font-bold text-gray-900">A Product Storyline That Works in Executive Reviews</h2>
-      <p class="mt-3 text-gray-700">
-        Executives don’t want a tour of tasks. They want a short narrative that connects strategy to outcomes.
-        A strong PM deck is point-first: each slide title states the conclusion, and the content supports it.
-        Use this structure as a default when the audience includes leadership or cross-functional stakeholders.
-      </p>
-      <ol class="mt-4 list-decimal pl-6 text-gray-700">
-        <li><strong>Context</strong>: what changed in the market, customer signals, or constraints.</li>
-        <li><strong>Goal</strong>: what outcome you’re optimizing for (growth, retention, reliability).</li>
-        <li><strong>Insights</strong>: 3–5 customer or data points that justify the plan.</li>
-        <li><strong>Strategy</strong>: the themes and why they win.</li>
-        <li><strong>Roadmap</strong>: sequencing, milestones, and dependencies.</li>
-        <li><strong>Metrics</strong>: how success will be measured (KPIs and targets).</li>
-        <li><strong>Risks</strong>: top risks and mitigations.</li>
-        <li><strong>Decision</strong>: what you need approval/alignment on.</li>
-      </ol>
-      <p class="mt-4 text-gray-700">
-        For a dedicated roadmap layout, see the
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_roadmap_generator_page') }}">AI roadmap generator</a>
-        page.
-      </p>
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Roadmap reviews</h2>
+        <p class="mt-2 text-slate-600">Show sequencing, milestones, and why priorities changed.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Launch readiness</h2>
+        <p class="mt-2 text-slate-600">Bring scope, dependencies, risk, and GTM alignment into one deck.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Quarterly planning</h2>
+        <p class="mt-2 text-slate-600">Turn planning inputs into a tighter strategy narrative.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Executive updates</h2>
+        <p class="mt-2 text-slate-600">Connect product progress to business outcomes and decisions.</p>
+      </div>
     </section>
 
-    <section class="mt-10" aria-labelledby="what-to-enter">
-      <h2 id="what-to-enter" class="text-2xl font-bold text-gray-900">What to Enter for Better PM Output</h2>
-      <p class="mt-3 text-gray-700">
-        The best PM decks come from constraints. Instead of pasting a long doc, provide the key building blocks.
-        Think of your input like a short brief that a teammate could use to assemble a narrative.
-        You can paste bullets, a PRD summary, or a few headings from your planning doc.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Audience</strong>: execs, engineering, design, GTM, customer success.</li>
-        <li><strong>Goal</strong>: align, decide, approve, or inform.</li>
-        <li><strong>Problem statement</strong>: what customer pain or business risk you’re addressing.</li>
-        <li><strong>Constraints</strong>: timeline, capacity, dependencies, compliance.</li>
-        <li><strong>Must-include</strong>: metrics, milestones, risks, launch plan.</li>
-        <li><strong>Decision needed</strong>: what you want the room to agree on.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        If you already have a clean outline, start with
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_presentation_from_outline_page') }}">generate presentation from outline</a>
-        to preserve your sequence.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="visual-slides">
-      <h2 id="visual-slides" class="text-2xl font-bold text-gray-900">Visual Slides Product Teams Use Often</h2>
-      <p class="mt-3 text-gray-700">
-        The fastest way to make a PM deck readable is to turn lists into structure.
-        A roadmap or KPI slide communicates in seconds, while dense bullets force your audience to read.
-        PPTJet supports structured slide types that map well to product communication.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Timelines</strong>: phases, launches, and sequencing.</li>
-        <li><strong>Roadmaps</strong>: themes to milestones with dependencies.</li>
-        <li><strong>KPI dashboards</strong>: current performance and targets.</li>
-        <li><strong>Risk matrices</strong>: likelihood vs impact with mitigations.</li>
-        <li><strong>Impact maps</strong>: hub-and-spoke logic for outcomes and initiatives.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        Explore focused pages for
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">timeline slides</a>,
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboards</a>,
-        and
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrices</a>.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="polish">
-      <h2 id="polish" class="text-2xl font-bold text-gray-900">How to Make the Draft Feel “Product-Ready”</h2>
-      <p class="mt-3 text-gray-700">
-        After export, do a short polish pass.
-        This is where you add your real evidence (charts, customer quotes, screenshots) and make the narrative unmistakable.
-        The goal is not more slides. It’s fewer slides with stronger titles.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Rewrite titles as conclusions</strong>: “Retention improved” beats “Retention”.</li>
-        <li><strong>Add one proof item per claim</strong>: metric, chart, or customer quote.</li>
-        <li><strong>Show trade-offs</strong>: what you’re not doing and why.</li>
-        <li><strong>End with a decision</strong>: a clear ask and next steps.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        If your deck is built from messy notes, it can help to start with
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a>
-        and then refine.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="faq">
-      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
-      <dl class="mt-5 space-y-6">
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Is PPTJet really free and unlimited?</dt>
-          <dd class="mt-2 text-gray-700">Yes. PPTJet is free and supports unlimited deck generation and exports. Create and download decks without signing in.</dd>
+    <section class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        <h2 class="text-2xl font-bold text-slate-900">A product deck sequence that usually works</h2>
+        <ol class="mt-6 space-y-4 text-slate-700">
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>1. Start with the why now.</strong> Market signal, customer problem, or business constraint that makes the deck urgent.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>2. Show the plan clearly.</strong> Themes, roadmap, milestones, dependencies, and trade-offs should each have a job.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>3. Put metrics and risks on slides that are easy to scan.</strong> Use structured layouts instead of long bullet walls.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>4. End with the decision.</strong> Make the ask obvious for leadership, engineering, or GTM partners.</li>
+        </ol>
+        <p class="mt-5 text-slate-600">If the deck is more of a weekly update than a strategy review, the <a class="text-blue-600 hover:underline" href="{{ url_for('main.project_status_update_presentation_page') }}">project status update presentation</a> page is a better fit.</p>
+      </div>
+      <div class="rounded-3xl border border-slate-200 bg-slate-950 p-8 text-white shadow-sm">
+        <h2 class="text-2xl font-bold">What to include in the prompt</h2>
+        <div class="mt-6 space-y-4 text-slate-200">
+          <div>
+            <div class="font-semibold text-white">Audience + meeting type</div>
+            <p class="mt-1">Exec review, product sync, roadmap planning, launch go/no-go, or board update.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Goal + decision needed</div>
+            <p class="mt-1">Alignment, approval, prioritization, resourcing, or launch decision.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Must-include facts</div>
+            <p class="mt-1">Metrics, milestones, customer insights, dependencies, and top risks.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Constraints</div>
+            <p class="mt-1">Timeline, team capacity, compliance, and cross-functional dependencies.</p>
+          </div>
         </div>
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Can I use my own product template?</dt>
-          <dd class="mt-2 text-gray-700">Yes. Export to .pptx and then apply your team’s theme, fonts, and layout rules in PowerPoint.</dd>
+        <div class="mt-6 text-sm text-slate-300">Helpful follow-ups: <a class="text-violet-300 underline hover:text-violet-200" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboards</a>, <a class="text-violet-300 underline hover:text-violet-200" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrices</a>, and <a class="text-violet-300 underline hover:text-violet-200" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">timeline slides</a>.</div>
+      </div>
+    </section>
+
+    <section class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm" aria-labelledby="faq">
+      <h2 id="faq" class="text-3xl font-bold text-slate-900">FAQ</h2>
+      <dl class="mt-6 space-y-4">
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Can I use this for roadmap and launch decks?</dt>
+          <dd class="mt-2 text-slate-600">Yes. PPTJet is well-suited to roadmap reviews, strategy updates, launch planning, and stakeholder alignment decks.</dd>
         </div>
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Will it replace my PRD or planning doc?</dt>
-          <dd class="mt-2 text-gray-700">Treat PPTJet as a slide drafting tool. Use it to convert your PRD and notes into a presentation structure, then edit the details for accuracy.</dd>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Will the output still be editable?</dt>
+          <dd class="mt-2 text-slate-600">Yes. You export a standard .pptx file and can tailor it in PowerPoint.</dd>
+        </div>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">How do I avoid generic product slides?</dt>
+          <dd class="mt-2 text-slate-600">Give the tool concrete audience context, the decision you need, and real metrics or milestones. Specific inputs produce sharper output.</dd>
         </div>
       </dl>
     </section>
 
-    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
-      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
-      <ul class="mt-3 list-disc pl-6 text-gray-700">
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.best_ai_presentation_generators_2026_page') }}">best AI presentation generators (2026)</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_gamma_page') }}">Gamma vs PPTJet for PM updates</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_roadmap_generator_page') }}">AI roadmap generator</a></li>
-      </ul>
-    </section>
-
-    <section class="mt-10">
-      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h2 class="text-lg font-bold text-gray-900">Draft your next product update deck in minutes</h2>
-          <p class="mt-1 text-gray-700">Generate a structured draft now, then refine it in PowerPoint.</p>
+    <section class="rounded-3xl bg-violet-600 p-8 text-white shadow-xl">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div class="max-w-2xl">
+          <h2 class="text-3xl font-bold">Need a clearer product deck before the review?</h2>
+          <p class="mt-3 text-violet-100">Generate the structure quickly, then spend the meeting-prep time on judgment instead of formatting.</p>
         </div>
-        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
-          Start Creating for Free
-        </a>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-violet-700 hover:bg-violet-50">Start creating for free</a>
       </div>
     </section>
   </article>

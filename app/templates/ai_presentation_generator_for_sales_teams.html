@@ -42,7 +42,7 @@
       "name": "Can I generate a sales deck or proposal deck structure?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. PPTJet can draft a clean sales narrative structure including problem, impact, solution, proof, and next steps. Export to .pptx and tailor it for each segment." 
+        "text": "Yes. PPTJet can draft a clean sales narrative structure including problem, impact, solution, proof, and next steps. Export to .pptx and tailor it for each segment."
       }
     },
     {
@@ -50,7 +50,7 @@
       "name": "What input works best for sales decks?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Use bullets: target customer, pain points, current workflow, desired outcome, differentiators, proof points, pricing approach, and next steps." 
+        "text": "Use bullets: target customer, pain points, current workflow, desired outcome, differentiators, proof points, pricing approach, and next steps."
       }
     }
   ]
@@ -100,185 +100,127 @@
 {% endblock %}
 
 {% block content %}
-<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
-    <header>
-      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Presentation Generator for Sales Teams</h1>
-      <p class="mt-4 text-lg text-gray-700">
-        Sales decks are conversation tools. The best decks help a buyer understand their situation, believe change is urgent, and trust that your approach works.
-        But the raw ingredients are usually scattered across call notes, battlecards, and scattered enablement docs.
-        PPTJet helps you turn those inputs into a clean slide structure you can reuse and personalize.
-      </p>
-      <p class="mt-3 text-gray-700">
-        PPTJet is <strong>free</strong>, supports <strong>unlimited exports</strong>, and generates a real PowerPoint file.
-        Sign in with Google to draft intro decks, demo storylines, proposal decks, and follow-up presentations.
-      </p>
-      <p class="mt-3 text-sm text-gray-600">Last updated: April 30, 2026</p>
-      <p class="mt-3 text-gray-700">
-        To compare alternative platforms before committing your sales enablement stack, review
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_canva_page') }}">PPTJet vs Canva for sales decks</a>
-        and
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.best_ai_presentation_generators_2026_page') }}">top AI presentation generators in 2026</a>.
-      </p>
-      <div class="mt-6 flex flex-col sm:flex-row gap-3">
-        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
-          Generate a sales deck
-        </a>
-        <a href="{{ url_for('main.sales_deck_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
-          See the sales deck generator page
-        </a>
+<main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+  <article class="space-y-10">
+    <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-rose-900 text-white shadow-2xl">
+      <div class="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-rose-400 opacity-20 blur-3xl"></div>
+      <div class="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-orange-300 opacity-10 blur-3xl"></div>
+      <div class="relative grid grid-cols-1 gap-10 p-8 sm:p-10 lg:grid-cols-2 lg:p-12">
+        <div>
+          <div class="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-rose-100">Sales decks that support the conversation instead of slowing it down</div>
+          <h1 class="mt-6 text-4xl font-extrabold leading-tight sm:text-5xl">AI presentation generator for sales teams that need a cleaner story fast</h1>
+          <p class="mt-5 text-lg text-slate-200">The raw inputs already exist: call notes, objections, proof points, ROI math, proposal scope. The challenge is turning that material into a deck that helps a buyer understand the value quickly.</p>
+          <p class="mt-4 text-slate-300">PPTJet helps you build a stronger first draft for intro decks, demos, proposals, and expansion conversations — with editable .pptx export and no sign-in required to start.</p>
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-slate-900 hover:bg-slate-100">Generate a sales deck</a>
+            <a href="{{ url_for('main.sales_deck_generator_page') }}" class="inline-flex items-center justify-center rounded-xl border border-white/20 px-6 py-3 font-semibold text-white hover:bg-white/10">Explore sales deck pages</a>
+          </div>
+          <div class="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3 text-sm">
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Reusable</div>
+              <div class="mt-1 text-slate-200">keep a stronger baseline deck across stages and segments</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Faster edits</div>
+              <div class="mt-1 text-slate-200">download a real .pptx and personalize it quickly</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Buyer-friendly</div>
+              <div class="mt-1 text-slate-200">clearer problem, proof, and next-step flow</div>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
+          <div class="rounded-2xl bg-white p-4 shadow-xl">
+            <img src="{{ url_for('static', filename='images/visual_proof/slide5.png') }}?v=4" alt="Sales presentation slide preview" class="w-full rounded-xl border border-slate-200">
+          </div>
+          <div class="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+            <div class="text-sm font-semibold text-white">Built for decks that still need to convert live</div>
+            <p class="mt-2 text-sm text-slate-300">Start with the storyline, then add segment-specific proof, objection handling, and pricing detail before the call.</p>
+          </div>
+        </div>
       </div>
-      <p class="mt-3 text-sm text-gray-600">Free. Unlimited exports. No sign-in required.</p>
-    </header>
-
-    <section class="mt-10" aria-labelledby="sales-use-cases">
-      <h2 id="sales-use-cases" class="text-2xl font-bold text-gray-900">Where Sales Teams Use Presentations</h2>
-      <p class="mt-3 text-gray-700">
-        Sales content works best when it matches the stage of the deal.
-        A single deck that tries to do everything usually becomes too long.
-        Instead, keep a small set of stage-specific decks that share the same narrative backbone.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>First call / intro</strong>: who you help, what you solve, and how you’re different.</li>
-        <li><strong>Demo setup</strong>: the problem story and the outcomes you will show.</li>
-        <li><strong>Proposal</strong>: scope, approach, timeline, and success criteria.</li>
-        <li><strong>Executive sponsor</strong>: business value, proof, and implementation plan.</li>
-        <li><strong>Renewals / expansion</strong>: ROI, adoption metrics, and roadmap alignment.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        If you want a sales-specific landing page focused on the keyword intent “sales deck”, start with
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.sales_deck_generator_page') }}">sales deck generator</a>.
-        This page focuses on how to build reusable team decks and personalize them at scale.
-      </p>
     </section>
 
-    <section class="mt-10" aria-labelledby="sales-structure">
-      <h2 id="sales-structure" class="text-2xl font-bold text-gray-900">A Sales Deck Structure That Converts</h2>
-      <p class="mt-3 text-gray-700">
-        You can customize the exact order, but high-performing sales decks follow a predictable flow.
-        The goal is to reduce cognitive load for the buyer while building credibility.
-        Use this as a baseline for intro, demo, and proposal decks.
-      </p>
-      <ol class="mt-4 list-decimal pl-6 text-gray-700">
-        <li><strong>Title</strong>: who it’s for and what outcome you enable.</li>
-        <li><strong>The problem</strong>: what’s painful, slow, or risky today.</li>
-        <li><strong>The impact</strong>: what it costs (time, revenue, risk).</li>
-        <li><strong>Your approach</strong>: how you solve it in a simple visual story.</li>
-        <li><strong>Proof</strong>: results, logos (if allowed), customer quotes, metrics.</li>
-        <li><strong>How it works</strong>: implementation steps or timeline.</li>
-        <li><strong>Packaging</strong>: what’s included and how you price it.</li>
-        <li><strong>Next steps</strong>: what happens after the call.</li>
-      </ol>
-      <p class="mt-4 text-gray-700">
-        If you need investor-style storytelling instead, use the
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.pitch_deck_generator_page') }}">pitch deck generator</a>.
-      </p>
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Intro decks</h2>
+        <p class="mt-2 text-slate-600">Clarify the problem, outcome, and why your approach is different.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Demo narratives</h2>
+        <p class="mt-2 text-slate-600">Frame the story before the walkthrough so the product lands better.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Proposal decks</h2>
+        <p class="mt-2 text-slate-600">Tie scope, implementation, timeline, and success criteria together more clearly.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Expansion / renewal decks</h2>
+        <p class="mt-2 text-slate-600">Show ROI, adoption, roadmap alignment, and the next opportunity.</p>
+      </div>
     </section>
 
-    <section class="mt-10" aria-labelledby="what-to-enter">
-      <h2 id="what-to-enter" class="text-2xl font-bold text-gray-900">What to Enter for Better Sales Output</h2>
-      <p class="mt-3 text-gray-700">
-        Sales decks get better when the input is segmented.
-        Provide the buyer profile, the top pains, and your strongest differentiators.
-        Then include the proof you can actually defend in a conversation.
-        The output becomes a reusable structure you can adapt per segment.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Ideal customer profile</strong>: industry, size, role, trigger event.</li>
-        <li><strong>Top pains</strong>: what is broken today and why it matters.</li>
-        <li><strong>Outcome</strong>: what success looks like (measurable if possible).</li>
-        <li><strong>Differentiators</strong>: 3 reasons you win.</li>
-        <li><strong>Proof points</strong>: results, metrics, case study bullets.</li>
-        <li><strong>Implementation</strong>: steps and timeline.</li>
-        <li><strong>Objections</strong>: security, ROI, change management, switching costs.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        If your content exists as raw notes, try
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a>
-        and then refine the language.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="personalization">
-      <h2 id="personalization" class="text-2xl font-bold text-gray-900">Personalization Without Rewriting Everything</h2>
-      <p class="mt-3 text-gray-700">
-        The best sales teams keep a stable core deck and personalize the edges.
-        That reduces time spent rebuilding slides and increases consistency across reps.
-        Generate a strong baseline, then create small variants by segment: SMB vs enterprise, technical buyer vs business buyer, or industry-specific use cases.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Swap examples</strong> that match the buyer’s industry.</li>
-        <li><strong>Change the impact math</strong> to match their team size and costs.</li>
-        <li><strong>Adjust proof</strong> to what the buyer trusts (security, speed, ROI).</li>
-        <li><strong>Use a consistent close</strong> with clear next steps.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        For marketing-led decks, the
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.marketing_presentation_generator_page') }}">marketing presentation generator</a>
-        page can be a better hub.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="enablement">
-      <h2 id="enablement" class="text-2xl font-bold text-gray-900">Sales Enablement: Keep One Source of Truth</h2>
-      <p class="mt-3 text-gray-700">
-        A deck only works if reps trust it.
-        When messaging changes and the deck doesn’t, the field stops using it.
-        A simple enablement workflow is: keep a stable “core narrative” deck, then allow controlled variants by segment.
-        PPTJet helps you draft the structure quickly, but the long-term win is maintaining consistency across the team.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>One core storyline</strong> that matches your sales motion.</li>
-        <li><strong>Approved proof</strong> (metrics, quotes, references) that is defensible.</li>
-        <li><strong>Objection slides</strong> for security, ROI, and change management.</li>
-        <li><strong>Implementation slide</strong> that reduces perceived risk.</li>
-        <li><strong>Close slide</strong> that standardizes next steps.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        For the keyword-specific “sales deck” intent, you can also use the dedicated
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.sales_deck_generator_page') }}">sales deck generator</a>
-        page as your public hub.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="faq">
-      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
-      <dl class="mt-5 space-y-6">
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Is PPTJet suitable for enterprise sales?</dt>
-          <dd class="mt-2 text-gray-700">Yes. Generate a baseline narrative, then tailor proof and risk content for enterprise buyers and executive sponsors.</dd>
+    <section class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        <h2 class="text-2xl font-bold text-slate-900">A sales deck flow that is easier to follow</h2>
+        <ol class="mt-6 space-y-4 text-slate-700">
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>1. State the problem clearly.</strong> The buyer should see themselves in the opening slides.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>2. Show the impact.</strong> Explain the operational, revenue, or risk consequence of staying where they are.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>3. Support the claim with proof.</strong> Results, quotes, metrics, and examples make the deck credible.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>4. End on next steps.</strong> Give the rep and the buyer a clear path after the meeting.</li>
+        </ol>
+        <p class="mt-5 text-slate-600">If the goal is investor-style storytelling rather than sales enablement, compare this with the <a class="text-blue-600 hover:underline" href="{{ url_for('main.pitch_deck_generator_page') }}">pitch deck generator</a>.</p>
+      </div>
+      <div class="rounded-3xl border border-slate-200 bg-slate-950 p-8 text-white shadow-sm">
+        <h2 class="text-2xl font-bold">What to include in the prompt</h2>
+        <div class="mt-6 space-y-4 text-slate-200">
+          <div>
+            <div class="font-semibold text-white">Buyer profile</div>
+            <p class="mt-1">Industry, team, trigger event, and who is actually in the room.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Top pains + outcome</div>
+            <p class="mt-1">What is broken now and what success looks like after change.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Differentiators + proof</div>
+            <p class="mt-1">Why you win, which proof points matter, and what objections you need to address.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Next-step motion</div>
+            <p class="mt-1">Pilot, pricing review, technical validation, legal step, or implementation plan.</p>
+          </div>
         </div>
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Will the output be unique for each customer?</dt>
-          <dd class="mt-2 text-gray-700">Treat output as a draft. You can generate multiple variants and then personalize the final version with customer-specific numbers and examples.</dd>
+        <div class="mt-6 text-sm text-slate-300">If you are starting from raw notes or discovery transcripts, use <a class="text-rose-300 underline hover:text-rose-200" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a> before the final polish.</div>
+      </div>
+    </section>
+
+    <section class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm" aria-labelledby="faq">
+      <h2 id="faq" class="text-3xl font-bold text-slate-900">FAQ</h2>
+      <dl class="mt-6 space-y-4">
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Can I use this for proposals and sales intros?</dt>
+          <dd class="mt-2 text-slate-600">Yes. PPTJet can support intro decks, demos, proposals, and follow-up narratives.</dd>
         </div>
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Can I keep decks on-brand?</dt>
-          <dd class="mt-2 text-gray-700">Yes. Export to .pptx and apply your brand theme in PowerPoint.</dd>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Will the exported deck still be editable?</dt>
+          <dd class="mt-2 text-slate-600">Yes. You export a standard .pptx and can personalize it for the account in PowerPoint.</dd>
+        </div>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">How do I make the deck feel less generic?</dt>
+          <dd class="mt-2 text-slate-600">Bring in real pains, measurable outcomes, proof points, and objections. The more specific the brief, the stronger the sales story.</dd>
         </div>
       </dl>
     </section>
 
-    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
-      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
-      <ul class="mt-3 list-disc pl-6 text-gray-700">
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_canva_page') }}">Canva vs PPTJet for sales presentations</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_gamma_page') }}">Gamma vs PPTJet for outbound decks</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.sales_deck_generator_page') }}">sales deck generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.pitch_deck_generator_page') }}">pitch deck generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.free_ai_powerpoint_generator_page') }}">free AI PowerPoint generator</a></li>
-      </ul>
-    </section>
-
-    <section class="mt-10">
-      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h2 class="text-lg font-bold text-gray-900">Build a sales-ready deck in minutes</h2>
-          <p class="mt-1 text-gray-700">Sign in with Google, generate a structured draft now, then polish it for your next call.</p>
+    <section class="rounded-3xl bg-rose-600 p-8 text-white shadow-xl">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div class="max-w-2xl">
+          <h2 class="text-3xl font-bold">Need a cleaner sales storyline before the next call?</h2>
+          <p class="mt-3 text-rose-100">Generate the deck structure first, then spend your time personalizing the proof and close.</p>
         </div>
-        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
-          Start Creating for Free
-        </a>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-rose-700 hover:bg-rose-50">Start creating for free</a>
       </div>
     </section>
   </article>

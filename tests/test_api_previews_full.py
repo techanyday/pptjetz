@@ -100,3 +100,31 @@ def test_free_generator_cluster_consolidates_canonicals_and_copy() -> None:
 
     assert "url_for('main.free_ai_presentation_generator_page'" in routes_py
     assert "url_for('main.free_ai_powerpoint_generator_page'" in routes_py
+
+
+def test_secondary_landing_pages_use_premium_layout_and_clean_copy() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    templates_dir = repo_root / "app" / "templates"
+    redesigned = [
+        "ai_presentation_generator_for_students.html",
+        "ai_presentation_generator_for_consultants.html",
+        "ai_presentation_generator_for_teachers.html",
+        "ai_presentation_generator_for_product_managers.html",
+        "ai_presentation_generator_for_executives.html",
+        "ai_presentation_generator_for_sales_teams.html",
+        "ai_presentation_generator_for_analysts.html",
+        "ai_business_presentation_generator.html",
+        "ai_product_presentation_generator.html",
+        "ai_technical_presentation_generator.html",
+        "board_presentation_generator.html",
+        "marketing_presentation_generator.html",
+        "training_presentation_generator.html",
+        "project_status_update_presentation.html",
+    ]
+
+    for name in redesigned:
+        text = (templates_dir / name).read_text(encoding="utf-8")
+        assert 'max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10' in text, f"{name} should use the premium page container"
+        assert 'relative overflow-hidden rounded-3xl bg-gradient-to-br' in text, f"{name} should use the premium hero layout"
+        assert "url_for('main.generate_page')" in text, f"{name} should keep the main CTA"
+        assert "Sign in with Google" not in text, f"{name} still contains stale sign-in copy"

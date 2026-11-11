@@ -67,95 +67,129 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
-    <header>
-      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Product Presentation Generator</h1>
-      <p class="mt-4 text-lg text-gray-700">
-        Product decks need clarity: what changed, why it matters, what’s next, and what you need from stakeholders.
-        PPTJet generates a complete product presentation deck with slide layouts that are built for real product communication—not generic templates.
-      </p>
-    </header>
-
-    <section class="mt-8">
-      <h2 class="text-2xl font-bold text-gray-900">Slide Layouts Built for Product Communication</h2>
-      <p class="mt-3 text-gray-700">
-        PPTJet can generate structured visual slides commonly used in product updates, roadmap reviews, and planning sessions.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Roadmaps</strong>, timelines, and milestone plans</li>
-        <li><strong>Impact maps</strong> (goals, actors, outcomes, deliverables)</li>
-        <li><strong>Funnels</strong> and metric breakdowns</li>
-        <li><strong>SWOT analysis</strong> and competitive framing</li>
-        <li><strong>Risk matrices</strong> and dependency tracking</li>
-        <li><strong>KPI infographics</strong> for stakeholder-ready reporting</li>
-      </ul>
+<main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+  <article class="space-y-10">
+    <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-fuchsia-900 text-white shadow-2xl">
+      <div class="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-fuchsia-400 opacity-20 blur-3xl"></div>
+      <div class="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-cyan-300 opacity-10 blur-3xl"></div>
+      <div class="relative grid grid-cols-1 gap-10 p-8 sm:p-10 lg:grid-cols-2 lg:p-12">
+        <div>
+          <div class="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-fuchsia-100">Product decks with clearer roadmaps, metrics, and decisions</div>
+          <h1 class="mt-6 text-4xl font-extrabold leading-tight sm:text-5xl">AI product presentation generator for launches, planning, and stakeholder reviews</h1>
+          <p class="mt-5 text-lg text-slate-200">Product decks usually need more than a template. They need a clear narrative about what changed, what matters, how the roadmap fits together, and what decision the room needs to make.</p>
+          <p class="mt-4 text-slate-300">PPTJet helps you draft that flow faster with structured slide types like roadmaps, KPI summaries, risk views, and launch plans — then export everything as an editable PowerPoint.</p>
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-slate-900 hover:bg-slate-100">Generate a product deck</a>
+            <a href="{{ url_for('main.ai_presentation_generator_for_product_managers_page') }}" class="inline-flex items-center justify-center rounded-xl border border-white/20 px-6 py-3 font-semibold text-white hover:bg-white/10">See PM-focused workflow</a>
+          </div>
+          <div class="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3 text-sm">
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Roadmap-ready</div>
+              <div class="mt-1 text-slate-200">cleaner sequencing for plans and launch milestones</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Stakeholder-friendly</div>
+              <div class="mt-1 text-slate-200">easier to scan than dense product docs</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Editable</div>
+              <div class="mt-1 text-slate-200">polish the exported .pptx with your team’s details</div>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
+          <div class="rounded-2xl bg-white p-4 shadow-xl">
+            <img src="{{ url_for('static', filename='images/visual_proof/slide6.png') }}?v=4" alt="Product deck slide preview" class="w-full rounded-xl border border-slate-200">
+          </div>
+          <div class="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+            <div class="text-sm font-semibold text-white">Built for product storytelling, not just status bullets</div>
+            <p class="mt-2 text-sm text-slate-300">Use the first draft to connect insights, priorities, roadmap, risk, and the actual decision the deck is meant to support.</p>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <section class="mt-10">
-      <h2 class="text-2xl font-bold text-gray-900">How to Generate a Product Deck</h2>
-      <ol class="mt-3 list-decimal pl-6 text-gray-700">
-        <li><strong>Enter your product context</strong> (audience, release scope, key metrics, and decisions needed).</li>
-        <li><strong>PPTJet generates the full deck</strong> with a coherent slide sequence and visual layouts.</li>
-        <li><strong>Export to PowerPoint</strong> and iterate quickly with your team.</li>
-      </ol>
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Roadmap presentations</h2>
+        <p class="mt-2 text-slate-600">Show themes, milestones, dependencies, and sequencing more clearly.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Launch reviews</h2>
+        <p class="mt-2 text-slate-600">Clarify scope, readiness, risks, and success metrics before go-live.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Stakeholder updates</h2>
+        <p class="mt-2 text-slate-600">Summarize progress, insight, and the next decision more effectively.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Planning decks</h2>
+        <p class="mt-2 text-slate-600">Turn scattered planning notes into a stronger presentation flow.</p>
+      </div>
     </section>
 
-    <section class="mt-10">
-      <h2 class="text-2xl font-bold text-gray-900">Common Use Cases</h2>
-      <ul class="mt-3 list-disc pl-6 text-gray-700">
-        <li>Product roadmap presentations</li>
-        <li>Monthly product updates to leadership</li>
-        <li>Launch reviews and postmortems</li>
-        <li>Stakeholder alignment and planning decks</li>
-      </ul>
+    <section class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        <h2 class="text-2xl font-bold text-slate-900">What strong product decks usually show</h2>
+        <ol class="mt-6 space-y-4 text-slate-700">
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>1. Why this matters now.</strong> Context from customers, market signals, or internal constraints.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>2. What the team learned.</strong> Data, feedback, or discovery inputs that justify the plan.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>3. How the plan unfolds.</strong> Roadmaps, timelines, and milestones help the room see the logic.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>4. What decision is needed.</strong> Approval, prioritization, scope, or resource alignment should be explicit.</li>
+        </ol>
+        <p class="mt-5 text-slate-600">For a more audience-specific version of this workflow, see the <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_for_product_managers_page') }}">product manager presentation page</a>.</p>
+      </div>
+      <div class="rounded-3xl border border-slate-200 bg-slate-950 p-8 text-white shadow-sm">
+        <h2 class="text-2xl font-bold">Slide formats that fit product communication</h2>
+        <div class="mt-6 space-y-4 text-slate-200">
+          <div>
+            <div class="font-semibold text-white">Roadmaps and timelines</div>
+            <p class="mt-1">Best for showing sequence, milestones, and dependencies across the quarter.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">KPI snapshots</div>
+            <p class="mt-1">Summarize health, trend, and target in one place before the deeper discussion.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Risk and dependency views</div>
+            <p class="mt-1">Make trade-offs and delivery blockers easier to discuss honestly.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">SWOT or comparison frames</div>
+            <p class="mt-1">Useful when product direction or prioritization needs to be defended clearly.</p>
+          </div>
+        </div>
+        <div class="mt-6 text-sm text-slate-300">Useful follow-ups: <a class="text-fuchsia-300 underline hover:text-fuchsia-200" href="{{ url_for('main.ai_roadmap_generator_page') }}">AI roadmap generator</a>, <a class="text-fuchsia-300 underline hover:text-fuchsia-200" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides</a>, and <a class="text-fuchsia-300 underline hover:text-fuchsia-200" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrix generator</a>.</div>
+      </div>
     </section>
 
-    <section class="mt-10">
-      <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
-        Generate a product deck
-      </a>
-      <p class="mt-3 text-sm text-gray-600">
-        PPTJet is <strong>free</strong>, allows <strong>unlimited</strong> presentation generation, and does not require sign-in to start.
-      </p>
+    <section class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm" aria-labelledby="faq">
+      <h2 id="faq" class="text-3xl font-bold text-slate-900">FAQ</h2>
+      <dl class="mt-6 space-y-4">
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Can PPTJet handle roadmap and launch decks?</dt>
+          <dd class="mt-2 text-slate-600">Yes. It is a strong fit for roadmaps, launch reviews, stakeholder updates, and product strategy decks.</dd>
+        </div>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Is this a template library?</dt>
+          <dd class="mt-2 text-slate-600">No. PPTJet generates a full deck draft from your brief, then exports it as an editable PowerPoint.</dd>
+        </div>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Can I edit the exported file?</dt>
+          <dd class="mt-2 text-slate-600">Yes. You can revise text, layout, and visuals in PowerPoint after export.</dd>
+        </div>
+      </dl>
     </section>
 
-    <section class="mt-10 border-t border-gray-200 pt-8">
-      <h2 class="text-2xl font-bold text-gray-900">Frequently Asked Questions</h2>
-
-      <h3 class="mt-5 text-lg font-semibold text-gray-900">Can I use this for roadmap reviews and stakeholder updates?</h3>
-      <p class="mt-2 text-gray-700">
-        Yes. PPTJet is designed for decks where structure and visuals matter—like roadmaps, outcomes, metrics, risks, and next steps.
-      </p>
-
-      <h3 class="mt-5 text-lg font-semibold text-gray-900">Can I edit the exported deck?</h3>
-      <p class="mt-2 text-gray-700">
-        Yes. You get a PowerPoint file you can edit like any other deck.
-      </p>
-
-      <h3 class="mt-5 text-lg font-semibold text-gray-900">Is this a product presentation template library?</h3>
-      <p class="mt-2 text-gray-700">
-        No. PPTJet generates a complete deck with slide layouts based on your brief.
-      </p>
-
-      <h3 class="mt-5 text-lg font-semibold text-gray-900">Is PPTJet free?</h3>
-      <p class="mt-2 text-gray-700">
-        Yes. PPTJet is free and supports unlimited generation and exports. Create and download decks without signing in.
-      </p>
-    </section>
-
-    <section class="mt-10 border-t border-gray-200 pt-8">
-      <h2 class="text-xl font-bold text-gray-900">Related Tools</h2>
-      <ul class="mt-3 list-disc pl-6 text-gray-700">
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.presentation_outline_generator_page') }}">Presentation outline generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.board_presentation_generator_page') }}">Board presentation generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_technical_presentation_generator_page') }}">AI technical presentation generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_roadmap_generator_page') }}">AI roadmap generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides generator</a></li>
-      </ul>
+    <section class="rounded-3xl bg-fuchsia-600 p-8 text-white shadow-xl">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div class="max-w-2xl">
+          <h2 class="text-3xl font-bold">Need a stronger product deck draft?</h2>
+          <p class="mt-3 text-fuchsia-100">Start with the structure now, then spend the rest of your prep time on product judgment and proof.</p>
+        </div>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-fuchsia-700 hover:bg-fuchsia-50">Start creating for free</a>
+      </div>
     </section>
   </article>
-</div>
+</main>
 {% endblock %}

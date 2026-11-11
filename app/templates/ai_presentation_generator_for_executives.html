@@ -21,7 +21,7 @@
     "price": "0",
     "priceCurrency": "USD"
   },
-  "description": "PPTJet is a free AI presentation generator for executives. Draft leadership-ready decks with executive summaries, KPIs, risks, decisions, and roadmaps, then export an editable PowerPoint (.pptx). Sign in with Google to start."
+  "description": "PPTJet is a free AI presentation generator for executives. Draft leadership-ready decks with executive summaries, KPIs, risks, decisions, and roadmaps, then export an editable PowerPoint (.pptx). No sign-in required to start."
 }
 </script>
 <script type="application/ld+json">
@@ -100,205 +100,127 @@
 {% endblock %}
 
 {% block content %}
-<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
-    <header>
-      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Presentation Generator for Executives</h1>
-      <p class="mt-4 text-lg text-gray-700">
-        Executive time is scarce. A leadership deck has one job: make the situation obvious and drive a decision.
-        That means clear structure, point-first titles, and a short path from metrics to action.
-        PPTJet helps you draft that structure quickly and export an editable PowerPoint for final review.
-      </p>
-      <p class="mt-3 text-gray-700">
-        PPTJet is <strong>free</strong>, supports <strong>unlimited exports</strong>, and generates a real <strong>.pptx</strong> file.
-        Use it to draft weekly exec updates, QBR-style decks, strategy reviews, or board-ready summaries.
-      </p>
-      <p class="mt-3 text-sm text-gray-600">Last updated: April 30, 2026</p>
-      <p class="mt-3 text-gray-700">
-        For platform-level comparisons, review
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_canva_page') }}">PPTJet vs Canva</a>
-        and
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_gamma_page') }}">PPTJet vs Gamma for executive storytelling</a>.
-      </p>
-      <div class="mt-6 flex flex-col sm:flex-row gap-3">
-        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
-          Generate an executive deck
-        </a>
-        <a href="{{ url_for('main.ai_business_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
-          Explore strategy slide types
-        </a>
+<main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+  <article class="space-y-10">
+    <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-sky-900 text-white shadow-2xl">
+      <div class="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-sky-400 opacity-20 blur-3xl"></div>
+      <div class="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-cyan-300 opacity-10 blur-3xl"></div>
+      <div class="relative grid grid-cols-1 gap-10 p-8 sm:p-10 lg:grid-cols-2 lg:p-12">
+        <div>
+          <div class="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-sky-100">Leadership decks that get to the point faster</div>
+          <h1 class="mt-6 text-4xl font-extrabold leading-tight sm:text-5xl">AI presentation generator for executives who need clarity, not slide clutter</h1>
+          <p class="mt-5 text-lg text-slate-200">Executive decks should make the situation obvious in minutes: what changed, what matters, what is at risk, and what decision is needed. PPTJet helps you start from that structure instead of a blank file.</p>
+          <p class="mt-4 text-slate-300">Use it for weekly updates, strategy reviews, QBR-style summaries, or board-adjacent decks — then export an editable .pptx and tighten the final message in PowerPoint.</p>
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-slate-900 hover:bg-slate-100">Generate an executive deck</a>
+            <a href="{{ url_for('main.board_presentation_generator_page') }}" class="inline-flex items-center justify-center rounded-xl border border-white/20 px-6 py-3 font-semibold text-white hover:bg-white/10">Explore board-style decks</a>
+          </div>
+          <div class="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3 text-sm">
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Faster alignment</div>
+              <div class="mt-1 text-slate-200">get from metrics to decision with less backstory</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Structured</div>
+              <div class="mt-1 text-slate-200">use summary, KPI, risk, and roadmap slides more effectively</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Editable .pptx</div>
+              <div class="mt-1 text-slate-200">polish wording, numbers, and branding in PowerPoint</div>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
+          <div class="rounded-2xl bg-white p-4 shadow-xl">
+            <img src="{{ url_for('static', filename='images/visual_proof/slide1.png') }}?v=4" alt="Executive presentation slide preview" class="w-full rounded-xl border border-slate-200">
+          </div>
+          <div class="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+            <div class="text-sm font-semibold text-white">Built for rooms where time is short</div>
+            <p class="mt-2 text-sm text-slate-300">The draft should make metrics, risks, decisions, and next steps easy to scan before anyone starts asking for context.</p>
+          </div>
+        </div>
       </div>
-    </header>
-
-    <section class="mt-10" aria-labelledby="exec-clarity">
-      <h2 id="exec-clarity" class="text-2xl font-bold text-gray-900">What Executives Expect from a Deck</h2>
-      <p class="mt-3 text-gray-700">
-        Leadership decks typically fail for one reason: they are written like a log of activity instead of a decision tool.
-        Executives want to know what matters, what changed, and what you recommend.
-        A good deck is brief, structured, and repeatable.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Point-first headlines</strong> that state the conclusion.</li>
-        <li><strong>Metrics early</strong> with trends and targets.</li>
-        <li><strong>Risks and mitigations</strong> that connect to outcomes.</li>
-        <li><strong>Options</strong> when a decision is required.</li>
-        <li><strong>Clear next steps</strong> with owners and timing.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        For a more general overview of slide layouts, see the
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a>
-        hub.
-      </p>
     </section>
 
-    <section class="mt-10" aria-labelledby="exec-structures">
-      <h2 id="exec-structures" class="text-2xl font-bold text-gray-900">Executive Deck Structures You Can Reuse</h2>
-      <p class="mt-3 text-gray-700">
-        The easiest way to improve executive communication is to standardize the sequence.
-        When leaders recognize the format, they spend less time orienting and more time deciding.
-        Below are common executive-friendly structures you can generate and adapt.
-      </p>
-      <h3 class="mt-5 text-xl font-bold text-gray-900">1) Weekly / monthly executive update</h3>
-      <ol class="mt-3 list-decimal pl-6 text-gray-700">
-        <li><strong>Summary</strong>: 3 headlines that capture the state.</li>
-        <li><strong>Key metrics</strong>: top KPIs, trend, and target.</li>
-        <li><strong>Wins</strong>: what improved and why.</li>
-        <li><strong>Risks</strong>: what could break the plan and mitigations.</li>
-        <li><strong>Decisions</strong>: what you need from leadership this week.</li>
-      </ol>
-      <p class="mt-4 text-gray-700">
-        If this is a project-specific update, use the dedicated
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.project_status_update_presentation_page') }}">project status update</a>
-        page.
-      </p>
-
-      <h3 class="mt-6 text-xl font-bold text-gray-900">2) Strategy review / quarterly plan</h3>
-      <ol class="mt-3 list-decimal pl-6 text-gray-700">
-        <li><strong>Context</strong>: what changed (market, customer, competitive, internal).</li>
-        <li><strong>Objective</strong>: the outcomes you are optimizing for.</li>
-        <li><strong>Plan</strong>: themes and key initiatives.</li>
-        <li><strong>Roadmap</strong>: sequencing and dependencies.</li>
-        <li><strong>Metrics</strong>: targets and leading indicators.</li>
-        <li><strong>Risks</strong>: top risks and the mitigation plan.</li>
-        <li><strong>Ask</strong>: decision and resourcing needs.</li>
-      </ol>
-
-      <h3 class="mt-6 text-xl font-bold text-gray-900">3) Board-ready summary</h3>
-      <ol class="mt-3 list-decimal pl-6 text-gray-700">
-        <li><strong>Executive summary</strong>: the story in 60 seconds.</li>
-        <li><strong>Performance</strong>: KPIs and narrative explanation.</li>
-        <li><strong>Strategic initiatives</strong>: progress and milestones.</li>
-        <li><strong>Financial view</strong>: headline numbers and drivers.</li>
-        <li><strong>Risks</strong>: what you’re watching closely.</li>
-        <li><strong>Next quarter</strong>: priorities and decisions needed.</li>
-      </ol>
-      <p class="mt-4 text-gray-700">
-        For a board-focused page, see the
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.board_presentation_generator_page') }}">board presentation generator</a>.
-      </p>
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Weekly executive updates</h2>
+        <p class="mt-2 text-slate-600">Summarize movement, risks, and required decisions quickly.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Quarterly strategy reviews</h2>
+        <p class="mt-2 text-slate-600">Connect context, plan, targets, and trade-offs in one sequence.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Board-adjacent summaries</h2>
+        <p class="mt-2 text-slate-600">Prepare a tighter narrative before a sponsor or board meeting.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Decision memos on slides</h2>
+        <p class="mt-2 text-slate-600">Turn a recommendation into an easier-to-review visual format.</p>
+      </div>
     </section>
 
-    <section class="mt-10" aria-labelledby="what-to-enter">
-      <h2 id="what-to-enter" class="text-2xl font-bold text-gray-900">What to Enter for an Executive-Quality Draft</h2>
-      <p class="mt-3 text-gray-700">
-        The difference between a generic deck and a leadership-ready draft is specificity.
-        Provide a few constraints so the deck reflects the decision context.
-        Bullet inputs are perfect as long as they include the key data points and what you want leadership to do.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Audience</strong>: CEO, exec team, board, functional leadership.</li>
-        <li><strong>Time</strong>: 5-minute review, 15-minute discussion, or deep dive.</li>
-        <li><strong>Top metrics</strong>: current value, trend, and target.</li>
-        <li><strong>Key changes</strong>: what moved since last review.</li>
-        <li><strong>Risks</strong>: 3 risks with mitigations and owners.</li>
-        <li><strong>Ask</strong>: approvals, trade-offs, or decisions required.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        If your content is already structured in an outline, use
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_presentation_from_outline_page') }}">generate presentation from outline</a>
-        to preserve your sequence.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="visual-clarity">
-      <h2 id="visual-clarity" class="text-2xl font-bold text-gray-900">Slide Types That Make Leadership Reviews Faster</h2>
-      <p class="mt-3 text-gray-700">
-        Leaders scan decks. Visual structure reduces cognitive load and helps them understand the state quickly.
-        PPTJet supports structured slide types that map well to executive communication.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>KPI dashboards</strong>: one slide for the health of the business.</li>
-        <li><strong>Roadmaps</strong>: sequencing and what changes by quarter.</li>
-        <li><strong>Risk matrices</strong>: focus attention on the most important threats.</li>
-        <li><strong>Timelines</strong>: milestones, launch plans, and delivery pacing.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        Explore focused pages for
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboards</a>,
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_roadmap_generator_page') }}">roadmaps</a>,
-        and
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrices</a>.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="point-first">
-      <h2 id="point-first" class="text-2xl font-bold text-gray-900">Point-First Writing: The Fastest Executive-Friendly Upgrade</h2>
-      <p class="mt-3 text-gray-700">
-        If you only make one improvement to an executive deck, make it the slide titles.
-        A point-first title states the conclusion.
-        It lets leaders skim the story in seconds, even if they don’t read every bullet.
-        Compare “Pipeline” (topic) vs “Pipeline is ahead of target due to higher conversion” (point).
-      </p>
-      <p class="mt-3 text-gray-700">
-        A simple rule is: if the title can’t be answered with “so what?”, it’s probably a topic.
-        Convert topics into conclusions, and move nuance into the supporting bullets.
-        This also makes async reading easier when decks are shared before the meeting.
-      </p>
-      <p class="mt-3 text-gray-700">
-        To keep the main story short, put detail slides in an appendix.
-        In live reviews, you present the summary; in Q&A, you jump to backup.
-        This approach keeps decision makers engaged without removing analytical rigor.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="faq">
-      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
-      <dl class="mt-5 space-y-6">
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Is PPTJet suitable for board meetings?</dt>
-          <dd class="mt-2 text-gray-700">Yes. Use PPTJet to draft structure, then add real metrics and finalize wording before sharing externally.</dd>
+    <section class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        <h2 class="text-2xl font-bold text-slate-900">What strong executive decks usually do</h2>
+        <ol class="mt-6 space-y-4 text-slate-700">
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>1. Put the conclusion early.</strong> Slide one should explain the state of play, not make leaders wait for the point.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>2. Make metrics interpretable.</strong> Numbers are more useful when the slide says what changed and why it matters.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>3. Surface risk honestly.</strong> A strong deck makes trade-offs and mitigation plans explicit.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>4. End with a clear ask.</strong> Approval, escalation, resourcing, or alignment should be obvious.</li>
+        </ol>
+        <p class="mt-5 text-slate-600">If the deck is specifically a sponsor or governance update, compare this page with the <a class="text-blue-600 hover:underline" href="{{ url_for('main.project_status_update_presentation_page') }}">project status update presentation</a> flow.</p>
+      </div>
+      <div class="rounded-3xl border border-slate-200 bg-slate-950 p-8 text-white shadow-sm">
+        <h2 class="text-2xl font-bold">What to include in the brief</h2>
+        <div class="mt-6 space-y-4 text-slate-200">
+          <div>
+            <div class="font-semibold text-white">Audience</div>
+            <p class="mt-1">CEO, exec team, steering committee, or board observers.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Top metrics</div>
+            <p class="mt-1">Current value, target, trend, and the headline explanation.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Risks + decision points</div>
+            <p class="mt-1">What could derail the plan and what leadership needs to decide now.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Next-step plan</div>
+            <p class="mt-1">Owners, timing, dependencies, and what changes after the meeting.</p>
+          </div>
         </div>
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">How do I keep decks short?</dt>
-          <dd class="mt-2 text-gray-700">Start by setting a slide count constraint and focus on point-first titles. Move details into an appendix slide set.</dd>
+        <div class="mt-6 text-sm text-slate-300">Helpful follow-ups: <a class="text-sky-300 underline hover:text-sky-200" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboards</a>, <a class="text-sky-300 underline hover:text-sky-200" href="{{ url_for('main.ai_roadmap_generator_page') }}">roadmap slides</a>, and <a class="text-sky-300 underline hover:text-sky-200" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrices</a>.</div>
+      </div>
+    </section>
+
+    <section class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm" aria-labelledby="faq">
+      <h2 id="faq" class="text-3xl font-bold text-slate-900">FAQ</h2>
+      <dl class="mt-6 space-y-4">
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Can I use this for leadership reviews and QBRs?</dt>
+          <dd class="mt-2 text-slate-600">Yes. PPTJet is designed for structured executive communication where clarity and pace matter.</dd>
         </div>
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Will PPTJet invent numbers?</dt>
-          <dd class="mt-2 text-gray-700">Treat the output as a draft. Replace placeholders with your real metrics and validate claims before presenting.</dd>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Will the deck still need editing?</dt>
+          <dd class="mt-2 text-slate-600">Usually yes. The best workflow is draft with AI, then tighten claims, swap in real numbers, and apply your brand in PowerPoint.</dd>
+        </div>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Do I get an editable PowerPoint file?</dt>
+          <dd class="mt-2 text-slate-600">Yes. PPTJet exports a standard .pptx you can revise like any other executive deck.</dd>
         </div>
       </dl>
     </section>
 
-    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
-      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
-      <ul class="mt-3 list-disc pl-6 text-gray-700">
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.best_ai_presentation_generators_2026_page') }}">top AI presentation generators in 2026</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_canva_page') }}">Canva vs PPTJet for leadership decks</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.board_presentation_generator_page') }}">board presentation generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.project_status_update_presentation_page') }}">project status update presentation</a></li>
-      </ul>
-    </section>
-
-    <section class="mt-10">
-      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h2 class="text-lg font-bold text-gray-900">Draft a leadership-ready update now</h2>
-          <p class="mt-1 text-gray-700">Generate structure fast, then refine in PowerPoint.</p>
+    <section class="rounded-3xl bg-sky-600 p-8 text-white shadow-xl">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div class="max-w-2xl">
+          <h2 class="text-3xl font-bold">Need a clearer leadership draft before the meeting?</h2>
+          <p class="mt-3 text-sky-100">Get the deck structure in place quickly, then focus your prep time on the actual decision.</p>
         </div>
-        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
-          Start Creating for Free
-        </a>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-sky-700 hover:bg-sky-50">Start creating for free</a>
       </div>
     </section>
   </article>

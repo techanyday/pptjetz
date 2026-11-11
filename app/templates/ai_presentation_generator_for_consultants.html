@@ -21,7 +21,7 @@
     "price": "0",
     "priceCurrency": "USD"
   },
-  "description": "PPTJet is a free AI presentation generator for consultants. Convert notes and outlines into a structured, editable PowerPoint (.pptx) deck with clear flow and visual slide layouts. Sign in with Google to start."
+  "description": "PPTJet is a free AI presentation generator for consultants. Convert notes and outlines into a structured, editable PowerPoint (.pptx) deck with clear flow and visual slide layouts. No sign-in required to start."
 }
 </script>
 <script type="application/ld+json">
@@ -100,166 +100,127 @@
 {% endblock %}
 
 {% block content %}
-<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
-    <header>
-      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Presentation Generator for Consultants</h1>
-      <p class="mt-4 text-lg text-gray-700">
-        Consulting presentations are rarely “just slides.” They’re a decision tool.
-        In a client meeting, the deck has to do three jobs at the same time: explain what you found, prove that it’s credible, and guide the room to a decision.
-        PPTJet helps you start from a clean, client-ready structure so you can spend your time on analysis and storytelling rather than formatting.
-      </p>
-      <p class="mt-3 text-gray-700">
-        PPTJet is <strong>free</strong>, supports <strong>unlimited exports</strong>, and produces a real PowerPoint file you can edit.
-        Generate the first draft, then customize slides to match the client’s template and your firm’s voice.
-      </p>
-      <p class="mt-3 text-sm text-gray-600">Last updated: April 30, 2026</p>
-      <p class="mt-3 text-gray-700">
-        If you are evaluating tools before standardizing your consulting deck workflow, compare
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_canva_page') }}">PPTJet vs Canva for slide creation</a>
-        and
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_gamma_page') }}">PPTJet vs Gamma for client-ready outputs</a>.
-      </p>
-      <div class="mt-6 flex flex-col sm:flex-row gap-3">
-        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
-          Generate a consulting deck
-        </a>
-        <a href="{{ url_for('main.ai_business_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
-          Explore business slide types
-        </a>
+<main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+  <article class="space-y-10">
+    <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-900 text-white shadow-2xl">
+      <div class="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-emerald-400 opacity-20 blur-3xl"></div>
+      <div class="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-cyan-300 opacity-10 blur-3xl"></div>
+      <div class="relative grid grid-cols-1 gap-10 p-8 sm:p-10 lg:grid-cols-2 lg:p-12">
+        <div>
+          <div class="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-emerald-100">Client-ready structure before the polish pass</div>
+          <h1 class="mt-6 text-4xl font-extrabold leading-tight sm:text-5xl">AI presentation generator for consultants who need a sharper storyline fast</h1>
+          <p class="mt-5 text-lg text-slate-200">Consulting decks rarely fail because the analysis is missing. They fail when the storyline is hard to scan, the “so what” is buried, or the room cannot see the recommendation quickly enough.</p>
+          <p class="mt-4 text-slate-300">PPTJet helps you turn discovery notes, findings, and workstream updates into a stronger first draft with cleaner sequencing, clearer slide roles, editable .pptx export, and no sign-in required to start.</p>
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-slate-900 hover:bg-slate-100">Generate a consulting deck</a>
+            <a href="{{ url_for('main.generate_presentation_from_outline_page') }}" class="inline-flex items-center justify-center rounded-xl border border-white/20 px-6 py-3 font-semibold text-white hover:bg-white/10">Bring your own outline</a>
+          </div>
+          <div class="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3 text-sm">
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Point-first</div>
+              <div class="mt-1 text-slate-200">clearer headlines and recommendation flow</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Editable</div>
+              <div class="mt-1 text-slate-200">finish the deck in PowerPoint with firm branding</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Reusable</div>
+              <div class="mt-1 text-slate-200">iterate across workstreams without rebuilding from zero</div>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
+          <div class="rounded-2xl bg-white p-4 shadow-xl">
+            <img src="{{ url_for('static', filename='images/visual_proof/slide4.png') }}?v=4" alt="Consulting presentation slide preview" class="w-full rounded-xl border border-slate-200">
+          </div>
+          <div class="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+            <div class="text-sm font-semibold text-white">Better first drafts for recommendation decks</div>
+            <p class="mt-2 text-sm text-slate-300">Use AI for structure, then layer in charts, sourced numbers, and the client’s design system before the meeting.</p>
+          </div>
+        </div>
       </div>
-    </header>
-
-    <section class="mt-10" aria-labelledby="what-consultants-need">
-      <h2 id="what-consultants-need" class="text-2xl font-bold text-gray-900">What Makes a Consulting Deck Hard</h2>
-      <p class="mt-3 text-gray-700">
-        Most decks fail for predictable reasons.
-        The content is correct, but the story is unclear.
-        Or the story is clear, but the slides are too dense for executives to scan.
-        Or the analysis is strong, but the deck doesn’t lead to an actionable recommendation.
-        PPTJet is designed to reduce these issues by producing a first draft that prioritizes structure.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Too much text</strong>: paragraphs on slides instead of point-first headlines and evidence.</li>
-        <li><strong>No “so what”</strong>: findings without implications or next steps.</li>
-        <li><strong>Weak flow</strong>: slides that don’t build logically from context to recommendation.</li>
-        <li><strong>Inconsistent formatting</strong>: different fonts, spacing, and styles across sections.</li>
-      </ul>
     </section>
 
-    <section class="mt-10" aria-labelledby="use-cases">
-      <h2 id="use-cases" class="text-2xl font-bold text-gray-900">Common Consulting Use Cases</h2>
-      <p class="mt-3 text-gray-700">
-        PPTJet works best when you have messy raw inputs (interview notes, workshop outputs, research summaries) and need a clean slide storyline quickly.
-        You can use it for internal working sessions or to draft a polished client deliverable.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Discovery readouts</strong>: goals, current state, pain points, and early hypotheses.</li>
-        <li><strong>Executive updates</strong>: what changed, what we learned, and what decisions are needed.</li>
-        <li><strong>Strategy decks</strong>: options, trade-offs, and recommended direction.</li>
-        <li><strong>Program plans</strong>: roadmap, milestones, dependencies, and risks.</li>
-        <li><strong>Workshops</strong>: synthesis of themes, priorities, and agreed next steps.</li>
-      </ul>
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Discovery readouts</h2>
+        <p class="mt-2 text-slate-600">Translate interview notes and synthesis into a client-ready narrative.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Strategy decks</h2>
+        <p class="mt-2 text-slate-600">Frame options, trade-offs, and recommendation logic more clearly.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Program updates</h2>
+        <p class="mt-2 text-slate-600">Keep milestones, risks, and next steps easier for sponsors to scan.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Workshop synthesis</h2>
+        <p class="mt-2 text-slate-600">Move from sticky-note chaos to a deck that drives a decision.</p>
+      </div>
     </section>
 
-    <section class="mt-10" aria-labelledby="inputs">
-      <h2 id="inputs" class="text-2xl font-bold text-gray-900">What to Enter for a Strong Draft</h2>
-      <p class="mt-3 text-gray-700">
-        The simplest way to improve output is to provide “consulting-style” inputs.
-        Think in headings and bullets.
-        Share enough context to avoid generic slides, but keep it structured so the narrative is easy to assemble.
-      </p>
-      <ol class="mt-4 list-decimal pl-6 text-gray-700">
-        <li><strong>Client context</strong>: industry, size, and what’s changing.</li>
-        <li><strong>Objective</strong>: what outcome the deck should enable (decision, alignment, approval).</li>
-        <li><strong>Key findings</strong>: 5–10 bullets with evidence or examples.</li>
-        <li><strong>Constraints</strong>: timeline, budget, compliance, team capacity.</li>
-        <li><strong>Recommendation</strong>: the proposed path and why it wins.</li>
-        <li><strong>Next steps</strong>: an action plan for 30/60/90 days.</li>
-      </ol>
-      <p class="mt-4 text-gray-700">
-        If you already have a slide outline, the
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_presentation_from_outline_page') }}">generate presentation from outline</a>
-        flow can preserve your structure and improve readability.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="frameworks">
-      <h2 id="frameworks" class="text-2xl font-bold text-gray-900">Framework Slides Consultants Use Often</h2>
-      <p class="mt-3 text-gray-700">
-        Consulting decks frequently rely on simple, repeatable visuals.
-        PPTJet supports structured slide types that make analysis easier to scan.
-        Choose the format that matches the decision you want.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Roadmaps</strong>: milestones and sequencing for delivery.</li>
-        <li><strong>SWOT</strong>: strengths, weaknesses, opportunities, threats for a fast strategic view.</li>
-        <li><strong>KPI dashboards</strong>: current performance and trend overview.</li>
-        <li><strong>Risk matrices</strong>: likelihood vs impact with mitigations.</li>
-        <li><strong>Timelines</strong>: a clean way to present history, phases, or launch plans.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        For focused pages, explore the
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.swot_analysis_generator_page') }}">SWOT analysis generator</a>,
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides generator</a>,
-        and
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrix generator</a>.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="editing">
-      <h2 id="editing" class="text-2xl font-bold text-gray-900">How to Make the Deck Client-Ready</h2>
-      <p class="mt-3 text-gray-700">
-        The draft is the start.
-        To make the deck feel like a consulting deliverable, do a quick “polish pass” after export.
-        This takes minutes and dramatically improves perceived quality.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Point-first headlines</strong>: turn slide titles into a conclusion (not a topic).</li>
-        <li><strong>Evidence blocks</strong>: add one chart, table, quote, or data point per key claim.</li>
-        <li><strong>Decision slide</strong>: include a clear ask (approve option A, align on scope, pick timeline).</li>
-        <li><strong>Appendix</strong>: move details out of the main story and into backup slides.</li>
-      </ul>
-    </section>
-
-    <section class="mt-10" aria-labelledby="faq">
-      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
-      <dl class="mt-5 space-y-6">
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Is PPTJet really free and unlimited?</dt>
-          <dd class="mt-2 text-gray-700">Yes. You can generate and export unlimited decks for free. Create and download decks without signing in.</dd>
+    <section class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        <h2 class="text-2xl font-bold text-slate-900">A consulting deck workflow that usually works</h2>
+        <ol class="mt-6 space-y-4 text-slate-700">
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>1. Define the decision.</strong> State what the client needs to approve, align on, or understand by the end.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>2. Summarize the evidence.</strong> Use 5 to 10 bullets with findings, metrics, and constraints instead of long paragraphs.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>3. Ask for the right slide types.</strong> Roadmap, KPI, risk, comparison, and next-step slides make strategy decks easier to scan.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>4. Polish for the room.</strong> Tighten titles, add one proof point per key claim, and apply the client template after export.</li>
+        </ol>
+        <p class="mt-5 text-slate-600">For more structured business layouts, start from the <a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a>.</p>
+      </div>
+      <div class="rounded-3xl border border-slate-200 bg-slate-950 p-8 text-white shadow-sm">
+        <h2 class="text-2xl font-bold">What to put in the brief</h2>
+        <div class="mt-6 space-y-4 text-slate-200">
+          <div>
+            <div class="font-semibold text-white">Client context</div>
+            <p class="mt-1">Industry, operating model, current state, and why the work matters now.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Findings + proof</div>
+            <p class="mt-1">Insights, evidence, quotes, or metrics that support your recommendation.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Constraints</div>
+            <p class="mt-1">Budget, timeline, capacity, compliance, or change-management limits.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Next-step ask</div>
+            <p class="mt-1">Approval, decision, sequencing, or operating-model change needed from the room.</p>
+          </div>
         </div>
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Can I use my firm’s template?</dt>
-          <dd class="mt-2 text-gray-700">You can export to .pptx and then apply your preferred theme and formatting in PowerPoint. Use PPTJet for structure and speed.</dd>
+        <div class="mt-6 text-sm text-slate-300">Useful follow-ups: <a class="text-emerald-300 underline hover:text-emerald-200" href="{{ url_for('main.swot_analysis_generator_page') }}">SWOT analysis generator</a>, <a class="text-emerald-300 underline hover:text-emerald-200" href="{{ url_for('main.kpi_dashboard_slides_generator_page') }}">KPI dashboard slides</a>, and <a class="text-emerald-300 underline hover:text-emerald-200" href="{{ url_for('main.risk_matrix_generator_page') }}">risk matrix generator</a>.</div>
+      </div>
+    </section>
+
+    <section class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm" aria-labelledby="faq">
+      <h2 id="faq" class="text-3xl font-bold text-slate-900">FAQ</h2>
+      <dl class="mt-6 space-y-4">
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Can I use this for client deliverables?</dt>
+          <dd class="mt-2 text-slate-600">Yes. The best workflow is to use PPTJet for the first draft, then apply your client’s theme, charts, and evidence in PowerPoint.</dd>
         </div>
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Will the AI invent data?</dt>
-          <dd class="mt-2 text-gray-700">Treat outputs as a draft. Validate metrics and claims and replace placeholders with real evidence before sending to a client.</dd>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Will the exported file be editable?</dt>
+          <dd class="mt-2 text-slate-600">Yes. You get a standard .pptx file you can revise like any other consulting deck.</dd>
+        </div>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Do I still need to provide a solid brief?</dt>
+          <dd class="mt-2 text-slate-600">Absolutely. Better consulting decks come from better problem framing, not just more AI output.</dd>
         </div>
       </dl>
     </section>
 
-    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
-      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
-      <ul class="mt-3 list-disc pl-6 text-gray-700">
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.best_ai_presentation_generators_2026_page') }}">best AI presentation generators in 2026</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_canva_page') }}">Canva vs PPTJet comparison</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_business_presentation_generator_page') }}">AI business presentation generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_roadmap_generator_page') }}">AI roadmap generator</a></li>
-      </ul>
-    </section>
-
-    <section class="mt-10">
-      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h2 class="text-lg font-bold text-gray-900">Need a client-ready deck fast?</h2>
-          <p class="mt-1 text-gray-700">Generate the structure now, then refine in PowerPoint.</p>
+    <section class="rounded-3xl bg-emerald-600 p-8 text-white shadow-xl">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div class="max-w-2xl">
+          <h2 class="text-3xl font-bold">Need a cleaner consulting draft before the polish pass?</h2>
+          <p class="mt-3 text-emerald-100">Start with structure, then make it client-ready with your final proof and branding.</p>
         </div>
-        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
-          Start Creating for Free
-        </a>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-emerald-700 hover:bg-emerald-50">Start creating for free</a>
       </div>
     </section>
   </article>

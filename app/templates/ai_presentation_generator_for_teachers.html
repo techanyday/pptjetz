@@ -21,7 +21,7 @@
     "price": "0",
     "priceCurrency": "USD"
   },
-  "description": "PPTJet is a free AI presentation generator for teachers. Build lesson slide decks from objectives and outlines and export an editable PowerPoint (.pptx). Sign in with Google to start."
+  "description": "PPTJet is a free AI presentation generator for teachers. Build lesson slide decks from objectives and outlines and export an editable PowerPoint (.pptx). No sign-in required to start."
 }
 </script>
 <script type="application/ld+json">
@@ -100,153 +100,127 @@
 {% endblock %}
 
 {% block content %}
-<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-  <article class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-10">
-    <header>
-      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">AI Presentation Generator for Teachers</h1>
-      <p class="mt-4 text-lg text-gray-700">
-        Building lesson slides is repetitive.
-        You already know the objective and the sequence you want, but the work still takes time: formatting, pacing, examples, and making sure the deck is understandable for your class.
-        PPTJet helps you draft a clear slide flow quickly so you can focus on instruction instead of slide design.
-      </p>
-      <p class="mt-3 text-gray-700">
-        PPTJet is <strong>free</strong>, supports <strong>unlimited exports</strong>, and generates a real PowerPoint file you can edit.
-        Sign in with Google to create first drafts for lectures, revision sessions, classroom activities, and assessment review decks.
-      </p>
-      <p class="mt-3 text-sm text-gray-600">Last updated: April 30, 2026</p>
-      <p class="mt-3 text-gray-700">
-        If you are comparing education-friendly tools, see our
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.best_ai_presentation_generators_2026_page') }}">2026 AI presentation tools guide</a>
-        and
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.best_free_ai_presentation_makers_no_watermark_page') }}">free AI presentation makers with no watermark</a>
-        roundup.
-      </p>
-      <div class="mt-6 flex flex-col sm:flex-row gap-3">
-        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
-          Create lesson slides
-        </a>
-        <a href="{{ url_for('main.ai_presentation_generator_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md border border-gray-300 text-gray-800 hover:bg-gray-50 font-medium">
-          See all slide types
-        </a>
+<main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+  <article class="space-y-10">
+    <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-teal-900 text-white shadow-2xl">
+      <div class="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-teal-400 opacity-20 blur-3xl"></div>
+      <div class="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-cyan-300 opacity-10 blur-3xl"></div>
+      <div class="relative grid grid-cols-1 gap-10 p-8 sm:p-10 lg:grid-cols-2 lg:p-12">
+        <div>
+          <div class="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-teal-100">Lesson slides with better pacing and less prep friction</div>
+          <h1 class="mt-6 text-4xl font-extrabold leading-tight sm:text-5xl">AI presentation generator for teachers who want a more teachable first draft</h1>
+          <p class="mt-5 text-lg text-slate-200">When the learning goal is already clear, the time sink is usually everything around it: structure, pacing, examples, and formatting. PPTJet helps you turn objectives and notes into a lesson deck faster.</p>
+          <p class="mt-4 text-slate-300">Use it for direct instruction, review sessions, project briefs, or classroom explainers — then add your own examples, curriculum language, and checks for understanding in PowerPoint.</p>
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-slate-900 hover:bg-slate-100">Create lesson slides</a>
+            <a href="{{ url_for('main.generate_presentation_from_outline_page') }}" class="inline-flex items-center justify-center rounded-xl border border-white/20 px-6 py-3 font-semibold text-white hover:bg-white/10">Start from your lesson outline</a>
+          </div>
+          <div class="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3 text-sm">
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Clearer</div>
+              <div class="mt-1 text-slate-200">better rhythm from objective to recap</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Editable</div>
+              <div class="mt-1 text-slate-200">adjust vocabulary, examples, and activities later</div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div class="text-2xl font-bold text-white">Unlimited</div>
+              <div class="mt-1 text-slate-200">iterate across units, grades, and classes freely</div>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
+          <div class="rounded-2xl bg-white p-4 shadow-xl">
+            <img src="{{ url_for('static', filename='images/visual_proof/slide3.png') }}?v=4" alt="Teacher lesson slide preview" class="w-full rounded-xl border border-slate-200">
+          </div>
+          <div class="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+            <div class="text-sm font-semibold text-white">Built for teachable flow, not just pretty slides</div>
+            <p class="mt-2 text-sm text-slate-300">The goal is a deck students can follow: clearer objectives, cleaner examples, and enough structure to support instruction.</p>
+          </div>
+        </div>
       </div>
-    </header>
-
-    <section class="mt-10" aria-labelledby="teacher-use-cases">
-      <h2 id="teacher-use-cases" class="text-2xl font-bold text-gray-900">Common Teacher Use Cases</h2>
-      <p class="mt-3 text-gray-700">
-        Teachers use PPTJet when they need a slide deck quickly but still want it to be structured and teachable.
-        The best results come from giving the tool your objective and constraints.
-        Think of it as planning support: a draft sequence that you refine with your own examples and classroom language.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Daily lesson slides</strong>: warm-up, direct instruction, guided practice, exit ticket.</li>
-        <li><strong>Unit overview</strong>: what students will learn and how topics connect.</li>
-        <li><strong>Exam review</strong>: key concepts, common mistakes, practice questions.</li>
-        <li><strong>Project briefs</strong>: rubric, timeline, deliverables, and checkpoints.</li>
-        <li><strong>Parent or staff sessions</strong>: short updates that are easy to follow.</li>
-      </ul>
     </section>
 
-    <section class="mt-10" aria-labelledby="what-to-enter">
-      <h2 id="what-to-enter" class="text-2xl font-bold text-gray-900">What to Enter for Better Lesson Slides</h2>
-      <p class="mt-3 text-gray-700">
-        You don’t need long prompts.
-        A few well-chosen constraints produce better decks than paragraphs.
-        If you want student-friendly slides, specify the grade level and vocabulary expectations.
-        If you want a tight 10-minute mini-lesson, specify the time budget and slide count.
-      </p>
-      <ol class="mt-4 list-decimal pl-6 text-gray-700">
-        <li><strong>Grade level</strong>: e.g., 5th grade, middle school, GCSE, AP, university.</li>
-        <li><strong>Objective</strong>: what students should know or be able to do by the end.</li>
-        <li><strong>Time budget</strong>: 10 minutes, 30 minutes, 60 minutes.</li>
-        <li><strong>Required routine</strong>: warm-up, I do/we do/you do, discussion, exit ticket.</li>
-        <li><strong>Examples</strong>: 2–3 concrete examples you want included.</li>
-      </ol>
-      <p class="mt-4 text-gray-700">
-        If you already have a lesson outline, the
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.generate_presentation_from_outline_page') }}">generate presentation from outline</a>
-        flow can preserve your planned structure.
-      </p>
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Daily lesson decks</h2>
+        <p class="mt-2 text-slate-600">Warm-up, instruction, guided practice, and recap in a tighter sequence.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Exam review slides</h2>
+        <p class="mt-2 text-slate-600">Summarize concepts and common mistakes without overloading each slide.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Project briefs</h2>
+        <p class="mt-2 text-slate-600">Clarify timeline, rubric, expectations, and deliverables faster.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900">Staff or parent sessions</h2>
+        <p class="mt-2 text-slate-600">Create a short presentation that is easier to scan and discuss.</p>
+      </div>
     </section>
 
-    <section class="mt-10" aria-labelledby="lesson-structure">
-      <h2 id="lesson-structure" class="text-2xl font-bold text-gray-900">A Simple Slide Structure That Matches Classroom Pacing</h2>
-      <p class="mt-3 text-gray-700">
-        A teachable deck has predictable rhythm.
-        Students should know when they are listening, when they are practicing, and when they are being checked for understanding.
-        Use this pattern to keep slides aligned with instruction.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Do now / warm-up</strong>: quick retrieval question or starter task.</li>
-        <li><strong>Objective</strong>: what you’re learning today (student-friendly language).</li>
-        <li><strong>Key concept</strong>: definition and a simple explanation.</li>
-        <li><strong>Worked example</strong>: step-by-step demonstration.</li>
-        <li><strong>Guided practice</strong>: 2–3 questions with time to attempt.</li>
-        <li><strong>Check for understanding</strong>: quick poll, mini-quiz, or exit ticket prompt.</li>
-        <li><strong>Summary</strong>: the 3 takeaways you want remembered.</li>
-      </ul>
-      <p class="mt-4 text-gray-700">
-        For lessons that are sequence-heavy (history events, scientific processes, project milestones), timeline slides can help.
-        See the
-        <a class="text-blue-600 hover:underline" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">timeline slides</a>
-        page for examples.
-      </p>
-    </section>
-
-    <section class="mt-10" aria-labelledby="differentiation">
-      <h2 id="differentiation" class="text-2xl font-bold text-gray-900">Differentiation and Accessibility Tips</h2>
-      <p class="mt-3 text-gray-700">
-        Lesson slides work best when they are readable and inclusive.
-        After generating a draft, consider a quick accessibility pass.
-        Small changes improve comprehension and reduce classroom friction.
-      </p>
-      <ul class="mt-4 list-disc pl-6 text-gray-700">
-        <li><strong>Keep text short</strong>: one idea per slide whenever possible.</li>
-        <li><strong>Prefer concrete examples</strong>: abstract terms become clearer with one example.</li>
-        <li><strong>Use consistent vocabulary</strong>: align terms with your curriculum and assessments.</li>
-        <li><strong>Add a recap slide</strong>: a quick review helps different pacing needs.</li>
-        <li><strong>High contrast</strong>: ensure students can read slides from the back of the room.</li>
-      </ul>
-    </section>
-
-    <section class="mt-10" aria-labelledby="faq">
-      <h2 id="faq" class="text-2xl font-bold text-gray-900">FAQ</h2>
-      <dl class="mt-5 space-y-6">
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Is PPTJet free for teachers?</dt>
-          <dd class="mt-2 text-gray-700">Yes. PPTJet is free and supports unlimited generation and exports. Create and download decks without signing in.</dd>
+    <section class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        <h2 class="text-2xl font-bold text-slate-900">A classroom-friendly slide rhythm</h2>
+        <ol class="mt-6 space-y-4 text-slate-700">
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>1. Open with the objective.</strong> Make the learning goal visible in student-friendly language.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>2. Break concepts into stages.</strong> Definition, example, guided practice, and recap should each have a clear slide role.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>3. Add checks for understanding.</strong> Build in quick prompts, questions, or an exit ticket so the deck supports teaching, not just talking.</li>
+          <li class="rounded-2xl border border-slate-200 p-4"><strong>4. Keep it editable.</strong> After export, adjust phrasing, examples, and accessibility details for your specific class.</li>
+        </ol>
+        <p class="mt-5 text-slate-600">If your topic is chronological or process-heavy, the <a class="text-blue-600 hover:underline" href="{{ url_for('main.create_timeline_slides_with_ai_page') }}">timeline slides</a> page can help organize the middle of the lesson.</p>
+      </div>
+      <div class="rounded-3xl border border-slate-200 bg-slate-950 p-8 text-white shadow-sm">
+        <h2 class="text-2xl font-bold">What to include in your prompt</h2>
+        <div class="mt-6 space-y-4 text-slate-200">
+          <div>
+            <div class="font-semibold text-white">Grade level and subject</div>
+            <p class="mt-1">That one detail changes pacing, vocabulary, and how much explanation is needed.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Lesson objective</div>
+            <p class="mt-1">What students should know, do, compare, or explain by the end.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Class constraints</div>
+            <p class="mt-1">Slide count, time budget, required routine, and whether practice questions should be included.</p>
+          </div>
+          <div>
+            <div class="font-semibold text-white">Concrete examples</div>
+            <p class="mt-1">One or two familiar examples instantly make the draft more teachable.</p>
+          </div>
         </div>
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Can I use these slides with my own classroom style?</dt>
-          <dd class="mt-2 text-gray-700">Yes. Export to .pptx and edit headings, examples, and activities to match your tone and routines.</dd>
+        <div class="mt-6 text-sm text-slate-300">If you are comparing tools, review the <a class="text-teal-300 underline hover:text-teal-200" href="{{ url_for('main.best_ai_presentation_generators_2026_page') }}">2026 AI presentation tools guide</a> and the <a class="text-teal-300 underline hover:text-teal-200" href="{{ url_for('main.best_free_ai_presentation_makers_no_watermark_page') }}">no-watermark roundup</a>.</div>
+      </div>
+    </section>
+
+    <section class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm" aria-labelledby="faq">
+      <h2 id="faq" class="text-3xl font-bold text-slate-900">FAQ</h2>
+      <dl class="mt-6 space-y-4">
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Is PPTJet free for teachers?</dt>
+          <dd class="mt-2 text-slate-600">Yes. You can generate and export lesson decks without forced sign-in or a watermark.</dd>
         </div>
-        <div>
-          <dt class="text-lg font-semibold text-gray-900">Will it match my school’s curriculum exactly?</dt>
-          <dd class="mt-2 text-gray-700">Treat the output as a draft. Replace placeholders and adjust examples to match your curriculum, standards, and class needs.</dd>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Can I still align the slides to my curriculum?</dt>
+          <dd class="mt-2 text-slate-600">Yes. The draft is editable, so you can adjust terminology, sequence, examples, and assessment prompts.</dd>
+        </div>
+        <div class="rounded-2xl border border-slate-200 p-5">
+          <dt class="text-lg font-semibold text-slate-900">Does PPTJet export a real PowerPoint file?</dt>
+          <dd class="mt-2 text-slate-600">Yes. You get a standard .pptx file you can refine in PowerPoint.</dd>
         </div>
       </dl>
     </section>
 
-    <section class="mt-10 border-t border-gray-200 pt-8" aria-labelledby="related-pages">
-      <h2 id="related-pages" class="text-xl font-bold text-gray-900">Related Pages</h2>
-      <ul class="mt-3 list-disc pl-6 text-gray-700">
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.best_free_ai_presentation_makers_no_watermark_page') }}">free AI presentation makers with no watermark</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.pptjet_vs_canva_page') }}">PPTJet vs Canva for classroom decks</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.ai_presentation_generator_page') }}">AI presentation generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.presentation_outline_generator_page') }}">presentation outline generator</a></li>
-        <li><a class="text-blue-600 hover:underline" href="{{ url_for('main.convert_text_to_powerpoint_page') }}">convert text to PowerPoint</a></li>
-      </ul>
-    </section>
-
-    <section class="mt-10">
-      <div class="rounded-lg bg-blue-50 border border-blue-100 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h2 class="text-lg font-bold text-gray-900">Want lesson slides drafted in minutes?</h2>
-          <p class="mt-1 text-gray-700">Generate a structured deck, then refine with your own examples.</p>
+    <section class="rounded-3xl bg-teal-600 p-8 text-white shadow-xl">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div class="max-w-2xl">
+          <h2 class="text-3xl font-bold">Ready to build the lesson draft faster?</h2>
+          <p class="mt-3 text-teal-100">Start with the structure, then add your own examples and teaching style before class.</p>
         </div>
-        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-md text-white bg-blue-600 hover:bg-blue-700 font-medium">
-          Start Creating for Free
-        </a>
+        <a href="{{ url_for('main.generate_page') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-teal-700 hover:bg-teal-50">Start creating for free</a>
       </div>
     </section>
   </article>
