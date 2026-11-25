@@ -550,23 +550,33 @@ def process_chevrons(slide, spec, theme, image_bytes=None):
         details.extend([""] * (len(spec.fields.steps) - len(details)))
     for index, step in enumerate(spec.fields.steps):
         x = 0.8 + index * width
-        shape = _shape(slide, f"chevron_{index}", x, 2.35, width - 0.12, 1.35, theme.blue if index % 2 else theme.rust, line=None, kind=MSO_AUTO_SHAPE_TYPE.CHEVRON)
-        frame = shape.text_frame
-        frame.clear()
-        frame.word_wrap = True
-        frame.vertical_anchor = MSO_ANCHOR.MIDDLE
-        frame.margin_left = Inches(0.18)
-        frame.margin_right = Inches(0.28)
-        frame.margin_top = Inches(0.08)
-        frame.margin_bottom = Inches(0.08)
-        paragraph = frame.paragraphs[0]
-        paragraph.alignment = PP_ALIGN.CENTER
-        run = paragraph.add_run()
-        run.text = str(step)
-        run.font.name = theme.body_font
-        run.font.size = Pt(15)
-        run.font.bold = True
-        run.font.color.rgb = rgb(theme.white)
+        surface = theme.blue if index % 2 else theme.rust
+        _shape(
+            slide,
+            f"chevron_{index}",
+            x,
+            2.35,
+            width - 0.12,
+            1.35,
+            surface,
+            line=None,
+            kind=MSO_AUTO_SHAPE_TYPE.CHEVRON,
+        )
+        _text(
+            slide,
+            f"chevron_label_{index}",
+            step,
+            x + 0.14,
+            2.57,
+            max(0.8, width - 0.56),
+            0.9,
+            theme,
+            size=13,
+            color=readable_text(surface, theme),
+            bold=True,
+            align=PP_ALIGN.CENTER,
+            min_pt=9,
+        )
         if details[index]:
             _text(slide, f"chevron_detail_{index}", details[index], x + 0.08, 4.05, width - 0.28, 0.78, theme, size=14, color=theme.ink, align=PP_ALIGN.CENTER, min_pt=12)
     _footer(slide, spec, theme)
