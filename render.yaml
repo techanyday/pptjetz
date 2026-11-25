@@ -5,7 +5,7 @@ services:
     runtime: docker
     region: ohio
     plan: free
-    branch: develop
+    branch: dev
     dockerfilePath: ./Dockerfile
     dockerCommand: python run.py
     envVars:
