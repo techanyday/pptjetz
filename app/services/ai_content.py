@@ -8,6 +8,10 @@ from app import db
 from app.models import LLMCall, Pricing
 import os
 import logging
+import re
+import uuid
+import requests
+from .content_synthesis import compose_image_caption
 
 
 MAX_TOKENS_DECK = int(os.getenv("MAX_TOKENS_DECK", "800"))
@@ -27,11 +31,182 @@ ENABLE_LLM_HARMONIZE = os.getenv("ENABLE_LLM_HARMONIZE", "1") == "1"
 ENABLE_LLM_QUALITY_ENHANCER = os.getenv("ENABLE_LLM_QUALITY_ENHANCER", "1") == "1"
 QUALITY_MAX_RETRIES = int(os.getenv("QUALITY_MAX_RETRIES", "2"))
 
-MIN_SLIDES = 10
-MAX_SLIDES = 15
+MIN_SLIDES = 16
+MAX_SLIDES = 18
 
 
 logger = logging.getLogger(__name__)
+
+
+def _clean_one_idea_topic_label(topic: str) -> str:
+    txt = re.sub(r"\s+", " ", str(topic or "")).strip(" ,.;:-")
+    if not txt:
+        return ""
+    txt = re.sub(
+        r"^(understanding|exploring|examining|introduction to|intro to|overview of|basics of|fundamentals of|key)\s+",
+        "",
+        txt,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\s+", " ", txt).strip(" ,.;:-")
+
+
+def _join_readable(parts: List[str]) -> str:
+    items = [re.sub(r"\s+", " ", str(p or "")).strip() for p in parts if str(p or "").strip()]
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
+
+
+def _limit_one_idea_text(txt: str, *, fallback_subject: str = "This topic", preserve_ai: bool = False) -> str:
+    clean = re.sub(r"\s+", " ", str(txt or "")).strip()
+    if not clean:
+        return ""
+    if len(clean) <= 230:
+        return clean
+
+    parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+", clean) if p.strip()]
+    kept: List[str] = []
+    for part in parts:
+        candidate = " ".join(kept + [part]).strip()
+        if len(candidate) <= 230:
+            kept.append(part)
+        else:
+            break
+    if kept:
+        return " ".join(kept).strip()
+
+    # Only use generic fallback if preserve_ai is False
+    if not preserve_ai:
+        subject = re.sub(r"\s+", " ", str(fallback_subject or "This topic")).strip() or "This topic"
+        fallback = f"{subject} matters because it helps teams focus on high-value opportunities and make better decisions earlier."
+        if len(fallback) <= 230:
+            return fallback
+        trimmed = fallback[:230]
+        return (trimmed.rsplit(" ", 1)[0] or trimmed).rstrip(",.;:- ")
+    
+    # If preserve_ai is True, just truncate the original text
+    trimmed = clean[:230]
+    return (trimmed.rsplit(" ", 1)[0] or trimmed).rstrip(",.;:- ")
+
+
+def _summarize_one_idea_topics(agenda_topics: List[str] | None = None) -> str:
+    seen: set[str] = set()
+    cleaned: List[str] = []
+    for raw in agenda_topics or []:
+        label = _clean_one_idea_topic_label(raw)
+        if not label:
+            continue
+        key = label.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(label)
+        if len(cleaned) >= 3:
+            break
+    return _join_readable(cleaned)
+
+
+def normalize_one_idea_headline(headline: str, *, deck_title: str = "", agenda_topics: List[str] | None = None) -> str:
+    head = re.sub(r"\s+", " ", str(headline or "")).strip()
+    deck = re.sub(r"\s+", " ", str(deck_title or "")).strip()
+    first_topic = ""
+    for raw in agenda_topics or []:
+        candidate = re.sub(r"\s+", " ", str(raw or "")).strip()
+        if candidate:
+            first_topic = candidate
+            break
+    if not head:
+        head = deck or first_topic or "Overview"
+    low = head.lower()
+    if deck:
+        first_low = first_topic.lower() if first_topic else ""
+        narrow_pattern = re.fullmatch(r"(understanding|exploring|examining|introduction to|intro to)\s+.+", low)
+        if (first_low and low == first_low and deck.lower() != first_low) or (narrow_pattern and "basic" in low):
+            head = deck
+    if len(head) > 140:
+        h_trim = head[:140]
+        head = (h_trim.rsplit(" ", 1)[0] or h_trim).rstrip(",.;:- ")
+    return head
+
+
+def compose_one_idea_intro_insight(subject: str, *, agenda_topics: List[str] | None = None) -> str:
+    anchor = re.sub(r"\s+", " ", str(subject or "")).strip() or "This topic"
+    topic_summary = _summarize_one_idea_topics(agenda_topics)
+    if topic_summary and len(anchor) <= 44 and len(topic_summary) <= 72:
+        txt = (
+            f"{anchor} matters because it can change how teams prioritize, decide, and execute. "
+            f"It connects {topic_summary} to show where the biggest opportunity is and what constraints still shape adoption."
+        )
+    else:
+        txt = (
+            f"{anchor} matters because it helps teams focus on the highest-value opportunities and make better decisions earlier. "
+            "The real advantage comes from knowing where it can deliver results first and what constraints will shape adoption."
+        )
+    return _limit_one_idea_text(txt, fallback_subject=anchor)
+
+
+def normalize_one_idea_explainer(headline: str, explainer: str, *, fallback_subject: str = "", agenda_topics: List[str] | None = None, preserve_ai: bool = False) -> str:
+    txt = re.sub(r"\s+", " ", str(explainer or "")).strip()
+    subject = re.sub(r"\s+", " ", str(fallback_subject or headline or "")).strip()
+    if not txt:
+        return ""
+
+    # If preserve_ai is True, only do basic cleanup without replacing with generic fallbacks
+    if preserve_ai:
+        # Just remove meta-phrases about the slide itself
+        low = txt.lower()
+        if low.startswith("this slide") or low.startswith("this presentation") or low.startswith("an overview of") or low.startswith("a summary of"):
+            # Remove the meta-phrase prefix
+            match = re.search(r"(?:this slide|this presentation|an overview of|a summary of)\s+(.+)", txt, flags=re.IGNORECASE)
+            if match:
+                txt = match.group(1).strip()
+        return _limit_one_idea_text(txt, fallback_subject=subject or headline or "This topic", preserve_ai=True)
+
+    low = txt.lower()
+    match = re.search(r"what\s+(.+?)\s+is,\s*why\s+it\s+matters", txt, flags=re.IGNORECASE)
+    if match:
+        subject = re.sub(r"\s+", " ", match.group(1)).strip() or subject
+
+    descriptive = (
+        low.startswith("an accessible summary of")
+        or low.startswith("a summary of")
+        or low.startswith("an overview of")
+        or low.startswith("overview of")
+        or low.startswith("this topic is about")
+        or low.startswith("this topic focuses on")
+        or low.startswith("this slide")
+        or low.startswith("this presentation")
+        or "what the idea is, why it matters" in low
+        or "what " in low and " why it matters" in low
+    )
+    thin = (
+        descriptive
+        or "improve how people work, make decisions, and create practical value" in low
+        or "reshape decisions, execution, and measurable business results" in low
+        or "change how teams work, decide, or deliver value in practice" in low
+        or len(re.findall(r"[A-Za-z0-9]+", txt)) < 14
+    )
+
+    if thin:
+        txt = compose_one_idea_intro_insight(subject or "This topic", agenda_topics=agenda_topics)
+
+    return _limit_one_idea_text(txt, fallback_subject=subject or headline or "This topic")
+
+
+def _attach_deck_id(slides: List[Dict[str, Any]], *, deck_id: str | None) -> List[Dict[str, Any]]:
+    try:
+        if isinstance(slides, list) and slides and isinstance(slides[0], dict):
+            did = str(deck_id or "").strip() or uuid.uuid4().hex
+            if did:
+                slides[0]["_deck_id"] = did
+    except Exception:
+        pass
+    return slides
 
 
 def choose_slide_count(
@@ -53,7 +228,7 @@ def choose_slide_count(
         return int(max(MIN_SLIDES, min(MAX_SLIDES, req)))
 
     base = (content_signal or topic or "").strip()
-    # Word-count heuristic (no deps); maps to 10/12-13/14-15
+    # Word-count heuristic (no deps); maps to 13/14/15 under current bounds
     words = [w for w in base.replace("\n", " ").split(" ") if w.strip()]
     wc = len(words)
     # Extra signal: how many line breaks / separators suggests multi-part request
@@ -62,14 +237,14 @@ def choose_slide_count(
     score = wc + (lc * 8)
 
     if score <= 80:
-        return 10
+        return int(MIN_SLIDES)
     if score <= 160:
-        return 12
+        return int(max(MIN_SLIDES, 12))
     if score <= 240:
-        return 13
+        return int(max(MIN_SLIDES, 13))
     if score <= 330:
-        return 14
-    return 15
+        return int(max(MIN_SLIDES, 14))
+    return int(MAX_SLIDES)
 
 
 def quadrant_evidence_detector(text: str) -> tuple[bool, str]:
@@ -114,6 +289,281 @@ def quadrant_evidence_detector(text: str) -> tuple[bool, str]:
     return False, "no_quadrant_evidence"
 
 
+def swot_evidence_detector(text: str) -> tuple[bool, str]:
+    """Detect when a SWOT slide is explicitly relevant."""
+    import re
+
+    t = re.sub(r"\s+", " ", str(text or "").strip()).lower()
+    if not t:
+        return False, "empty"
+
+    if "swot" in t or "swot analysis" in t:
+        return True, "explicit_swot"
+
+    # If the user mentions the quadrants explicitly, allow SWOT.
+    keys = ["strength", "weakness", "opportunit", "threat"]
+    hits = sum(1 for k in keys if k in t)
+    if hits >= 3:
+        return True, "quadrant_terms"
+
+    # Common phrasing: strengths + weaknesses together.
+    if ("strength" in t and "weakness" in t) and ("analysis" in t or "assessment" in t or "matrix" in t):
+        return True, "strengths_weaknesses_analysis"
+
+    return False, "no_swot_evidence"
+
+
+def kpi_evidence_detector(topic: str, text: str) -> tuple[bool, str]:
+    import re
+
+    blob = re.sub(r"\s+", " ", f"{topic or ''} {text or ''}".strip()).lower()
+    if not blob:
+        return False, "empty"
+
+    explicit = [
+        "kpi",
+        "key metrics",
+        "metrics",
+        "dashboard",
+        "scorecard",
+        "measure",
+        "performance",
+        "benchmark",
+        "target",
+        "roi",
+        "adoption rate",
+        "cycle time",
+        "cost-to-serve",
+        "conversion",
+        "churn",
+        "uptime",
+        "sla",
+        "throughput",
+        "data quality",
+    ]
+    if any(k in blob for k in explicit):
+        return True, "kpi_terms_present"
+
+    return False, "no_kpi_evidence"
+
+
+def _normalize_kpi_metrics(metrics: Any) -> List[Dict[str, Any]]:
+    if not isinstance(metrics, list):
+        return []
+
+    out: List[Dict[str, Any]] = []
+    for raw in metrics:
+        if not isinstance(raw, dict):
+            continue
+        label = str(raw.get("label") or raw.get("name") or raw.get("metric") or "").strip()
+        value = str(raw.get("value") or raw.get("display_value") or "").strip()
+        if not label or not value:
+            continue
+
+        m: Dict[str, Any] = {
+            "label": label[:90],
+            "value": value[:36],
+        }
+        caption = str(raw.get("caption") or raw.get("description") or "").strip()
+        basis = str(raw.get("basis") or raw.get("comparison") or raw.get("vs") or "").strip()
+        period = str(raw.get("period") or raw.get("timeframe") or raw.get("reporting_period") or "").strip()
+        scope = str(raw.get("scope") or raw.get("population_scope") or raw.get("geography") or raw.get("region") or "").strip()
+        trend = str(raw.get("trend") or "").strip().lower()
+        progress = raw.get("progress")
+
+        if caption:
+            m["caption"] = caption[:180]
+        if basis:
+            m["basis"] = basis[:100]
+        if period:
+            m["period"] = period[:60]
+        if scope:
+            m["scope"] = scope[:32]
+        if trend in {"up", "down", "flat", "increase", "decrease", "improved", "lower", "higher"}:
+            m["trend"] = trend
+        if progress is not None:
+            try:
+                m["progress"] = float(progress)
+            except Exception:
+                pass
+
+        out.append(m)
+        if len(out) >= 4:
+            break
+    return out
+
+
+def _fetch_managed_kpi_metrics(*, topic: str, input_text: str, deck_id: str | None, user_id: str | None) -> List[Dict[str, Any]]:
+    url = str(settings.MANAGED_KPI_API_URL or "").strip()
+    if not url:
+        return []
+
+    timeout_s = int(getattr(settings, "MANAGED_KPI_API_TIMEOUT_SECONDS", 12) or 12)
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    api_key = str(getattr(settings, "MANAGED_KPI_API_KEY", "") or "").strip()
+    auth_header = str(getattr(settings, "MANAGED_KPI_API_AUTH_HEADER", "Authorization") or "Authorization").strip() or "Authorization"
+    if api_key:
+        if auth_header.lower() == "authorization" and not api_key.lower().startswith("bearer "):
+            headers[auth_header] = f"Bearer {api_key}"
+        else:
+            headers[auth_header] = api_key
+
+    payload = {
+        "topic": str(topic or "").strip(),
+        "input_text": str(input_text or "").strip(),
+        "deck_id": str(deck_id or "").strip(),
+        "user_id": str(user_id or "").strip(),
+    }
+
+    try:
+        resp = requests.post(url, json=payload, headers=headers, timeout=timeout_s)
+        if resp.status_code >= 400:
+            return []
+        obj = resp.json()
+    except Exception:
+        return []
+
+    metrics: Any = None
+    if isinstance(obj, dict):
+        metrics = obj.get("metrics")
+        if not isinstance(metrics, list):
+            data_obj = obj.get("data") if isinstance(obj.get("data"), dict) else {}
+            metrics = data_obj.get("metrics") or obj.get("kpis") or data_obj.get("kpis")
+    elif isinstance(obj, list):
+        metrics = obj
+
+    return _normalize_kpi_metrics(metrics)
+
+
+def _kpi_to_infographic_fallback(slide: Dict[str, Any], *, reason: str) -> Dict[str, Any]:
+    s = dict(slide or {})
+    title = str(s.get("title") or "Key Metrics").strip() or "Key Metrics"
+    s["type"] = "infographic"
+    s["_fallback_from"] = s.get("_fallback_from") or "kpi"
+    s["_fallback_to"] = "infographic"
+    s["_fallback_reason"] = reason
+    c = s.get("content") if isinstance(s.get("content"), dict) else {}
+    bullets = c.get("bullets") if isinstance(c.get("bullets"), list) else []
+    if not bullets:
+        bullets = [
+            f"{title}: KPI data is currently unavailable from the managed KPI API.",
+            "Include KPI-focused topic language to request metrics automatically.",
+            "Retry generation after KPI API data is refreshed.",
+        ]
+    s["content"] = {"bullets": [str(x) for x in bullets if str(x).strip()][:6]}
+    return s
+
+
+def _pricing_to_infographic_fallback(slide: Dict[str, Any], *, reason: str) -> Dict[str, Any]:
+    s = dict(slide or {})
+    title = str(s.get("title") or "Pricing Overview").strip() or "Pricing Overview"
+    s["type"] = "infographic"
+    s["_fallback_from"] = s.get("_fallback_from") or "pricing"
+    s["_fallback_to"] = "infographic"
+    s["_fallback_reason"] = reason
+
+    c = s.get("content") if isinstance(s.get("content"), dict) else {}
+    bullets = c.get("bullets") if isinstance(c.get("bullets"), list) else []
+    if not bullets:
+        plans = c.get("plans") if isinstance(c.get("plans"), list) else []
+        derived: List[str] = []
+        for p in plans[:4]:
+            if not isinstance(p, dict):
+                continue
+            nm = str(p.get("name") or "").strip()
+            pr = str(p.get("price") or "").strip()
+            if nm and pr:
+                derived.append(f"{nm}: {pr}")
+            elif nm:
+                derived.append(nm)
+            elif pr:
+                derived.append(pr)
+        bullets = derived
+    if not bullets:
+        bullets = [
+            f"{title}: pricing slide type is disabled.",
+            "Use comparison or infographic to explain options and tradeoffs.",
+            "Include qualitative differences and selection criteria.",
+        ]
+    s["content"] = {"bullets": [str(x) for x in bullets if str(x).strip()][:6]}
+    return s
+
+
+def _apply_disabled_pricing_policy(slides: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    arr = list(slides or [])
+    if not arr:
+        return arr
+
+    out: List[Dict[str, Any]] = []
+    for s in arr:
+        if isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "pricing":
+            out.append(_pricing_to_infographic_fallback(s, reason="pricing_disabled"))
+        else:
+            out.append(s)
+    return out
+
+
+def _apply_managed_kpi_policy(
+    slides: List[Dict[str, Any]],
+    *,
+    topic: str,
+    input_text: str,
+    deck_id: str | None,
+    user_id: str | None,
+) -> List[Dict[str, Any]]:
+    arr = list(slides or [])
+    if not arr:
+        return arr
+
+    has_kpi = any(isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "kpi" for s in arr)
+    if not has_kpi:
+        return arr
+
+    # KPI slide type is disabled for generation. Convert any KPI slide to infographic.
+    out_disabled: List[Dict[str, Any]] = []
+    for s in arr:
+        if isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "kpi":
+            out_disabled.append(_kpi_to_infographic_fallback(s, reason="kpi_disabled"))
+        else:
+            out_disabled.append(s)
+    return out_disabled
+
+    allow_kpi, _ = kpi_evidence_detector(topic or "", input_text or "")
+    if not allow_kpi:
+        out: List[Dict[str, Any]] = []
+        for s in arr:
+            if isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "kpi":
+                out.append(_kpi_to_infographic_fallback(s, reason="kpi_topic_not_relevant"))
+            else:
+                out.append(s)
+        return out
+
+    metrics = _fetch_managed_kpi_metrics(topic=topic, input_text=input_text, deck_id=deck_id, user_id=user_id)
+    if len(metrics) < 2:
+        out2: List[Dict[str, Any]] = []
+        for s in arr:
+            if isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "kpi":
+                out2.append(_kpi_to_infographic_fallback(s, reason="kpi_api_no_data"))
+            else:
+                out2.append(s)
+        return out2
+
+    out3: List[Dict[str, Any]] = []
+    for s in arr:
+        if not (isinstance(s, dict) and str(s.get("type") or "").strip().lower() == "kpi"):
+            out3.append(s)
+            continue
+        ss = dict(s)
+        content = ss.get("content") if isinstance(ss.get("content"), dict) else {}
+        content = dict(content)
+        content["metrics"] = metrics
+        if not str(content.get("subtitle") or "").strip():
+            content["subtitle"] = "Metrics sourced from managed KPI API."
+        ss["content"] = content
+        out3.append(ss)
+    return out3
+
+
 def build_slide_type_plan(
     *,
     topic: str,
@@ -129,6 +579,7 @@ def build_slide_type_plan(
 
     n = int(max(MIN_SLIDES, min(MAX_SLIDES, slide_count)))
     allow_matrix, matrix_reason = quadrant_evidence_detector(input_text)
+    allow_swot, swot_reason = swot_evidence_detector(f"{topic}\n{input_text}")
 
     # Weekly rotation (deterministic for same topic+week)
     try:
@@ -147,15 +598,10 @@ def build_slide_type_plan(
     # Required skeleton
     plan: List[str] = ["title", "agenda"]
 
-    required_body: List[str] = []
-    if n >= 11:
-        required_body.append("one_idea")
+    required_body: List[str] = ["one_idea"]
 
     # Ensure at least one timeline/process and one comparison in every deck
-    if rng.random() < 0.5:
-        required_body.append("timeline")
-    else:
-        required_body.append("roadmap")
+    required_body.append("timeline")
     required_body.append("comparison")
     if allow_matrix:
         required_body.append("impact_effort_matrix")
@@ -166,13 +612,14 @@ def build_slide_type_plan(
     # Optional pool (rotated)
     optional = [
         "cards",
-        "swot",
-        "kpi",
         "risk_matrix",
         "before_after",
         "architecture",
-        "pricing",
+        "roadmap",
+        "image",
     ]
+    if allow_swot:
+        optional.append("swot")
 
     rng.shuffle(optional)
 
@@ -220,7 +667,8 @@ def build_slide_type_plan(
     distinct_target = 7 if n <= 10 else (9 if n >= 15 else 8)
     if distinct < distinct_target:
         # Opportunistically replace some duplicates with unused optional types
-        unused = [t for t in (optional + ["swot", "kpi", "before_after", "cards"]) if t not in plan]
+        extra = ["kpi", "before_after", "cards"] + (["swot"] if allow_swot else [])
+        unused = [t for t in (optional + extra) if t not in plan]
         for k in range(2, len(plan) - 1):
             if distinct >= distinct_target or not unused:
                 break
@@ -231,6 +679,8 @@ def build_slide_type_plan(
     meta = {
         "allow_matrix": bool(allow_matrix),
         "matrix_reason": matrix_reason,
+        "allow_swot": bool(allow_swot),
+        "swot_reason": swot_reason,
         "seed": seed_hex[:12],
         "distinct_types": len({x for x in plan if x}),
     }
@@ -264,9 +714,14 @@ def enforce_slide_count_postprocess(
         # Keep required anchors
         title_sl = arr[0:1]
         agenda_sl = arr[1:2] if len(arr) >= 2 else []
+        one_idea_sl: List[Dict[str, Any]] = []
+        body_start = 2
+        if len(arr) >= 3 and isinstance(arr[2], dict) and str(arr[2].get("type") or "").strip().lower() == "one_idea":
+            one_idea_sl = arr[2:3]
+            body_start = 3
         thanks = [s for s in arr if isinstance(s, dict) and str(s.get("type") or "").strip().lower() in {"thank_you", "cta"}]
         thanks_sl = thanks[-1:] if thanks else []
-        body = [s for s in arr[2:] if s not in thanks_sl]
+        body = [s for s in arr[body_start:] if s not in thanks_sl]
 
         # Prefer keeping key_takeaways if present
         keep: List[Dict[str, Any]] = []
@@ -285,10 +740,206 @@ def enforce_slide_count_postprocess(
             if isinstance(s, dict) and s not in keep:
                 keep.append(s)
 
-        trimmed = (title_sl + agenda_sl + keep)[: max(0, want - len(thanks_sl))] + thanks_sl
+        prefix = title_sl + agenda_sl + one_idea_sl
+        trimmed = (prefix + keep)[: max(0, want - len(thanks_sl))] + thanks_sl
         return trimmed[:want]
 
     if len(arr) < want:
+        def _local_fill_slide(stype: str, idx: int) -> Dict[str, Any]:
+            t = str(stype or "infographic").strip().lower() or "infographic"
+            topic = str(deck_title or input_text or "Presentation").strip() or "Presentation"
+            short_topic = " ".join(topic.split()[:6]).strip() or "Presentation"
+            ttl = f"{short_topic} — {idx}"
+
+            if t == "title":
+                return {"type": "title", "title": topic, "subtitle": "", "content": {}}
+            if t == "agenda":
+                return {
+                    "type": "agenda",
+                    "title": "Agenda",
+                    "content": {"bullets": [
+                        "Context and objectives",
+                        "Current state",
+                        "Key insights",
+                        "Recommendations",
+                        "Next steps",
+                    ]},
+                }
+            if t in {"thank_you", "cta"}:
+                return {"type": "thank_you", "title": "Thank You", "content": {}}
+            if t in {"cards", "card", "card_style", "process_timeline_alt"}:
+                return {"type": "cards", "title": ttl, "content": {"cards": [
+                    "Define goal",
+                    "Assess baseline",
+                    "Execute actions",
+                    "Track outcomes",
+                ]}}
+            if t in {"double_column", "deep_dive"}:
+                return {
+                    "type": "double_column",
+                    "title": ttl,
+                    "content": {
+                        "left_points": ["Current challenge", "Root causes", "Constraints", "Dependencies"],
+                        "right_points": ["Target state", "Action plan", "Owners and timing", "Success metrics"],
+                    },
+                }
+            if t in {"comparison", "table"}:
+                return {
+                    "type": "comparison",
+                    "title": ttl,
+                    "content": {
+                        "table": {
+                            "left": {"heading": "Current", "points": ["Manual", "Slower", "Higher variance"]},
+                            "right": {"heading": "Target", "points": ["Automated", "Faster", "More consistent"]},
+                        }
+                    },
+                }
+            if t == "timeline":
+                return {
+                    "type": "timeline",
+                    "title": ttl,
+                    "content": {
+                        "timeline": [
+                            {"label": "Assess current state", "description": "Define scope, needs, and success criteria."},
+                            {"label": "Design the approach", "description": "Prepare the operating model, resources, and rollout plan."},
+                            {"label": "Execute the plan", "description": "Deliver the work with clear ownership and feedback loops."},
+                            {"label": "Measure and improve", "description": "Review outcomes, address gaps, and scale what works."},
+                        ]
+                    },
+                }
+            if t == "roadmap":
+                return {
+                    "type": "roadmap",
+                    "title": ttl,
+                    "content": {
+                        "phases": [
+                            {"label": "Q1", "description": "Foundations"},
+                            {"label": "Q2", "description": "Pilot"},
+                            {"label": "Q3", "description": "Scale"},
+                            {"label": "Q4", "description": "Refine"},
+                        ]
+                    },
+                }
+            if t == "swot":
+                return {
+                    "type": "swot",
+                    "title": ttl,
+                    "content": {
+                        "strengths": {"points": ["Differentiated value", "Execution capability"]},
+                        "weaknesses": {"points": ["Resource constraints", "Coverage gaps"]},
+                        "opportunities": {"points": ["Market demand", "Strategic partnerships"]},
+                        "threats": {"points": ["Competitive pressure", "Regulatory change"]},
+                    },
+                }
+            if t == "kpi":
+                return {
+                    "type": "kpi",
+                    "title": ttl,
+                    "content": {
+                        "metrics": [
+                            {"label": "Adoption", "value": "42%", "caption": "Current utilization"},
+                            {"label": "Efficiency", "value": "+18%", "caption": "Operational uplift"},
+                        ]
+                    },
+                }
+            if t == "risk_matrix":
+                return {
+                    "type": "risk_matrix",
+                    "title": ttl,
+                    "content": {
+                        "low_likelihood_low_impact": {"points": ["Minor delays"]},
+                        "low_likelihood_high_impact": {"points": ["Vendor outage"]},
+                        "high_likelihood_low_impact": {"points": ["Scope changes"]},
+                        "high_likelihood_high_impact": {"points": ["Resource shortfall"]},
+                    },
+                }
+            if t == "before_after":
+                return {
+                    "type": "before_after",
+                    "title": ttl,
+                    "content": {
+                        "before": {"heading": "Before", "points": ["Fragmented process", "Long cycle time", "Manual tracking"]},
+                        "after": {"heading": "After", "points": ["Standardized workflow", "Faster delivery", "Automated tracking"]},
+                    },
+                }
+            if t == "architecture":
+                return {
+                    "type": "architecture",
+                    "title": f"How {short_topic} Works",
+                    "content": {
+                        "boxes": [
+                            {"label": "Signals and data", "description": f"Inputs from users, systems, and the operating environment"},
+                            {"label": "Intelligent processing", "description": f"Models interpret context and determine the next best action"},
+                            {"label": "Guardrails and control", "description": f"Policies, permissions, and human review manage risk"},
+                            {"label": "Business outcome", "description": f"The workflow delivers a measurable result for {short_topic}"},
+                        ],
+                        "connections": ["Signals and data -> Intelligent processing", "Intelligent processing -> Guardrails and control", "Guardrails and control -> Business outcome"],
+                    },
+                }
+            if t == "image":
+                image_titles = [
+                    short_topic,
+                    "Implementation Priorities",
+                    "Future Opportunities",
+                    "Operating Model Changes",
+                ]
+                image_title = image_titles[(idx - 1) % len(image_titles)]
+                return {
+                    "type": "image",
+                    "title": image_title,
+                    "content": {
+                        "query": short_topic,
+                        "layout": "split",
+                        "alt_text": short_topic,
+                        "caption": compose_image_caption(image_title, query=topic),
+                    },
+                }
+            if t == "pricing":
+                return {
+                    "type": "infographic",
+                    "title": ttl,
+                    "content": {
+                        "bullets": [
+                            "Current approach: baseline scope and support",
+                            "Expanded approach: broader capability and service levels",
+                            "Tradeoffs: cost, speed, and operational complexity",
+                            "Selection criteria aligned to team priorities",
+                        ]
+                    },
+                }
+            if t in {"impact_effort_matrix", "impact_matrix", "prioritization_matrix"}:
+                return {
+                    "type": "impact_effort_matrix",
+                    "title": ttl,
+                    "content": {
+                        "quick_easy_wins": ["Automate repetitive tasks"],
+                        "major_projects": ["Platform modernization"],
+                        "fill_in": ["Improve documentation"],
+                        "thankless_tasks": ["Manual reconciliation"],
+                    },
+                }
+            if t in {"one_idea", "infographic", "key_takeaways", "bullets"}:
+                return {
+                    "type": "infographic" if t == "bullets" else t,
+                    "title": ttl,
+                    "content": {"bullets": [
+                        "Define the objective and scope",
+                        "Highlight critical insights",
+                        "Prioritize actions and ownership",
+                        "Track results and iterate",
+                    ]},
+                }
+            return {
+                "type": "infographic",
+                "title": ttl,
+                "content": {"bullets": [
+                    "Define objective",
+                    "Assess current state",
+                    "Implement actions",
+                    "Measure impact",
+                ]},
+            }
+
         missing_k = want - len(arr)
         # Remaining plan types for the missing indices
         remaining_types = plan[len(arr) : len(arr) + missing_k]
@@ -330,13 +981,21 @@ def enforce_slide_count_postprocess(
             )
             raw = (resp.choices[0].message.content or "").strip()
             more, err = _parse_json_array(raw)
-            if not err and isinstance(more, list) and len(more) == missing_k:
-                arr2 = arr + more
-                return arr2[:want]
+            if not err and isinstance(more, list) and more:
+                arr2 = arr + more[:missing_k]
+                if len(arr2) >= want:
+                    return arr2[:want]
+                arr = arr2
         except Exception:
             pass
-        return arr[:want]
-
+        still_missing = want - len(arr)
+        if still_missing > 0:
+            backfill_types = plan[len(arr) : len(arr) + still_missing]
+            if len(backfill_types) < still_missing:
+                backfill_types = backfill_types + ["infographic"] * (still_missing - len(backfill_types))
+            for i, st in enumerate(backfill_types, start=1):
+                arr.append(_local_fill_slide(st, len(arr) + i))
+            return arr[:want]
     return arr[:want]
 
 
@@ -483,7 +1142,6 @@ def build_prompt(
                 "SWOT / Risk / Before-After",
                 "KPIs / Metrics",
                 "Architecture / System Diagram",
-                "Pricing / Plans",
                 "Prioritization Matrix (Impact vs Effort) when explicitly requested or when the goal is to prioritize initiatives",
                 "Double Column Bullet (2–3 variations max)",
                 "Infographic / Visual Summary",
@@ -513,10 +1171,10 @@ def build_prompt(
                             "risk_matrix",
                             "before_after",
                             "architecture",
-                            "pricing",
                             "infographic",
                             "key_takeaways",
                             "impact_effort_matrix",
+                            "image",
                             "thank_you",
                         ],
                     },
@@ -585,6 +1243,15 @@ def build_prompt(
                             "connections": {"type": "array"},
                             "plans": {"type": "array"},
                             "visual_hint": {"type": "string"},
+                            "image_query": {"type": "string"},
+                            "image_layout": {"type": "string"},
+                            "caption": {"type": "string"},
+                            "image_url": {"type": "string"},
+                            "source_url": {"type": "string"},
+                            "source_name": {"type": "string"},
+                            "creator": {"type": "string"},
+                            "license": {"type": "string"},
+                            "attribution": {"type": "string"},
                             "columns": {"type": "object"}
                         },
                     },
@@ -603,11 +1270,32 @@ def build_prompt(
             "Matrix gating: Only use type impact_effort_matrix if input_text explicitly implies a 2x2 quadrant prioritization matrix (impact vs effort). If slide_type_plan contains impact_effort_matrix, you must populate all four quadrants with 3-5 items each. If slide_type_plan does NOT contain impact_effort_matrix, you must NOT output it.",
             "Bullets must be non-duplicative, 4–14 words, informative, and TOPIC-SPECIFIC. Avoid generic boilerplate such as 'leveraging X to improve KPIs'.",
             "Write executive-ready content: specific mechanisms, impacts, and tradeoffs. Avoid vague claims (e.g., 'critical', 'accelerated', 'important') unless you add a short 'because/so-what' clause.",
-            "For slides after the Agenda, prefer rich visual types (cards, comparison/table, infographic, timeline, roadmap, swot, kpi, risk_matrix, before_after, architecture, pricing) over plain bullets.",
+            "For slides after the Agenda, prefer rich visual types (cards, comparison/table, infographic, timeline, roadmap, swot, risk_matrix, before_after, architecture, image) over plain bullets.",
+            "Image slides must include content.image_query, content.image_layout, and content.caption as a complete paragraph (not bullet points). Use image slides only when a relevant real-world visual improves the narrative.",
+            "IMAGE SLIDE CAPTION: The content.caption must be a single coherent paragraph of 3-5 sentences (70-120 words) that explains the image context and relevance. Do NOT use bullet points or a list of separate points joined together.",
+            "IMAGE SLIDE CAPTION: Do NOT use content.bullets or content.points for image slides. Use ONLY content.caption as a paragraph.",
+            "IMAGE SLIDE CAPTION: Write in natural prose with proper sentences, not fragmented phrases or bullet-style points. The caption should be substantive and detailed, explaining the actual subject matter with specific context, mechanisms, or implications.",
+            "IMAGE SLIDE CAPTION: CRITICAL: Do NOT write a list of topics, headings, or keywords. The caption must be a continuous explanatory paragraph that describes HOW something works, WHY it matters, or WHAT relationships exist between components.",
+            "IMAGE SLIDE CAPTION: CRITICAL: Explain the subject matter as if writing a short encyclopedia entry or textbook paragraph. Focus on mechanisms, processes, causal relationships, or practical implications. Avoid enumerating features or listing subtopics.",
+            "IMAGE SLIDE CAPTION: CRITICAL: Example of BAD caption: 'AI agents include autonomous systems, decision-making capabilities, tool integration, and learning mechanisms. These enable various applications across industries.' (This is a topic list).",
+            "IMAGE SLIDE CAPTION: CRITICAL: Example of GOOD caption: 'AI agents operate autonomously by pursuing objectives through coordinated actions and tool use without human intervention. They break complex workflows into steps, adapt based on environmental feedback, and make intermediate decisions at each stage. This capability enables organizations to scale operations while maintaining consistency and reducing manual overhead in their processes.' (This explains HOW it works).",
+            "Title and one_idea slides may include content.visual with image_query and layout metadata for guaranteed visual treatment.",
             "Use type 'bullets' ONLY for the Agenda slide and as a last-resort fallback when no other slide type fits.",
+            "ONE_IDEA SLIDES: When type is 'one_idea', the slide must communicate a single central insight about the topic. Use content.headline for the insight statement and content.explainer for the explanation.",
+            "ONE_IDEA EXPLAINER: Provide a general overview of the topic and highlight ONE very important point that is central to understanding it. Do NOT just list benefits.",
+            "ONE_IDEA EXPLAINER: The explainer must be SPECIFIC to the actual topic. Do NOT use generic templates like 'helps teams focus on highest-value opportunities' or 'make better decisions earlier'.",
+            "ONE_IDEA EXPLAINER: Explain what the topic is fundamentally about and why it matters as a central concept (e.g., for cybersecurity, explain that it's about protecting systems from threats; for payroll, explain it's about accurate compensation management; for AI agents, explain autonomous goal-directed behavior).",
+            "ONE_IDEA EXPLAINER: Focus on the core essence or central thesis of the topic, not just practical benefits or applications.",
+            "ONE_IDEA EXPLAINER: Do NOT use phrases like 'matters because it helps teams focus on...' or similar generic benefit-focused patterns.",
             "COHERENCE & ORDER: All slides after the agenda MUST map to the agenda bullets in sequence (1 slide per agenda bullet; do not group multiple slides under one bullet).",
             "TITLE PARAPHRASING: Each mapped slide's TITLE must closely paraphrase its agenda bullet (share key terms); do not use generic labels.",
             "CONTENT ALIGNMENT: Each mapped slide's CONTENT (bullets/points/table cells) must elaborate the mapped agenda bullet and share key terms.",
+            "NO PLACEHOLDERS: Slide titles and subtitles MUST NOT be placeholders or defaults (e.g., 'Timeline', 'Roadmap', 'Process', 'Overview', 'Write your subtitle here', 'Click to add...').",
+            "CONTENT-DERIVED TITLES: For every non-core slide (not title/agenda/thank_you), write the slide.title using concrete terms taken from that slide's content fields (e.g., timeline labels, card headings, table headers, architecture box labels).",
+            "CONTENT-DERIVED SUBTITLES: If you provide slide.subtitle, it must be a single-line summary derived from that slide's content fields (not generic marketing language).",
+            "Architecture slides: the slide.title MUST be topic-specific and derived from the boxes/flow (3–7 words). Do NOT use generic titles like 'Architecture Diagram' or 'System Architecture' without a qualifier.",
+            "Timeline/Process/Roadmap slides: you MUST include a NON-EMPTY slide.subtitle as a one-line, topic-specific summary derived from the steps/phases (8–14 words). Prefer phrasing like 'From <first label> to <last label>' or an outcome-oriented summary that includes at least ONE step/phase label.",
+            "BAN: Do NOT use marketing filler subtitles such as 'Make a big impact...', 'professional slides', 'our templates', 'best practices', or anything about slides/charts. Subtitles must describe the CONTENT of the slide.",
             "Do not produce slides that are not linked to an agenda item.",
             "Ensure the Thank You slide is always the final slide.",
             "If N is small, prefer infographic/cards/comparison over multiple bullet variations.",
@@ -625,11 +1313,11 @@ def build_prompt(
             "Timeline intent: labels must be named phases (not '1', '2', '3'). Each description must explain what changes and why it matters.",
             "Roadmap: use content.phases = [{label, description, date_range?}] with 4-6 items (or content.timeline in the same structure if you already used that key).",
             "SWOT: use content.strengths/weaknesses/opportunities/threats each as {points:[...]} with 2-4 points per quadrant when possible; points must clearly match the quadrant intent.",
-            "KPI: use content.metrics = [{label, value, caption?}] with 2-4 items.",
+            "Do NOT output slides of type 'kpi'. Use infographic or comparison instead when discussing metrics.",
+            "Do NOT output slides of type 'pricing'. Use comparison or infographic instead when discussing plans or costs.",
             "Risk Matrix: use content.low_likelihood_low_impact/low_likelihood_high_impact/high_likelihood_low_impact/high_likelihood_high_impact each as {points:[...]} with at least 2 non-empty quadrants.",
             "Before/After: use content.before and content.after each as {heading, points:[...]} with >=3 points per side.",
             "Architecture: use content.boxes=[{label, description?}] (4-8) and content.connections=[{from_box,to_box,label?}] referencing existing box labels.",
-            "Pricing: use content.plans=[{name, price?, features:[...]}] with 2-4 plans.",
             "Variety: avoid using the same slide type twice in a row. Use at most 2 double_column slides total.",
             "If (and ONLY if) the user explicitly requests an 'impact vs effort' matrix / 'effort vs impact' matrix / 'prioritization matrix' (2x2) OR the input_text clearly asks to prioritize initiatives/features by impact and effort, include exactly one slide of type 'impact_effort_matrix' and populate content arrays: quick_easy_wins, major_projects, fill_in, thankless_tasks (3–5 items each).",
             "Do NOT use 'impact_effort_matrix' for feature comparison tables or option comparisons. For comparisons, use type 'comparison' or 'table' and provide a real two-column comparison.",
@@ -846,6 +1534,22 @@ def create_deck_slides(
         pass
 
     try:
+        slides = _apply_managed_kpi_policy(
+            slides,
+            topic=title or "",
+            input_text=input_text or "",
+            deck_id=deck_id,
+            user_id=user_id,
+        )
+    except Exception:
+        pass
+
+    try:
+        slides = _apply_disabled_pricing_policy(slides)
+    except Exception:
+        pass
+
+    try:
         slides = _sync_agenda_to_slide_titles(slides)
     except Exception:
         pass
@@ -913,6 +1617,22 @@ def create_deck_slides(
         pass
     try:
         slides = _clamp_slide_content(slides)
+    except Exception:
+        pass
+
+    try:
+        slides = _apply_managed_kpi_policy(
+            slides,
+            topic=title or "",
+            input_text=input_text or "",
+            deck_id=deck_id,
+            user_id=user_id,
+        )
+    except Exception:
+        pass
+
+    try:
+        slides = _apply_disabled_pricing_policy(slides)
     except Exception:
         pass
 
@@ -1005,9 +1725,25 @@ def create_deck_slides(
                     )
                 except Exception:
                     pass
+                try:
+                    fixed = _apply_managed_kpi_policy(
+                        fixed,
+                        topic=title or "",
+                        input_text=input_text or "",
+                        deck_id=deck_id,
+                        user_id=user_id,
+                    )
+                except Exception:
+                    pass
+                try:
+                    fixed = _apply_disabled_pricing_policy(fixed)
+                except Exception:
+                    pass
+                fixed = _attach_deck_id(fixed, deck_id=deck_id)
                 return fixed, []
         except Exception as exc:  # noqa: BLE001
             return slides, [f"Retry warning: {exc}"]
+    slides = _attach_deck_id(slides, deck_id=deck_id)
     return slides, []
 
 
@@ -1373,12 +2109,164 @@ def _json_dump(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False)
 
 
+def _strip_code_fences(raw: str) -> str:
+    s = str(raw or "")
+    if "```" not in s:
+        return s.strip()
+    try:
+        lines = s.splitlines()
+        if not lines:
+            return s.strip()
+        if lines[0].lstrip().startswith("```"):
+            end = None
+            for i in range(1, len(lines)):
+                if lines[i].lstrip().startswith("```"):
+                    end = i
+                    break
+            if end is not None:
+                return "\n".join(lines[1:end]).strip()
+    except Exception:
+        pass
+    return s.strip()
+
+
+def _extract_first_json_array(raw: str) -> str | None:
+    s = str(raw or "")
+    start = s.find("[")
+    if start < 0:
+        return None
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(s)):
+        ch = s[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+            continue
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                return s[start : i + 1].strip()
+    return None
+
+
+def _escape_control_chars_in_strings(raw: str) -> str:
+    s = str(raw or "")
+    out: list[str] = []
+    in_str = False
+    esc = False
+    for ch in s:
+        if in_str:
+            if esc:
+                out.append(ch)
+                esc = False
+                continue
+            if ch == "\\":
+                out.append(ch)
+                esc = True
+                continue
+            if ch == '"':
+                in_str = False
+                out.append(ch)
+                continue
+            if ch == "\n" or ch == "\r":
+                out.append("\\n")
+                continue
+            if ch == "\t":
+                out.append("\\t")
+                continue
+            out.append(ch)
+            continue
+        if ch == '"':
+            in_str = True
+            out.append(ch)
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+def _remove_trailing_commas(raw: str) -> str:
+    s = str(raw or "")
+    out: list[str] = []
+    in_str = False
+    esc = False
+    i = 0
+    n = len(s)
+    while i < n:
+        ch = s[i]
+        if in_str:
+            out.append(ch)
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            i += 1
+            continue
+        if ch == '"':
+            in_str = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == ",":
+            j = i + 1
+            while j < n and s[j] in " \t\r\n":
+                j += 1
+            if j < n and s[j] in "]}":
+                i += 1
+                continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _parse_json_array(raw: str) -> Tuple[List[Dict[str, Any]] | None, str | None]:
     import json
-    try:
-        data = json.loads(raw)
-    except Exception as exc:  # noqa: BLE001
-        return None, f"JSON parse error: {exc}"
+    raw0 = str(raw or "").strip()
+    candidates: list[str] = []
+    if raw0:
+        candidates.append(raw0)
+        fenced = _strip_code_fences(raw0)
+        if fenced and fenced != raw0:
+            candidates.append(fenced)
+        extracted = _extract_first_json_array(raw0) or _extract_first_json_array(fenced)
+        if extracted:
+            candidates.append(extracted)
+
+    last_exc: Exception | None = None
+    for cand in candidates:
+        try:
+            data = json.loads(cand)
+            last_exc = None
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            try:
+                cand2 = cand.replace("\u201c", '"').replace("\u201d", '"').replace("\u2018", "'").replace("\u2019", "'")
+                cand2 = _escape_control_chars_in_strings(cand2)
+                cand2 = _remove_trailing_commas(cand2)
+                data = json.loads(cand2)
+                last_exc = None
+                break
+            except Exception as exc2:  # noqa: BLE001
+                last_exc = exc2
+                continue
+    else:
+        data = None
+
+    if last_exc is not None or data is None:
+        return None, f"JSON parse error: {last_exc}"
     if not isinstance(data, list):
         return None, "Top-level JSON must be an array"
     # Shallow sanitize items to ensure dicts
@@ -1662,6 +2550,48 @@ def derive_topic_comparison_table(*, deck_title: str, topic: str, input_text: st
         return None
 
 
+def _validate_one_idea_content(headline: str, explainer: str) -> bool:
+    """
+    Validate that One Idea content is not generic or repetitive.
+    Returns True if content passes validation, False otherwise.
+    """
+    if not explainer:
+        return False
+    
+    low = explainer.lower()
+    
+    # Check for known generic fallback phrases
+    generic_patterns = [
+        "matters because it helps teams focus on the highest-value opportunities",
+        "matters because it helps teams focus on high-value opportunities",
+        "make better decisions earlier",
+        "reshape decisions, execution, and measurable business results",
+        "improve how people work, make decisions, and create practical value",
+        "change how teams work, decide, or deliver value in practice",
+    ]
+    
+    for pattern in generic_patterns:
+        if pattern in low:
+            return False
+    
+    # Check if explainer is too short (less than 15 words)
+    word_count = len(re.findall(r"[A-Za-z0-9]+", explainer))
+    if word_count < 15:
+        return False
+    
+    # Check if explainer is just repeating the headline
+    headline_words = set(re.findall(r"[A-Za-z0-9]+", headline.lower()))
+    explainer_words = set(re.findall(r"[A-Za-z0-9]+", low))
+    
+    # If more than 70% of explainer words are in headline, it's likely just repetition
+    if headline_words and explainer_words:
+        overlap = len(headline_words & explainer_words) / len(explainer_words)
+        if overlap > 0.7:
+            return False
+    
+    return True
+
+
 def derive_one_idea_intro(
     *,
     deck_title: str,
@@ -1687,58 +2617,79 @@ def derive_one_idea_intro(
         "context": (input_text or "").strip(),
         "rules": [
             "Return ONLY a JSON object with keys 'headline' and 'explainer'.",
-            "Headline: a single clear statement of the core idea; at most 16 words.",
-            "Explainer: 1–2 sentences in simple language, at most 45 words total.",
+            "Headline: a presentation-level statement of the core idea; avoid using a single agenda item as the headline; at most 16 words.",
+            "Explainer: usually 2 compact sentences in simple language, about 35-60 words total.",
             "Do not mention the slide, deck, presentation, or bullets.",
-            "Describe the topic itself and its impact, not what the slide will cover.",
+            "Provide a general overview of the topic and highlight ONE very important point that is central to understanding it.",
+            "Focus on the core essence or central thesis of the topic, not just practical benefits or applications.",
+            "Do not use phrases like 'this slide explains', 'an overview of', or 'what X is, why it matters'.",
+            "Explain what the topic is fundamentally about and why it matters as a central concept.",
+            "CRITICAL: The explainer must be SPECIFIC to the actual topic. Do NOT use generic templates like 'helps teams focus on highest-value opportunities' or 'make better decisions earlier'.",
+            "CRITICAL: Do NOT just list benefits. Focus on the central insight or fundamental nature of the topic.",
+            "CRITICAL: For example: for cybersecurity, explain that it's fundamentally about protecting systems from unauthorized access; for payroll, explain it's about accurate and timely compensation; for AI agents, explain autonomous goal-directed behavior.",
+            "CRITICAL: Avoid vague business language unless it is genuinely relevant to the specific topic.",
             "No lists, numbering, or emojis.",
         ],
     }
-    try:
-        resp = client.chat.completions.create(
-            model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You output ONLY a compact JSON object with keys 'headline' and 'explainer'; no prose or markdown.",
-                },
-                {"role": "user", "content": _json_dump(payload)},
-            ],
-            temperature=0.25,
-            max_tokens=MAX_TOKENS_ONE_IDEA_INTRO,
-        )
-        _log_llm_call(
-            resp=resp,
-            model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
-            route="derive_one_idea_intro",
-            deck_id=deck_id,
-            export_id=deck_id,
-            user_id=user_id,
-        )
-        import json
-        import re
-
-        raw = (resp.choices[0].message.content or "").strip()
-        obj = json.loads(raw)
-        if not isinstance(obj, dict):
+    
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        try:
+            resp = client.chat.completions.create(
+                model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You output ONLY a compact JSON object with keys 'headline' and 'explainer'; no prose or markdown.",
+                    },
+                    {"role": "user", "content": _json_dump(payload)},
+                ],
+                temperature=0.25,
+                max_tokens=MAX_TOKENS_ONE_IDEA_INTRO,
+            )
+            _log_llm_call(
+                resp=resp,
+                model=settings.CHATGPT_MODEL or "gpt-3.5-turbo",
+                route="derive_one_idea_intro",
+                deck_id=deck_id,
+                export_id=deck_id,
+                user_id=user_id,
+            )
+            import json
+            raw = (resp.choices[0].message.content or "").strip()
+            obj = json.loads(raw)
+            if not isinstance(obj, dict):
+                return None
+            headline = str(obj.get("headline") or "").strip()
+            explainer = str(obj.get("explainer") or "").strip()
+            if not headline and not explainer:
+                return None
+            
+            # Validate content quality
+            if not _validate_one_idea_content(headline, explainer):
+                if attempt < max_retries:
+                    # Add feedback for retry
+                    payload["feedback"] = "Previous attempt was too generic or repetitive. Be more specific to the actual topic."
+                    continue
+                # If all retries failed, return the last attempt anyway (better than nothing)
+            
+            headline = normalize_one_idea_headline(headline, deck_title=deck_title, agenda_topics=agenda_topics)
+            if explainer:
+                parts = re.split(r"(?<=[.!?])\s+", explainer.strip())
+                parts = [p for p in parts if p]
+                explainer = " ".join(parts[:2]).strip()
+                # Pass preserve_ai=True to avoid replacing AI-generated content with generic fallbacks
+                explainer = normalize_one_idea_explainer(headline, explainer, fallback_subject=deck_title, agenda_topics=agenda_topics, preserve_ai=True)
+            if headline and len(headline) > 140:
+                h_trim = headline[:140]
+                headline = (h_trim.rsplit(" ", 1)[0] or h_trim).rstrip(",.;:- ")
+            return {"headline": headline, "explainer": explainer}
+        except Exception:
+            if attempt < max_retries:
+                continue
             return None
-        headline = str(obj.get("headline") or "").strip()
-        explainer = str(obj.get("explainer") or "").strip()
-        if not headline and not explainer:
-            return None
-        if explainer:
-            parts = re.split(r"(?<=[.!?])\s+", explainer.strip())
-            parts = [p for p in parts if p]
-            explainer = " ".join(parts[:2]).strip()
-            if len(explainer) > 260:
-                e_trim = explainer[:260]
-                explainer = (e_trim.rsplit(" ", 1)[0] or e_trim).rstrip(",.;:- ") + "…"
-        if headline and len(headline) > 140:
-            h_trim = headline[:140]
-            headline = (h_trim.rsplit(" ", 1)[0] or h_trim).rstrip(",.;:- ")
-        return {"headline": headline, "explainer": explainer}
-    except Exception:
-        return None
+    
+    return None
 
 
 def _quality_issues(slides: List[Dict[str, Any]]) -> Tuple[List[str], List[str]]:
@@ -1880,13 +2831,37 @@ def _harmonize_titles_to_agenda(slides: List[Dict[str, Any]]) -> List[Dict[str, 
         return slides
 
     import re
+
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", str(s or "").strip())
+
     def _overlap(a: str, b: str) -> int:
         stop = {"the","of","and","to","a","in","on","for","vs","vs.","an"}
         aw = [w.lower() for w in re.findall(r"[a-zA-Z]+", a) if w.lower() not in stop]
         bw = [w.lower() for w in re.findall(r"[a-zA-Z]+", b) if w.lower() not in stop]
         return len(set(aw) & set(bw))
 
-    generic_titles = {"overview","key concepts","concepts","a vs b","comparison","generated presentation"}
+    generic_titles = {
+        "overview",
+        "key concepts",
+        "concepts",
+        "a vs b",
+        "comparison",
+        "generated presentation",
+        "timeline",
+        "timeline infographic",
+        "timeline overview",
+        "roadmap",
+        "roadmap overview",
+        "process",
+        "steps",
+        "phases",
+        "architecture diagram",
+        "system architecture",
+        "kpis",
+        "kpi",
+        "metrics",
+    }
     template_substrings = [
         "brief explanation to frame relevance",
         "with measurable kpis and owners",
@@ -1896,6 +2871,134 @@ def _harmonize_titles_to_agenda(slides: List[Dict[str, Any]]) -> List[Dict[str, 
         "placeholder",
         "generic outline",
     ]
+
+    subtitle_placeholders = [
+        "write your subtitle here",
+        "click to add",
+        "subtitle",
+        "(to be refined)",
+        "placeholder",
+    ]
+
+    subtitle_banned_substrings = [
+        "make a big impact",
+        "professional slides",
+        "slides and charts",
+        "slides & charts",
+        "our templates",
+        "presentation templates",
+    ]
+
+    def _is_bad_title(title: str) -> bool:
+        low = _norm(title).lower()
+        if not low:
+            return True
+        if low in generic_titles:
+            return True
+        if re.fullmatch(r"(timeline|roadmap|process|steps|phases?)", low):
+            return True
+        if "write your" in low or "click to add" in low:
+            return True
+        if re.fullmatch(r"(slide|slide \d+)", low):
+            return True
+        return False
+
+    def _is_bad_subtitle(sub: str) -> bool:
+        low = _norm(sub).lower()
+        if not low:
+            return True
+        if any(p in low for p in subtitle_placeholders):
+            return True
+        if any(p in low for p in subtitle_banned_substrings):
+            return True
+        if len(re.findall(r"[a-zA-Z]+", low)) < 4:
+            return True
+        return False
+
+    def _pick_labels(sl: Dict[str, Any]) -> List[str]:
+        c = sl.get("content") if isinstance(sl.get("content"), dict) else {}
+        st = str(sl.get("type") or "").strip().lower()
+        labs: List[str] = []
+        if st in {"timeline", "roadmap"}:
+            raw = c.get("timeline") or c.get("phases")
+            if isinstance(raw, list):
+                for it in raw[:8]:
+                    if isinstance(it, dict):
+                        lab = _norm(it.get("label") or it.get("title") or "")
+                        if lab:
+                            labs.append(lab)
+                    else:
+                        s0 = _norm(it)
+                        if s0:
+                            labs.append(s0)
+        elif st in {"cards", "card", "card_style", "process_timeline_alt"}:
+            raw = c.get("cards")
+            if isinstance(raw, list):
+                for it in raw[:8]:
+                    if isinstance(it, dict):
+                        lab = _norm(it.get("heading") or it.get("label") or it.get("title") or it.get("name") or it.get("step") or "")
+                        if lab:
+                            labs.append(lab)
+                            continue
+                        desc = _norm(it.get("description") or it.get("desc") or it.get("details") or it.get("text") or "")
+                        if desc:
+                            labs.append(desc)
+                            continue
+                    s0 = _norm(it)
+                    if s0:
+                        labs.append(s0)
+        elif st in {"comparison", "table"}:
+            tbl = c.get("table") if isinstance(c.get("table"), dict) else {}
+            left = tbl.get("left") if isinstance(tbl.get("left"), dict) else {}
+            right = tbl.get("right") if isinstance(tbl.get("right"), dict) else {}
+            lh = _norm(left.get("heading") or "")
+            rh = _norm(right.get("heading") or "")
+            if lh:
+                labs.append(lh)
+            if rh:
+                labs.append(rh)
+        elif st == "architecture":
+            boxes = c.get("boxes")
+            if isinstance(boxes, list):
+                for b in boxes[:8]:
+                    if isinstance(b, dict):
+                        lab = _norm(b.get("label") or "")
+                        if lab:
+                            labs.append(lab)
+        return [x for x in labs if x]
+
+    def _limit_words(s: str, max_words: int) -> str:
+        parts = [p for p in re.split(r"\s+", _norm(s)) if p]
+        if len(parts) <= max_words:
+            return " ".join(parts)
+        return " ".join(parts[:max_words])
+
+    def _derive_title(sl: Dict[str, Any], agenda_fallback: str) -> str:
+        st = str(sl.get("type") or "").strip().lower()
+        labs = _pick_labels(sl)
+        if st in {"timeline", "roadmap"} and len(labs) >= 2:
+            return _limit_words(f"From {labs[0]} to {labs[-1]}", 7)
+        if st in {"cards", "card", "card_style", "process_timeline_alt"} and len(labs) >= 2:
+            return _limit_words(f"Key Steps: {labs[0]} to {labs[-1]}", 7)
+        if st in {"comparison", "table"} and len(labs) >= 2:
+            return _limit_words(f"{labs[0]} vs {labs[1]}", 7)
+        if st == "architecture" and len(labs) >= 2:
+            return _limit_words(f"{labs[0]} to {labs[-1]}", 7)
+        return _limit_words(agenda_fallback, 8) or agenda_fallback
+
+    def _derive_subtitle(sl: Dict[str, Any]) -> str:
+        st = str(sl.get("type") or "").strip().lower()
+        labs = _pick_labels(sl)
+        n = len(labs)
+        if st in {"timeline", "roadmap"} and n >= 2:
+            return _limit_words(f"From {labs[0]} to {labs[-1]} across {max(4, min(6, n))} phases with clear deliverables", 14)
+        if st in {"cards", "card", "card_style", "process_timeline_alt"} and n >= 2:
+            return _limit_words(f"From {labs[0]} to {labs[-1]} with owners, outputs, and checkpoints at each step", 14)
+        if st in {"comparison", "table"} and n >= 2:
+            return _limit_words(f"How {labs[0]} differs from {labs[1]} across impacts, risks, and effort", 14)
+        if st == "architecture" and n >= 2:
+            return _limit_words(f"How components interact from {labs[0]} through {labs[-1]} across the full flow", 14)
+        return ""
 
     for s in slides:
         stype = s.get("type")
@@ -1911,8 +3014,34 @@ def _harmonize_titles_to_agenda(slides: List[Dict[str, Any]]) -> List[Dict[str, 
         title = (s.get("title") or "").strip()
         # Map to best agenda bullet
         best_ov, best_i = max((( _overlap(title, a), i) for i, a in enumerate(agenda)), default=(0, 0))
-        if title.lower() in generic_titles or best_ov == 0:
-            s["title"] = agenda[best_i]
+        if _is_bad_title(title) or best_ov == 0:
+            s["title"] = _derive_title(s, agenda[best_i])
+
+        sub0 = _norm(s.get("subtitle") or "")
+        if stype in {"timeline", "roadmap", "cards", "card", "card_style", "process_timeline_alt"}:
+            if stype in {"timeline", "roadmap"}:
+                labs = _pick_labels(s)
+                sub_low = sub0.lower()
+                has_label_overlap = False
+                try:
+                    has_label_overlap = any((lab or "").lower() in sub_low for lab in (labs or [])[:6] if str(lab or "").strip())
+                except Exception:
+                    has_label_overlap = False
+                if _is_bad_subtitle(sub0) or (labs and not has_label_overlap and ("from " not in sub_low)):
+                    s["subtitle"] = _derive_subtitle(s)
+            else:
+                labs = _pick_labels(s)
+                sub_low = sub0.lower()
+                has_label_overlap = False
+                try:
+                    has_label_overlap = any((lab or "").lower() in sub_low for lab in (labs or [])[:6] if str(lab or "").strip())
+                except Exception:
+                    has_label_overlap = False
+                if _is_bad_subtitle(sub0) or (labs and not has_label_overlap and ("from " not in sub_low)):
+                    s["subtitle"] = _derive_subtitle(s)
+        else:
+            if sub0 and _is_bad_subtitle(sub0):
+                s["subtitle"] = ""
         # Remove template-like bullets
         content = s.get("content") or {}
         if isinstance(content.get("bullets"), list):
@@ -2026,7 +3155,7 @@ def _ai_rewrite_table_headers(client: Any, slides: List[Dict[str, Any]]) -> List
             return ("Current State", "Proposed Reforms")
         if any(k in text for k in ["covid", "pandemic", "crisis"]):
             return ("Pre-Crisis", "Post-Crisis")
-        return ("Option A", "Option B")  # safe, will be improved by later passes if possible
+        return ("Current approach", "Alternative approach")
     for s in slides:
         if s.get("type") != "table":
             continue
