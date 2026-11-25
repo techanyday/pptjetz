@@ -4,7 +4,7 @@
 
 {% block content %}
 
-<div class="min-h-[75vh] py-8">
+<div class="min-h-screen bg-[#11172d] py-8 text-slate-100 sm:py-12">
 
   <div class="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_300px] gap-6 px-4">
 
@@ -12,7 +12,7 @@
 
       <div>
 
-        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview loading left ad slot">
+        <div class="rounded-xl border border-white/10 bg-[#11172d] p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview loading left ad slot">
 
           {% if ADS_ENABLED and ADSENSE_ENABLED %}
 
@@ -43,10 +43,20 @@
 
 
     <main>
+      {% if ADS_ENABLED and ADSENSE_ENABLED %}
+      <div class="mb-8 rounded-xl border border-white/10 bg-[#0b1024] p-2" aria-label="Preview loading top advertisement">
+        <ins class="adsbygoogle"
+             style="display:block; min-height:90px;"
+             data-ad-client="{{ ADSENSE_CLIENT }}"
+             data-ad-slot="2523725868"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+      {% endif %}
 
       <div class="flex flex-col items-center text-center">
 
-        <div class="max-w-xl w-full bg-white rounded shadow p-6 text-center">
+        <div class="max-w-xl w-full rounded-2xl border border-white/10 bg-[#0b1024] p-6 text-center shadow-2xl">
 
           <h1 class="text-2xl font-bold mb-2">Preparing Preview</h1>
 
@@ -92,7 +102,7 @@
 
         <div class="mt-10 w-full flex justify-center">
 
-          <div class="bg-white rounded shadow p-4 w-full max-w-3xl min-h-[300px]" aria-label="Preview loading center ad container">
+        <div class="rounded-2xl border border-white/10 bg-[#0b1024] p-4 w-full max-w-3xl min-h-[300px]" aria-label="Preview loading center ad container">
 
             {% if ADS_ENABLED and ADSENSE_ENABLED %}
 
@@ -119,6 +129,16 @@
         </div>
 
       </div>
+      {% if ADS_ENABLED and ADSENSE_ENABLED %}
+      <div class="mt-8 rounded-xl border border-white/10 bg-[#0b1024] p-2" aria-label="Preview loading bottom advertisement">
+        <ins class="adsbygoogle"
+             style="display:block; min-height:90px;"
+             data-ad-client="{{ ADSENSE_CLIENT }}"
+             data-ad-slot="1754118419"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+      {% endif %}
 
     </main>
 
@@ -128,7 +148,7 @@
 
       <div>
 
-        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview loading right ad slot">
+        <div class="rounded-xl border border-white/10 bg-[#11172d] p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview loading right ad slot">
 
           {% if ADS_ENABLED and ADSENSE_ENABLED %}
 
@@ -505,4 +525,3 @@ try {
 {% endif %}
 
 {% endblock %}
-

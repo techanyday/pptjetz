@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Generating your presentation…{% endblock %}
 {% block content %}
-<div class="min-h-[75vh] py-8">
+<div class="min-h-screen bg-[#11172d] py-8 text-slate-100 sm:py-12">
   <!-- 3-column responsive layout: hidden sidebars on small screens -->
   <div class="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_300px] gap-6 px-4">
     <!-- Left ad (static for Better Ads Standards compliance) -->
     <aside class="hidden xl:block">
       <div>
-        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Left ad slot">
+        <div class="rounded-xl border border-white/10 bg-[#11172d] p-3 min-h-[600px] flex items-center justify-center" aria-label="Left ad slot">
           {% if ADS_ENABLED and ADSENSE_ENABLED %}
           <ins class="adsbygoogle"
                style="display:block; width:100%; min-height:600px;"
@@ -24,6 +24,16 @@
 
     <!-- Center content -->
     <main>
+      {% if ADS_ENABLED and ADSENSE_ENABLED %}
+      <div class="mb-8 rounded-xl border border-white/10 bg-[#0b1024] p-2" aria-label="Generation loading top advertisement">
+        <ins class="adsbygoogle"
+             style="display:block; min-height:90px;"
+             data-ad-client="{{ ADSENSE_CLIENT }}"
+             data-ad-slot="2523725868"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+      {% endif %}
       <div class="flex flex-col items-center text-center">
         <div class="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
         <h1 class="text-2xl font-semibold mb-2">Generating your presentation…</h1>
@@ -31,7 +41,7 @@
       </div>
       <!-- Existing centered responsive ad unit -->
       <div class="mt-10 w-full flex justify-center">
-        <div class="bg-white rounded shadow p-4 w-full max-w-3xl min-h-[300px]" aria-label="Loading page center ad container">
+        <div class="rounded-2xl border border-white/10 bg-[#0b1024] p-4 w-full max-w-3xl min-h-[300px]" aria-label="Loading page center ad container">
           {% if ADS_ENABLED and ADSENSE_ENABLED %}
           <ins class="adsbygoogle"
                style="display:block; width:100%; min-height:280px;"
@@ -44,12 +54,22 @@
           {% endif %}
         </div>
       </div>
+      {% if ADS_ENABLED and ADSENSE_ENABLED %}
+      <div class="mt-8 rounded-xl border border-white/10 bg-[#0b1024] p-2" aria-label="Generation loading bottom advertisement">
+        <ins class="adsbygoogle"
+             style="display:block; min-height:90px;"
+             data-ad-client="{{ ADSENSE_CLIENT }}"
+             data-ad-slot="1754118419"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+      {% endif %}
     </main>
 
     <!-- Right ad (static for Better Ads Standards compliance) -->
     <aside class="hidden xl:block">
       <div>
-        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Right ad slot">
+        <div class="rounded-xl border border-white/10 bg-[#11172d] p-3 min-h-[600px] flex items-center justify-center" aria-label="Right ad slot">
           {% if ADS_ENABLED and ADSENSE_ENABLED %}
           <ins class="adsbygoogle"
                style="display:block; width:100%; min-height:600px;"
@@ -81,6 +101,10 @@ let i = 0; setInterval(() => { document.getElementById('tip').textContent = tips
     const raw = sessionStorage.getItem('pptjet_generate_payload');
     if (!raw) { window.location.replace('/generate'); return; }
     const payload = JSON.parse(raw);
+    if (!payload.generation_mode) {
+      const params = new URLSearchParams(window.location.search);
+  payload.generation_mode = params.get('generation_mode') || params.get('mode') || 'editorial';
+    }
     const minDelay = new Promise(res => setTimeout(res, 3000)); // ensure some dwell for ad fill
     async function fetchJson(url, init){
       const r = await fetch(url, init);

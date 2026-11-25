@@ -128,3 +128,33 @@ def test_secondary_landing_pages_use_premium_layout_and_clean_copy() -> None:
         assert 'relative overflow-hidden rounded-3xl bg-gradient-to-br' in text, f"{name} should use the premium hero layout"
         assert "url_for('main.generate_page')" in text, f"{name} should keep the main CTA"
         assert "Sign in with Google" not in text, f"{name} still contains stale sign-in copy"
+
+
+def test_code_interpreter_generation_mode_is_wired() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    routes_py = (repo_root / "app" / "routes.py").read_text(encoding="utf-8")
+    config_py = (repo_root / "app" / "core" / "config.py").read_text(encoding="utf-8")
+
+    assert "PPTJET_GENERATION_MODE" in config_py
+    assert "OPENAI_CODE_INTERPRETER_MODEL" in config_py
+    assert 'payload.get("generation_mode")' in routes_py
+    assert 'request.args.get("generation_mode")' in routes_py
+    assert 'generate_presentation_with_code_interpreter' in routes_py
+    assert 'redirect_url = f"/preview/{deck_id}?theme={quote(theme_key)}"' in routes_py
+    assert '"provider": "openai_code_interpreter"' in routes_py
+
+    generate_html = (repo_root / "app" / "templates" / "generate.html").read_text(encoding="utf-8")
+    select_theme_html = (repo_root / "app" / "templates" / "select_theme.html").read_text(encoding="utf-8")
+    loading_html = (repo_root / "app" / "templates" / "loading.html").read_text(encoding="utf-8")
+    assert 'generation_mode: {{ generation_mode_default|tojson|safe }}' in generate_html
+    assert "generation_mode: draft.generation_mode || 'editorial'" in select_theme_html
+    assert "payload.generation_mode = params.get('generation_mode') || params.get('mode') || 'editorial';" in loading_html
+    assert "hybrid_visual_spec" in routes_py
+
+
+def test_editorial_preview_does_not_rebuild_through_legacy_export() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    preview_html = (repo_root / "app" / "templates" / "preview.html").read_text(encoding="utf-8")
+    assert "let editorialDeck = false;" in preview_html
+    assert "if (editorialDeck) {" in preview_html
+    assert "window.location.assign(downloadLink.href);" in preview_html

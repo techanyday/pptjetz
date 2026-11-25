@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div class="min-h-screen bg-[#11172d] py-8 text-slate-100 sm:py-12">
 <div class="min-h-[70vh] py-6">
   <div class="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_300px] gap-6 px-4">
     <!-- Left sidebar ad (static for Better Ads Standards compliance) -->
     <aside class="hidden xl:block">
-      <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Download left ad slot">
+      <div class="rounded-xl border border-white/10 bg-[#11172d] p-3 min-h-[600px] flex items-center justify-center" aria-label="Download left ad slot">
           <ins class="adsbygoogle"
                style="display:block; width:100%; min-height:600px;"
                data-ad-client="ca-pub-6405372608012962"
@@ -26,7 +27,7 @@
         </script>
         {% endif %}
         <div class="card">
-          <div class="card-body p-6 bg-white rounded shadow">
+          <div class="card-body rounded-2xl border border-white/10 bg-[#0b1024] p-6 shadow-2xl">
             <h2 class="card-title mb-4 text-xl font-semibold">Your Presentation is Ready!</h2>
             <p class="lead mb-4">Click the button below to download your presentation.</p>
             <!-- Ad: download_top (moved above the download button) -->
@@ -53,7 +54,7 @@
 
     <!-- Right sidebar ad (static for Better Ads Standards compliance) -->
     <aside class="hidden xl:block">
-      <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Download right ad slot">
+      <div class="rounded-xl border border-white/10 bg-[#11172d] p-3 min-h-[600px] flex items-center justify-center" aria-label="Download right ad slot">
         {% if EZOIC_ENABLED %}
         <div id="ezoic-pub-ad-placeholder-104"></div>
         {% else %}
@@ -123,4 +124,5 @@ try {
 </div>
 <div class="clear-both"></div>
 {% endif %}
+</div>
 {% endblock %}

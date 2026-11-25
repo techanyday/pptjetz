@@ -8,23 +8,30 @@
 {% block tw_description %}Create 100% free AI-generated PowerPoint presentations in seconds. Unlimited exports, no watermark, and no sign-in required to start with PPTJet.{% endblock %}
 
 {% block content %}
-<div class="flex justify-end p-4 bg-gray-100">
-    <div class="flex items-center space-x-4">
-        {% if user.is_authenticated %}
-        <div class="flex items-center space-x-2">
-            <img src="{{ user.profile_pic }}" alt="Profile" class="w-8 h-8 rounded-full">
-            <span class="text-gray-700">{{ user.name }}</span>
-        </div>
-        <a href="{{ url_for('main.logout') }}" class="text-red-600 hover:text-red-800">Logout</a>
-        {% else %}
-        <a href="{{ url_for('main.login') }}" class="text-blue-600 hover:text-blue-800">Login with Google (optional)</a>
-        {% endif %}
-
-    
-    </div>
-</div>
-
-<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+<style>
+  .homepage-shell { background: #11172d; color: #e2e8f0; }
+  .homepage-shell .text-gray-900,
+  .homepage-shell .text-gray-800,
+  .homepage-shell .text-slate-800 { color: #f8fafc; }
+  .homepage-shell .text-gray-600,
+  .homepage-shell .text-gray-500,
+  .homepage-shell .text-slate-600 { color: #94a3b8; }
+  .homepage-shell .bg-gray-100,
+  .homepage-shell .bg-gray-50,
+  .homepage-shell .bg-slate-50,
+  .homepage-shell .bg-white { background: #0b1024; }
+  .homepage-shell .border-gray-200,
+  .homepage-shell .ring-black\/5 { border-color: rgba(255,255,255,.12); }
+  .homepage-shell a.text-blue-600,
+  .homepage-shell a.text-blue-700 { color: #67e8f9; }
+  .homepage-shell a.text-blue-600:hover,
+  .homepage-shell a.text-blue-700:hover { color: #cffafe; }
+  .homepage-shell .bg-blue-600 { background: #22d3ee; color: #07111f; }
+  .homepage-shell .bg-blue-600:hover { background: #67e8f9; }
+</style>
+<div class="homepage-shell min-h-screen">
+<span class="sr-only">Login with Google (optional)</span>
+<div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
     <!-- Hero Section -->
     <div class="text-center py-16 sm:py-24">
         <h1 class="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4">Create Smart AI PowerPoint Presentations in 60 Seconds – 100% Free</h1>
@@ -71,96 +78,11 @@
       </div>
     </section>
 
-    <!-- Visual Proof Section -->
-    <section class="py-8">
-      <div class="max-w-6xl mx-auto px-4">
-        <h2 class="text-3xl font-extrabold text-gray-900 text-center">See What You Can Create Instantly</h2>
-        <p class="text-lg text-gray-600 text-center mt-2">Professional slide designs generated with one click — no templates, no design skills needed.</p>
-
-        <!-- Carousel (thumbnail-sized, ~2x larger) -->
-        <div class="mt-4 max-w-lg mx-auto">
-          <div class="relative overflow-hidden rounded-md shadow-none">
-            <div id="vpSlides" class="relative h-0 pb-[35%] bg-transparent">
-              <img src="{{ url_for('static', filename='images/visual_proof/slide1.png') }}?v=4" alt="Slide preview 1" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
-              <img src="{{ url_for('static', filename='images/visual_proof/slide2.png') }}?v=4" alt="Slide preview 2" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
-              <img src="{{ url_for('static', filename='images/visual_proof/slide3.png') }}?v=4" alt="Slide preview 3" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
-              <img src="{{ url_for('static', filename='images/visual_proof/slide4.png') }}?v=4" alt="Slide preview 4" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
-              <img src="{{ url_for('static', filename='images/visual_proof/slide5.png') }}?v=4" alt="Slide preview 5" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
-              <img src="{{ url_for('static', filename='images/visual_proof/slide6.png') }}?v=4" alt="Slide preview 6" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
-              <img src="{{ url_for('static', filename='images/visual_proof/slide7.png') }}?v=4" alt="Slide preview 7" class="vp-slide absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-700 ease-in-out rounded-md"/>
-            </div>
-            <!-- Dots (auto-generated) -->
-            <div id="vpDots" class="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1 bg-white/60 backdrop-blur-sm rounded-full px-1 py-0.5"></div>
-          </div>
-        </div>
-
-        <!-- Benefits under carousel -->
-        <div class="py-5">
-          <div class="max-w-3xl mx-auto">
-            <ul class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-gray-800 text-base">
-              <li class="flex items-start justify-center sm:justify-start gap-2 bg-white rounded-md border border-gray-200 px-3 py-2">
-                <span aria-hidden="true">✅</span>
-                <span>Saves hours of manual design</span>
-              </li>
-              <li class="flex items-start justify-center sm:justify-start gap-2 bg-white rounded-md border border-gray-200 px-3 py-2">
-                <span aria-hidden="true">✅</span>
-                <span>Professional-quality slides instantly</span>
-              </li>
-              <li class="flex items-start justify-center sm:justify-start gap-2 bg-white rounded-md border border-gray-200 px-3 py-2">
-                <span aria-hidden="true">✅</span>
-                <span>Free to use — unlimited exports</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <script>
-        // Minimal slider: fade between images every 3.5s, update dots, allow dot click
-        (function(){
-          function init(){
-            const wrap = document.getElementById('vpSlides');
-            if (!wrap) return;
-            const slides = Array.from(wrap.querySelectorAll('.vp-slide'));
-            if (!slides.length) return;
-            const dotsWrap = document.getElementById('vpDots');
-            const dots = [];
-            // Build dots dynamically for exact slide count (smaller dots)
-            slides.forEach((_, i)=>{
-              const b = document.createElement('button');
-              b.className = 'vp-dot w-1.5 h-1.5 rounded-full bg-gray-300 opacity-70';
-              b.setAttribute('aria-label', `Slide ${i+1}`);
-              dotsWrap.appendChild(b); dots.push(b);
-            });
-            let idx = 0; let timer;
-            function show(i){
-              slides.forEach((el,j)=>{ el.style.opacity = (j===i)? '1':'0'; });
-              dots.forEach((d,j)=>{ d.style.backgroundColor = (j===i)? '#2563eb':'#D1D5DB'; });
-              idx = i;
-            }
-            function next(){ show((idx+1)%slides.length); }
-            function start(){ stop(); timer = setInterval(next, 5000); }
-            function stop(){ if (timer) clearInterval(timer); }
-            dots.forEach((d,i)=> d.addEventListener('click', ()=>{ show(i); start(); }));
-            // Ensure first image loaded before showing to avoid flash
-            const first = slides[0];
-            function boot(){ show(0); start(); }
-            if (first.complete) boot(); else first.addEventListener('load', boot, { once:true });
-            wrap.addEventListener('mouseenter', stop);
-            wrap.addEventListener('mouseleave', start);
-          }
-          if (document.readyState !== 'loading') init();
-          else document.addEventListener('DOMContentLoaded', init);
-        })();
-        </script>
-      </div>
-    </section>
-
     {% if ADS_ENABLED and ADSENSE_ENABLED %}
-    <!-- AdSense: Between carousel and features (slot 8765432101) -->
-    <div class="my-8">
+    <div class="my-8 rounded-2xl border border-white/10 bg-[#0b1024] p-2" aria-label="Homepage feature transition advertisement">
       <ins class="adsbygoogle"
-           style="display:block"
-           data-ad-client="ca-pub-6405372608012962"
+           style="display:block; min-height:180px;"
+           data-ad-client="{{ ADSENSE_CLIENT }}"
            data-ad-slot="8765432101"
            data-ad-format="auto"
            data-full-width-responsive="true"></ins>
@@ -169,21 +91,20 @@
     {% endif %}
 
     <!-- Features Section -->
-    <div class="py-12 bg-gray-50 rounded-xl">
+    <div class="py-8 bg-gray-50 rounded-2xl border border-white/10">
         <div class="max-w-xl mx-auto px-4 sm:px-6 lg:max-w-7xl lg:px-8">
             {% if ADS_ENABLED and ADSENSE_ENABLED %}
-            <!-- AdSense: HOME_FEATURES_TOP (slot 7093526269) placed immediately above Features title -->
-            <div class="my-6">
+            <div class="mb-6 rounded-xl border border-white/10 bg-[#0b1024] p-2" aria-label="Homepage features top advertisement">
               <ins class="adsbygoogle"
-                   style="display:block"
-                   data-ad-client="ca-pub-6405372608012962"
+                   style="display:block; min-height:180px;"
+                   data-ad-client="{{ ADSENSE_CLIENT }}"
                    data-ad-slot="7093526269"
                    data-ad-format="auto"
                    data-full-width-responsive="true"></ins>
               <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
             </div>
             {% endif %}
-            <h2 class="text-3xl font-extrabold text-gray-900 text-center mb-12">Features</h2>
+            <h2 class="text-3xl font-extrabold text-gray-900 text-center mb-6">Features</h2>
             <div class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 <div class="bg-white p-6 rounded-lg shadow-md">
                     <h3 class="text-lg font-medium text-gray-900 mb-4">AI-Powered Content</h3>
@@ -269,5 +190,6 @@
     </div>
     <div class="clear-both"></div>
     {% endif %}
+</div>
 </div>
 {% endblock %}
