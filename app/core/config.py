@@ -27,6 +27,21 @@ class Settings(BaseSettings):
     CHATGPT_MODEL: str = "gpt-4o-mini"
     # Backward-compat: accept OPENAI_API_KEY as alias for CHATGPT_API_TOKEN
     OPENAI_API_KEY: str | None = None
+    OPENAI_CODE_INTERPRETER_MODEL: str = "gpt-4o"
+    OPENAI_CODE_INTERPRETER_TIMEOUT_SECONDS: int = 240
+    OPENAI_CODE_INTERPRETER_CONNECT_TIMEOUT_SECONDS: int = 30
+    OPENAI_CODE_INTERPRETER_MAX_OUTPUT_TOKENS: int = 18000
+    OPENAI_CODE_INTERPRETER_MEMORY_LIMIT: str = "4g"
+    OPENAI_CODE_INTERPRETER_TOOL_COST_USD: float = 0.0
+    OPENAI_CODE_INTERPRETER_MAX_SOURCE_FILES: int = 5
+    OPENAI_CODE_INTERPRETER_MAX_SOURCE_FILE_BYTES: int = 15 * 1024 * 1024
+    OPENAI_CODE_INTERPRETER_MAX_PPTX_BYTES: int = 25 * 1024 * 1024
+    PPTJET_GENERATION_MODE: str = "hybrid_visual_spec"
+    PPTJET_HYBRID_MODEL: str = "gpt-4o-mini"
+    PPTJET_HYBRID_MAX_OUTPUT_TOKENS: int = 6000
+    PPTJET_HYBRID_TIMEOUT_SECONDS: int = 90
+    EDITORIAL_ENABLED: bool = False
+    EDITORIAL_MODEL: str = "gpt-4o-mini"
 
     # Comma-separated list of emails that have unlimited presentation units
     UNLIMITED_USERS: str | None = None

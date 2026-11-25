@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="min-h-[70vh] py-6">
-  <div class="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_300px] gap-6 px-4">
+<div class="min-h-screen bg-[#11172d] py-8 sm:py-12">
+  <div class="grid w-full grid-cols-1 gap-6 px-4 py-6 sm:px-8 xl:grid-cols-[220px_minmax(0,1fr)_220px]">
     <aside class="hidden xl:block">
-      <div class="sticky top-24">
-        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview left ad slot">
+      <div>
+        <div class="rounded-xl border border-white/10 bg-[#11172d] p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview left ad slot">
           {% if ADS_ENABLED and ADSENSE_ENABLED %}
           <ins class="adsbygoogle"
                style="display:block; width:100%; min-height:600px;"
@@ -21,17 +21,34 @@
     </aside>
 
     <main>
-      <div class="max-w-6xl mx-auto">
+      <div class="mx-auto max-w-5xl">
+        {% if ADS_ENABLED and ADSENSE_ENABLED %}
+        <div class="mb-6 rounded-xl border border-white/10 bg-[#0b1024] p-2" aria-label="Presentation preview top advertisement">
+          <ins class="adsbygoogle"
+               style="display:block; min-height:90px;"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="2523725868"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+        </div>
+        {% endif %}
         <div class="flex items-center justify-between mb-4">
-          <h1 class="text-2xl font-bold">Presentation Preview</h1>
+          <div>
+            <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-300">Presentation preview</div>
+            <h1 class="mt-2 text-3xl font-semibold tracking-tight text-white">Review your presentation</h1>
+            <p class="mt-1 text-sm text-slate-300">Scroll through the rendered slides before downloading the editable PowerPoint.</p>
+          </div>
           <div class="flex items-center gap-2">
-            <select id="themeSelect" class="px-3 py-2 rounded border bg-white" aria-label="Theme">
-              {% for t in themes %}
-              <option value="{{ t }}">{{ t }}</option>
-              {% endfor %}
-            </select>
-            <a id="downloadLink" href="#" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Export PPTX</a>
-            <a href="{{ url_for('main.generate_page') }}" class="px-4 py-2 rounded border hover:bg-gray-50">Back</a>
+            <div class="flex flex-col items-start">
+              <label for="themeSelect" class="text-xs font-semibold tracking-wide text-slate-300">THEME</label>
+              <select id="themeSelect" class="mt-1 rounded-lg border border-white/15 bg-[#192346] px-3 py-2 text-sm text-white" aria-label="Theme">
+                {% for t in themes %}
+                <option value="{{ t }}">{{ 'PRIME MERIDIAN' if t == 'prime_meridian' else t }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <a id="downloadLink" href="#" class="hidden rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-400/20 hover:bg-cyan-300">Download editable PPTX</a>
+            <a href="{{ url_for('main.generate_page') }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm text-slate-200 hover:bg-white/5">Back</a>
           </div>
         </div>
 
@@ -62,17 +79,27 @@
     }
   </style>
 
-        <div id="viewer" class="bg-white shadow rounded p-4">
-          <div id="meta" class="mb-3 text-sm text-gray-600">Loading...</div>
+        <div id="viewer" class="rounded-2xl border border-white/10 bg-[#0b1024] p-4 shadow-2xl shadow-black/30">
+          <div id="meta" class="mb-3 text-sm text-slate-400">Loading...</div>
           <div id="actions" class="mb-3"></div>
-          <div id="slideList" class="max-h-[75vh] overflow-y-auto space-y-4 p-2 bg-gray-50 rounded"></div>
+          <div id="slideList" class="max-h-[78vh] overflow-y-auto space-y-6 rounded-xl bg-[#11172d] p-3 sm:p-5"></div>
         </div>
+        {% if ADS_ENABLED and ADSENSE_ENABLED %}
+        <div class="mt-6 rounded-xl border border-white/10 bg-[#0b1024] p-2" aria-label="Presentation preview bottom advertisement">
+          <ins class="adsbygoogle"
+               style="display:block; min-height:90px;"
+               data-ad-client="{{ ADSENSE_CLIENT }}"
+               data-ad-slot="1754118419"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+        </div>
+        {% endif %}
       </div>
     </main>
 
     <aside class="hidden xl:block">
-      <div class="sticky top-24">
-        <div class="bg-white rounded shadow p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview right ad slot">
+      <div>
+        <div class="rounded-xl border border-white/10 bg-[#11172d] p-3 min-h-[600px] flex items-center justify-center" aria-label="Preview right ad slot">
           {% if ADS_ENABLED and ADSENSE_ENABLED %}
           <ins class="adsbygoogle"
                style="display:block; width:100%; min-height:600px;"
@@ -97,6 +124,8 @@
   const actionsEl = document.getElementById('actions');
   const downloadLink = document.getElementById('downloadLink');
   const themeSelect = document.getElementById('themeSelect');
+  let editorialDeck = false;
+  let previewAttempts = 0;
 
   function getTheme() {
     return (themeSelect && themeSelect.value) ? String(themeSelect.value) : '';
@@ -113,7 +142,7 @@
 
   function setBusy(isBusy, label) {
     try {
-      if (themeSelect) themeSelect.disabled = isBusy;
+      if (themeSelect) themeSelect.disabled = isBusy || editorialDeck;
       if (downloadLink) downloadLink.classList.toggle('opacity-60', isBusy);
       if (metaEl) metaEl.textContent = label || '';
     } catch (e) {
@@ -145,6 +174,7 @@
       const resp = await fetch(`/api/decks/${deckId}`);
       if (!resp.ok) return null;
       const data = await resp.json();
+      editorialDeck = String(data.generation_mode || data.provider || '').toLowerCase() === 'editorial';
       const t = (data && data.theme_name) ? String(data.theme_name) : '';
       if (themeSelect && t) themeSelect.value = t;
       updateDownloadHref();
@@ -165,8 +195,10 @@
       const url = (sl && sl.url) ? String(sl.url) : '';
       const src = url ? (url + (url.includes('?') ? '&' : '?') + 'cb=' + cb + '_' + n) : '';
       return `
-        <div class="bg-white border rounded-lg overflow-hidden shadow-sm">
-          <div class="px-3 py-2 text-xs text-gray-500 border-b">Slide ${n}</div>
+        <div class="overflow-hidden rounded-xl border border-white/10 bg-[#192346] shadow-2xl shadow-black/20">
+          <div class="flex items-center justify-between border-b border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            <span>Slide ${n}</span><span>Rendered preview</span>
+          </div>
           <img src="${src}" alt="Slide ${n}" class="w-full h-auto block" loading="lazy" />
         </div>`;
     }).join('');
@@ -174,6 +206,7 @@
 
   function setDownloadEnabled(enabled) {
     if (!downloadLink) return;
+    downloadLink.classList.toggle('hidden', !enabled);
     downloadLink.classList.toggle('opacity-60', !enabled);
     downloadLink.classList.toggle('pointer-events-none', !enabled);
   }
@@ -195,10 +228,20 @@
     try {
       const deck = await loadDeckAndInitTheme();
       if (!deck) throw new Error('Deck not found');
+      if (editorialDeck && themeSelect) {
+        themeSelect.disabled = true;
+        themeSelect.title = 'Theme is fixed for this deck';
+      }
       const previews = await loadPreviews();
       const imgs = Array.isArray(previews && previews.slides) ? previews.slides : [];
       const rid = previews && previews.render_id ? String(previews.render_id) : '';
       if (!imgs.length) {
+        if (editorialDeck && previewAttempts < 30) {
+          previewAttempts += 1;
+          if (metaEl) metaEl.textContent = 'Rendering slides...';
+          setTimeout(boot, 1200);
+          return;
+        }
         setDownloadEnabled(false);
         if (slideListEl) slideListEl.innerHTML = '';
         if (metaEl) metaEl.textContent = 'No preview images yet.';
@@ -232,6 +275,7 @@
 
   if (themeSelect) {
     themeSelect.addEventListener('change', async () => {
+      if (editorialDeck) return;
       const themeName = themeSelect.value;
       setDownloadEnabled(false);
       updateDownloadHref();
@@ -241,6 +285,10 @@
 
   downloadLink.addEventListener('click', async (e) => {
     e.preventDefault();
+    if (editorialDeck) {
+      window.location.assign(downloadLink.href);
+      return;
+    }
     const themeName = themeSelect ? themeSelect.value : null;
     setBusy(true, 'Exporting PPTX...');
     try {

@@ -22,6 +22,8 @@ import threading
 
 import time
 
+import secrets
+
 import requests
 
 import sys
@@ -70,7 +72,7 @@ from flask_login import login_user, logout_user, current_user, login_required
 
 
 
-from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI, derive_topic_comparison_table, ENABLE_EXPORT_COMPARISON_AI, derive_one_idea_intro, ENABLE_EXPORT_ONE_IDEA_AI
+from app.services.ai_content import create_deck_slides, derive_topic_bullets, ENABLE_EXPORT_BULLETS_AI, derive_topic_comparison_table, ENABLE_EXPORT_COMPARISON_AI, derive_one_idea_intro, ENABLE_EXPORT_ONE_IDEA_AI, normalize_one_idea_explainer, normalize_one_idea_headline, compose_one_idea_intro_insight, build_slide_type_plan, enforce_slide_count_postprocess, MIN_SLIDES, MAX_SLIDES
 
 # Preview PNG generation is removed; only PPTX export remains
 
@@ -85,6 +87,7 @@ from app import db
 from app.models import User, BlogPost, Pricing, LLMCall, ProviderCost
 
 from app.presentation_log import PresentationLog
+from app.core.config import settings
 
 from app.transcriber.services import (
 
@@ -106,6 +109,27 @@ from app.transcriber.services import (
 
 bp = Blueprint("main", __name__)
 
+# Maintenance mode check for all routes
+@bp.before_request
+def check_maintenance_mode():
+    maintenance_enabled = os.environ.get('MAINTENANCE_MODE', '0') == '1'
+    print(f"DEBUG blueprint before_request: maintenance={maintenance_enabled}, path={request.path}")
+    
+    if not maintenance_enabled:
+        return None
+    
+    # Allow static assets
+    if request.path.startswith('/static'):
+        return None
+    
+    # Allow health checks
+    if request.path in ['/health', '/healthz']:
+        return None
+    
+    # Return maintenance page
+    from flask import render_template
+    return render_template('maintenance.html'), 503, {'Retry-After': '3600'}
+
 
 
 # In-memory deck store for multi-page flow (outline -> export)
@@ -121,6 +145,11 @@ PREVIEW_JOBS: Dict[str, Dict[str, Any]] = {}
 PREVIEW_JOBS_LOCK = threading.Lock()
 
 
+GENERATE_JOBS: Dict[str, Dict[str, Any]] = {}
+
+GENERATE_JOBS_LOCK = threading.Lock()
+
+
 
 
 
@@ -134,7 +163,94 @@ THEME_OPTIONS = [
 
     "BLUE HORIZON",
 
+    "prime_meridian",
+
 ]
+
+
+
+_THEME_PREVIEW_QUERIES = {
+    "SLEEK": "architectural workspace modern teal design",
+    "PULSE": "creative team collaboration colorful office",
+    "MINIMAL FLUX": "minimalist architecture natural light",
+    "BLUE HORIZON": "aerial ocean horizon blue landscape",
+    "prime_meridian": "dramatic city lights dark night architecture",
+}
+_THEME_PREVIEW_CACHE: Dict[str, str] = {}
+
+
+def _theme_preview_url(theme_name: str) -> str | None:
+    """Resolve a real Pexels photo for a theme preview and cache its URL."""
+    if theme_name in _THEME_PREVIEW_CACHE:
+        return _THEME_PREVIEW_CACHE[theme_name]
+    try:
+        from app.services.stock_images import search_pexels_candidates
+
+        candidates = search_pexels_candidates(
+            _THEME_PREVIEW_QUERIES.get(theme_name, "premium editorial presentation"),
+            orientation="landscape",
+            per_page=8,
+        )
+        if candidates:
+            image_url = str(candidates[0].get("image_url") or "").strip()
+            if image_url:
+                _THEME_PREVIEW_CACHE[theme_name] = image_url
+                return image_url
+    except Exception:
+        pass
+    return None
+
+
+def _theme_slug(theme_name: str) -> str:
+
+    slug = re.sub(r"[^a-z0-9]+", "-", str(theme_name or "").strip().lower()).strip("-")
+
+    return slug or "theme"
+
+
+
+def _theme_display_name(theme_name: str) -> str:
+
+    theme = str(theme_name or "").strip()
+
+    if theme == "prime_meridian":
+
+        return "PRIME MERIDIAN"
+
+    return theme.upper()
+
+
+
+def _theme_entries() -> List[Dict[str, str]]:
+    preview_images = {
+        "SLEEK": "img/templates/modern.jpg",
+        "PULSE": "img/templates/Business.png",
+        "MINIMAL FLUX": "img/templates/minimalist.jpg",
+        "BLUE HORIZON": "img/templates/aesthetic.jpg",
+        "prime_meridian": "img/templates/vintage.jpg",
+    }
+
+    return [
+
+        {"name": theme_name, "slug": _theme_slug(theme_name), "display_name": _theme_display_name(theme_name), "preview_image": preview_images.get(theme_name, "img/templates/modern.jpg")}
+
+        for theme_name in THEME_OPTIONS
+
+    ]
+
+
+
+def _theme_name_from_slug(theme_slug: str) -> str | None:
+
+    slug = _theme_slug(theme_slug)
+
+    for theme_name in THEME_OPTIONS:
+
+        if _theme_slug(theme_name) == slug:
+
+            return theme_name
+
+    return None
 
 
 
@@ -354,6 +470,306 @@ def board_presentation_generator_page() -> Any:
 
 
 
+@bp.get("/ai-business-presentation-generator")
+
+def ai_business_presentation_generator_page() -> Any:
+
+    return render_template("ai_business_presentation_generator.html")
+
+
+
+
+
+@bp.get("/ai-presentation-generator")
+
+def ai_presentation_generator_page() -> Any:
+
+    return render_template("ai_presentation_generator.html")
+
+
+@bp.get("/best-ai-presentation-generators-2026")
+def best_ai_presentation_generators_2026_page() -> Any:
+    return render_template("best_ai_presentation_generators_2026.html")
+
+
+@bp.get("/pptjet-vs-canva")
+def pptjet_vs_canva_page() -> Any:
+    return render_template("pptjet_vs_canva.html")
+
+
+@bp.get("/pptjet-vs-gamma")
+def pptjet_vs_gamma_page() -> Any:
+    return render_template("pptjet_vs_gamma.html")
+
+
+@bp.get("/best-free-ai-presentation-makers-no-watermark")
+def best_free_ai_presentation_makers_no_watermark_page() -> Any:
+    return render_template("best_free_ai_presentation_makers_no_watermark.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-students")
+
+def ai_presentation_generator_for_students_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_students.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-consultants")
+
+def ai_presentation_generator_for_consultants_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_consultants.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-teachers")
+
+def ai_presentation_generator_for_teachers_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_teachers.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-product-managers")
+
+def ai_presentation_generator_for_product_managers_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_product_managers.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-executives")
+
+def ai_presentation_generator_for_executives_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_executives.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-sales-teams")
+
+def ai_presentation_generator_for_sales_teams_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_sales_teams.html")
+
+
+
+
+@bp.get("/ai-presentation-generator-for-analysts")
+
+def ai_presentation_generator_for_analysts_page() -> Any:
+
+    return render_template("ai_presentation_generator_for_analysts.html")
+
+
+@bp.get("/free-ai-presentation-generator")
+
+def free_ai_presentation_generator_page() -> Any:
+
+    return render_template("free_ai_presentation_generator.html")
+
+
+@bp.get("/free-presentation-generator-ai")
+def free_presentation_generator_ai_page() -> Any:
+    return render_template("free_presentation_generator_ai.html")
+
+
+@bp.get("/free-ai-slides-generator")
+def free_ai_slides_generator_page() -> Any:
+    return render_template("free_ai_slides_generator.html")
+
+
+@bp.get("/free-ai-slides-generator-online")
+def free_ai_slides_generator_online_page() -> Any:
+    return render_template("free_ai_slides_generator_online.html")
+
+
+@bp.get("/free-ai-tool-to-create-slides")
+def free_ai_tool_to_create_slides_page() -> Any:
+    return render_template("free_ai_tool_to_create_slides.html")
+
+
+@bp.get("/free-ai-presentation-maker-unlimited")
+def free_ai_presentation_maker_unlimited_page() -> Any:
+    return render_template("free_ai_presentation_maker_unlimited.html")
+
+
+@bp.get("/unlimited-ai-slide-generator")
+def unlimited_ai_slide_generator_page() -> Any:
+    return render_template("unlimited_ai_slide_generator.html")
+
+
+@bp.get("/unlimited-ai-presentation-generator")
+def unlimited_ai_presentation_generator_page() -> Any:
+    return render_template("unlimited_ai_presentation_generator.html")
+
+
+@bp.get("/free-unlimited-ai-presentation-generator")
+def free_unlimited_ai_presentation_generator_page() -> Any:
+    return render_template("free_unlimited_ai_presentation_generator.html")
+
+
+@bp.get("/free-unlimited-slide-generator-ai")
+def free_unlimited_slide_generator_ai_page() -> Any:
+    return render_template("free_unlimited_slide_generator_ai.html")
+
+
+@bp.get("/ai-slide-generator-free-unlimited")
+def ai_slide_generator_free_unlimited_page() -> Any:
+    return render_template("ai_slide_generator_free_unlimited.html")
+
+
+@bp.get("/generate-slides-from-text")
+def generate_slides_from_text_page() -> Any:
+    return render_template("generate_slides_from_text.html")
+
+
+@bp.get("/generate-slides-from-text-free-ai")
+def generate_slides_from_text_free_ai_page() -> Any:
+    return render_template("generate_slides_from_text_free_ai.html")
+
+
+@bp.get("/ai-powerpoint-generator")
+def ai_powerpoint_generator_page() -> Any:
+    return render_template("ai_powerpoint_generator.html")
+
+
+@bp.get("/free-ai-powerpoint-maker-unlimited")
+def free_ai_powerpoint_maker_unlimited_page() -> Any:
+    return render_template("free_ai_powerpoint_maker_unlimited.html")
+
+
+@bp.get("/presentation-generator-ai")
+def presentation_generator_ai_page() -> Any:
+    return render_template("presentation_generator_ai.html")
+
+
+@bp.get("/ai-ppt-maker")
+def ai_ppt_maker_page() -> Any:
+    return render_template("ai_ppt_maker.html")
+
+
+@bp.get("/free-ai-ppt-maker-online")
+def free_ai_ppt_maker_online_page() -> Any:
+    return render_template("free_ai_ppt_maker_online.html")
+
+
+@bp.get("/free-ai-slideshow-generator")
+def free_ai_slideshow_generator_page() -> Any:
+    return render_template("free_ai_slideshow_generator.html")
+
+
+@bp.get("/free-ai-deck-generator")
+def free_ai_deck_generator_page() -> Any:
+    return render_template("free_ai_deck_generator.html")
+
+
+@bp.get("/create-slides-with-ai-free")
+def create_slides_with_ai_free_page() -> Any:
+    return render_template("create_slides_with_ai_free.html")
+
+
+@bp.get("/ai-presentation-builder-free-unlimited")
+def ai_presentation_builder_free_unlimited_page() -> Any:
+    return render_template("ai_presentation_builder_free_unlimited.html")
+
+
+@bp.get("/free-powerpoint-generator")
+
+def free_powerpoint_generator_page() -> Any:
+
+    return render_template("free_powerpoint_generator.html")
+
+
+@bp.get("/pptx-generator")
+
+def pptx_generator_page() -> Any:
+
+    return render_template("pptx_generator.html")
+
+
+@bp.get("/export-to-pptx")
+
+def export_to_pptx_page() -> Any:
+    return render_template("export_to_pptx.html")
+
+
+@bp.get("/free-ai-powerpoint-generator")
+def free_ai_powerpoint_generator_page() -> Any:
+    return render_template("free_ai_powerpoint_generator.html")
+
+
+@bp.get("/free-ai-slide-generator")
+def free_ai_slide_generator_page() -> Any:
+    return render_template("free_ai_slide_generator.html")
+
+
+@bp.get("/free-ai-ppt-generator")
+def free_ai_ppt_generator_page() -> Any:
+    return render_template("free_ai_ppt_generator.html")
+
+
+@bp.get("/free-ai-presentation-maker")
+def free_ai_presentation_maker_page() -> Any:
+    return render_template("free_ai_presentation_maker.html")
+
+
+@bp.get("/sales-deck-generator")
+def sales_deck_generator_page() -> Any:
+    return render_template("sales_deck_generator.html")
+
+
+@bp.get("/marketing-presentation-generator")
+def marketing_presentation_generator_page() -> Any:
+    return render_template("marketing_presentation_generator.html")
+
+
+@bp.get("/training-presentation-generator")
+def training_presentation_generator_page() -> Any:
+    return render_template("training_presentation_generator.html")
+
+
+@bp.get("/project-status-update-presentation")
+def project_status_update_presentation_page() -> Any:
+    return render_template("project_status_update_presentation.html")
+
+
+@bp.get("/create-timeline-slides-with-ai")
+def create_timeline_slides_with_ai_page() -> Any:
+    return render_template("create_timeline_slides_with_ai.html")
+
+
+
+
+
+@bp.get("/ai-product-presentation-generator")
+
+def ai_product_presentation_generator_page() -> Any:
+
+    return render_template("ai_product_presentation_generator.html")
+
+
+
+
+
+@bp.get("/ai-technical-presentation-generator")
+
+def ai_technical_presentation_generator_page() -> Any:
+
+    return render_template("ai_technical_presentation_generator.html")
+
+
+
+
+
 @bp.get("/presentation-outline-generator")
 
 def presentation_outline_generator_page() -> Any:
@@ -379,6 +795,60 @@ def convert_text_to_powerpoint_page() -> Any:
 def pitch_deck_generator_page() -> Any:
 
     return render_template("pitch_deck_generator.html")
+
+
+
+
+@bp.get("/startup-pitch-deck-generator")
+
+def startup_pitch_deck_generator_page() -> Any:
+
+    return render_template("startup_pitch_deck_generator.html")
+
+
+
+
+@bp.get("/ai-roadmap-generator")
+
+def ai_roadmap_generator_page() -> Any:
+
+    return render_template("ai_roadmap_generator.html")
+
+
+
+
+@bp.get("/swot-analysis-generator")
+
+def swot_analysis_generator_page() -> Any:
+
+    return render_template("swot_analysis_generator.html")
+
+
+
+
+@bp.get("/kpi-dashboard-slides-generator")
+
+def kpi_dashboard_slides_generator_page() -> Any:
+
+    return render_template("kpi_dashboard_slides_generator.html")
+
+
+
+
+@bp.get("/risk-matrix-generator")
+
+def risk_matrix_generator_page() -> Any:
+
+    return render_template("risk_matrix_generator.html")
+
+
+
+
+@bp.get("/architecture-diagram-generator")
+
+def architecture_diagram_generator_page() -> Any:
+
+    return render_template("architecture_diagram_generator.html")
 
 
 
@@ -466,23 +936,33 @@ def ads_txt() -> Any:
 
     """
 
-    target = os.environ.get("EZOIC_ADSTXT_URL")
+    target = (os.environ.get("EZOIC_ADSTXT_URL") or "").strip()
 
     if target:
 
-        resp = redirect(target, code=301)
-
         try:
 
-            resp.headers["X-AdsTxt-Source"] = "ezoic-redirect"
+            upstream = requests.get(target, timeout=12)
 
-            resp.headers["Cache-Control"] = "no-store, max-age=0"
+            if upstream.ok and (upstream.text or "").strip():
+
+                resp = Response(upstream.text, mimetype="text/plain")
+
+                try:
+
+                    resp.headers["X-AdsTxt-Source"] = "ezoic-proxy"
+
+                    resp.headers["Cache-Control"] = "no-store, max-age=0"
+
+                except Exception:
+
+                    pass
+
+                return resp
 
         except Exception:
 
             pass
-
-        return resp
 
     resp = send_from_directory(current_app.static_folder, "ads.txt")
 
@@ -838,14 +1318,84 @@ def generate_page() -> Any:
 
     disable_limits = True
 
+    generation_mode_default = (
+        request.args.get("generation_mode")
+        or request.args.get("mode")
+        or os.getenv("PPTJET_GENERATION_MODE", "hybrid_visual_spec")
+    ).strip().lower()
     return render_template(
 
         "generate.html",
 
         disable_limits=disable_limits,
 
+        generation_mode_default=generation_mode_default,
+
         user=current_user,
 
+    )
+
+
+@bp.get("/select-theme")
+def select_theme_page() -> Any:
+    theme_entries = _theme_entries()
+    if not theme_entries:
+        return redirect(url_for("main.generate_page"))
+    return redirect(url_for("main.select_theme_detail_page", theme_slug=theme_entries[0]["slug"]))
+
+
+@bp.get("/select-theme/<theme_slug>")
+def select_theme_detail_page(theme_slug: str) -> Any:
+    from app.services.editorial.theme import EditorialTheme
+
+    theme_name = _theme_name_from_slug(theme_slug)
+    if not theme_name:
+        abort(404)
+
+    canonical_slug = _theme_slug(theme_name)
+    if theme_slug != canonical_slug:
+        return redirect(url_for("main.select_theme_detail_page", theme_slug=canonical_slug))
+
+    theme_entries = _theme_entries()
+    current_index = next((idx for idx, entry in enumerate(theme_entries) if entry["name"] == theme_name), 0)
+    current_entry = {
+        **theme_entries[current_index],
+        "preview_image_url": _theme_preview_url(theme_name),
+    }
+    prev_entry = theme_entries[current_index - 1] if current_index > 0 else None
+    next_entry = theme_entries[current_index + 1] if current_index + 1 < len(theme_entries) else None
+
+    editorial_theme = EditorialTheme.from_name(theme_name)
+    current_palette = {
+        "bg": editorial_theme.background,
+        "primary": editorial_theme.blue,
+        "secondary": tuple(
+            round((base + accent) / 2)
+            for base, accent in zip(editorial_theme.background, editorial_theme.blue)
+        ),
+        "text": editorial_theme.ink,
+        "muted": editorial_theme.muted,
+        "accent": editorial_theme.rust,
+        "tokens": (
+            ("Background", editorial_theme.background),
+            ("Ink", editorial_theme.ink),
+            ("Muted", editorial_theme.muted),
+            ("Primary", editorial_theme.blue),
+            ("Accent", editorial_theme.rust),
+        ),
+    }
+
+    return render_template(
+        "select_theme.html",
+        theme_entries=theme_entries,
+        current_entry=current_entry,
+        current_theme=theme_name,
+        current_palette=current_palette,
+        current_index=current_index,
+        total_themes=len(theme_entries),
+        prev_entry=prev_entry,
+        next_entry=next_entry,
+        user=current_user,
     )
 
 
@@ -874,7 +1424,7 @@ def login() -> Any:
 
     if is_dev:
 
-        redirect_uri = "http://localhost:5000" + url_for("main.login_callback")
+        redirect_uri = request.host_url.rstrip("/") + url_for("main.login_callback")
 
     else:
 
@@ -948,7 +1498,7 @@ def login_callback() -> Any:
 
     if is_dev:
 
-        redirect_uri = "http://localhost:5000" + url_for("main.login_callback")
+        redirect_uri = request.host_url.rstrip("/") + url_for("main.login_callback")
 
     else:
 
@@ -1181,6 +1731,8 @@ def generate() -> Any:
     theme_name = (payload.get("theme") or payload.get("theme_name") or "SLEEK").strip()
 
     input_text = str(payload.get("input_text") or "").strip()
+    generation_mode = str(payload.get("generation_mode") or os.getenv("PPTJET_GENERATION_MODE", "hybrid_visual_spec")).strip().lower()
+    source_files = payload.get("source_files") or []
 
     raw_num = payload.get("num_slides")
 
@@ -1234,60 +1786,507 @@ def generate() -> Any:
     except Exception:
         trace_id = None
 
+    user_id = (getattr(current_user, "id", None) or None)
+    app_obj = None
     try:
-        slides, errors = create_deck_slides(
-            title=title,
-            subtitle=subtitle,
-            presenter=presenter,
-            date=date,
-            theme_name=theme_name,
-            input_text=input_text,
-            num_slides=num_slides,
-            deck_id=deck_id,
-            user_id=(getattr(current_user, "id", None) or None),
-        )
+        app_obj = current_app._get_current_object()
+    except Exception:
+        app_obj = None
+
+    # Start async job to avoid request timeouts (platform may return 502 for long sync requests).
+    def _set_job_state(deck_id_in: str, state: dict) -> None:
+        with GENERATE_JOBS_LOCK:
+            GENERATE_JOBS[deck_id_in] = dict(state)
+
+    _set_job_state(deck_id, {"status": "running", "deck_id": deck_id, "trace_id": trace_id, "started_at": time.time()})
+
+    def _run_generation_job() -> None:
+        def _fail(msg: str, errs: List[str] | None = None) -> None:
+            st = {
+                "status": "error",
+                "deck_id": deck_id,
+                "trace_id": trace_id,
+                "error": msg,
+                "errors": (errs or [msg]),
+                "ended_at": time.time(),
+            }
+            _set_job_state(deck_id, st)
+
+        try:
+            if app_obj is not None:
+                ctx = app_obj.app_context()
+            else:
+                ctx = None
+
+            if ctx is not None:
+                ctx.push()
+
+            if generation_mode in {"openai_code_interpreter", "code_interpreter", "responses_code_interpreter"}:
+                try:
+                    from app.services.openai_code_interpreter import generate_presentation_with_code_interpreter
+                except Exception as exc:  # noqa: BLE001
+                    _fail(f"Generation failed: {exc}", [f"Generation failed: {exc}"])
+                    return
+
+                try:
+                    result = generate_presentation_with_code_interpreter(
+                        title=title,
+                        subtitle=subtitle,
+                        presenter=presenter,
+                        date=date,
+                        theme_name=theme_name,
+                        input_text=input_text,
+                        num_slides=num_slides,
+                        deck_id=deck_id,
+                        user_id=user_id,
+                        source_files=source_files,
+                    )
+                    deck_title = (result.deck_title or title or "Generated Presentation").strip() or "Generated Presentation"
+                    theme_key = (theme_name or "SLEEK").strip().upper()
+                    out_dir = os.path.join(PREVIEW_ROOT, deck_id)
+                    export_dir = os.path.join(out_dir, "exports", theme_key)
+                    os.makedirs(export_dir, exist_ok=True)
+                    pptx_name = f"deck_{deck_id}.pptx"
+                    pptx_path = os.path.join(export_dir, pptx_name)
+                    with open(pptx_path, "wb") as f:
+                        f.write(result.pptx_bytes)
+                    deck_obj = {
+                        "deck_id": deck_id,
+                        "slides": [],
+                        "slides_out": [],
+                        "theme_name": theme_name,
+                        "deck_title": deck_title,
+                        "input_text": input_text,
+                        "generation_mode": generation_mode,
+                        "provider": "openai_code_interpreter",
+                        "usage": {
+                            "model": result.model,
+                            "request_id": result.request_id,
+                            "prompt_tokens": result.prompt_tokens,
+                            "completion_tokens": result.completion_tokens,
+                            "total_tokens": result.total_tokens,
+                            "token_cost_usd": result.token_cost_usd,
+                            "code_interpreter_cost_usd": result.code_interpreter_cost_usd,
+                            "total_cost_usd": result.total_cost_usd,
+                        },
+                    }
+                    DECK_STORE[deck_id] = deck_obj
+                    with open(os.path.join(out_dir, "deck.json"), "w", encoding="utf-8") as f:
+                        json.dump(deck_obj, f, ensure_ascii=False)
+                    try:
+                        if getattr(current_user, "is_authenticated", False) and getattr(current_user, "id", None):
+                            log = PresentationLog(
+                                user_id=current_user.id,
+                                title=deck_title,
+                                num_slides=max(int(num_slides or 0), 0) or None,
+                                units_used=1,
+                            )
+                            db.session.add(log)
+                            try:
+                                current_user.presentations_count = (getattr(current_user, "presentations_count", 0) or 0) + 1
+                            except Exception:
+                                pass
+                            db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+                    # The generation worker runs outside the request context, so
+                    # build a relative URL instead of calling url_for here.
+                    from urllib.parse import quote
+                    redirect_url = f"/preview/{deck_id}?theme={quote(theme_key)}"
+                    _set_job_state(deck_id, {
+                        "status": "done",
+                        "deck_id": deck_id,
+                        "trace_id": trace_id,
+                        "redirect_url": redirect_url,
+                        "ended_at": time.time(),
+                    })
+                    return
+                except Exception as exc:  # noqa: BLE001
+                    try:
+                        current_app.logger.exception("generate_job:code_interpreter_failed trace_id=%s deck_id=%s", trace_id, deck_id)
+                    except Exception:
+                        pass
+                    _fail(f"Generation failed: {exc}", [f"Generation failed: {exc}"])
+                    return
+
+            hybrid_usage = None
+            hybrid_pptx = None
+            if generation_mode in {"editorial", "editorial_deck"}:
+                if not (getattr(settings, "EDITORIAL_ENABLED", False) or os.getenv("EDITORIAL_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}):
+                    _fail("Editorial generation is disabled. Set EDITORIAL_ENABLED=1 to enable it.")
+                    return
+                try:
+                    from app.services.editorial.build import build_editorial_pptx, build_editorial_spec
+
+                    editorial_spec = build_editorial_spec(
+                        topic=title or input_text,
+                        source_text=input_text,
+                        slide_count=num_slides or 10,
+                        audience=presenter or None,
+                    )
+                    theme_key = (theme_name or "EDITORIAL").strip().upper()
+                    out_dir = os.path.join(PREVIEW_ROOT, deck_id)
+                    export_dir = os.path.join(out_dir, "exports", theme_key)
+                    os.makedirs(export_dir, exist_ok=True)
+                    pptx_path = os.path.join(export_dir, f"deck_{deck_id}.pptx")
+                    build_editorial_pptx(editorial_spec, pptx_path, theme_name=theme_key)
+                    slides = [slide.model_dump() for slide in editorial_spec.slides]
+                    deck_title = editorial_spec.title or title or "Editorial Presentation"
+                    deck_obj = {
+                        "deck_id": deck_id,
+                        "slides": slides,
+                        "slides_out": slides,
+                        "theme_name": theme_key,
+                        "deck_title": deck_title,
+                        "input_text": input_text,
+                        "generation_mode": "editorial",
+                        "provider": "editorial",
+                        "usage": {"provider": "editorial", "model": os.getenv("EDITORIAL_MODEL", "gpt-4o-mini")},
+                    }
+                    DECK_STORE[deck_id] = deck_obj
+                    with open(os.path.join(out_dir, "deck.json"), "w", encoding="utf-8") as f:
+                        json.dump(deck_obj, f, ensure_ascii=False)
+                    from urllib.parse import quote
+                    _set_job_state(deck_id, {
+                        "status": "done",
+                        "deck_id": deck_id,
+                        "trace_id": trace_id,
+                        "redirect_url": f"/preview/{deck_id}?theme={quote(theme_key)}",
+                        "ended_at": time.time(),
+                    })
+                    return
+                except Exception as exc:  # noqa: BLE001
+                    try:
+                        current_app.logger.exception("generate_job:editorial_failed trace_id=%s deck_id=%s", trace_id, deck_id)
+                    except Exception:
+                        pass
+                    _fail(
+                        "We couldn't complete this presentation. Please try again.",
+                        ["The presentation content could not be validated. Please try again."],
+                    )
+                    return
+            if generation_mode in {"hybrid_visual_spec", "hybrid", "visual_spec"}:
+                try:
+                    from app.services.hybrid_visual_spec import generate_visual_spec
+                    slides, hybrid_usage = generate_visual_spec(
+                        title=title,
+                        subtitle=subtitle,
+                        theme_name=theme_name,
+                        input_text=input_text,
+                        num_slides=num_slides,
+                        deck_id=deck_id,
+                        user_id=user_id,
+                    )
+                    hybrid_pptx = hybrid_usage.pop("rendered_pptx_bytes", None)
+                    errors = []
+                except Exception as exc:  # noqa: BLE001
+                    try:
+                        current_app.logger.exception("generate_job:hybrid_visual_spec_failed trace_id=%s deck_id=%s", trace_id, deck_id)
+                    except Exception:
+                        pass
+                    _fail(f"Generation failed: {exc}", [f"Generation failed: {exc}"])
+                    return
+            else:
+                try:
+                    slides, errors = create_deck_slides(
+                        title=title,
+                        subtitle=subtitle,
+                        presenter=presenter,
+                        date=date,
+                        theme_name=theme_name,
+                        input_text=input_text,
+                        num_slides=num_slides,
+                        deck_id=deck_id,
+                        user_id=user_id,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    try:
+                        current_app.logger.exception("generate_job:unhandled trace_id=%s deck_id=%s", trace_id, deck_id)
+                    except Exception:
+                        pass
+                    _fail(f"Generation failed: {exc}", [f"Generation failed: {exc}"])
+                    return
+
+            if generation_mode in {"hybrid_visual_spec", "hybrid", "visual_spec"} and hybrid_pptx:
+                deck_title = derive_deck_title(slides) if "derive_deck_title" in locals() else (title or "Generated Presentation")
+                deck_title = deck_title or title or "Generated Presentation"
+                theme_key = (theme_name or "SLEEK").strip().upper()
+                out_dir = os.path.join(PREVIEW_ROOT, deck_id)
+                export_dir = os.path.join(out_dir, "exports", theme_key)
+                os.makedirs(export_dir, exist_ok=True)
+                pptx_path = os.path.join(export_dir, f"deck_{deck_id}.pptx")
+                with open(pptx_path, "wb") as f:
+                    f.write(hybrid_pptx)
+                deck_obj = {
+                    "deck_id": deck_id,
+                    "slides": slides,
+                    "slides_out": slides,
+                    "theme_name": theme_name,
+                    "deck_title": deck_title,
+                    "input_text": input_text,
+                    "generation_mode": generation_mode,
+                    "provider": "hybrid_visual_spec",
+                    "usage": hybrid_usage or {},
+                }
+                DECK_STORE[deck_id] = deck_obj
+                with open(os.path.join(out_dir, "deck.json"), "w", encoding="utf-8") as f:
+                    json.dump(deck_obj, f, ensure_ascii=False)
+                try:
+                    if getattr(current_user, "is_authenticated", False) and getattr(current_user, "id", None):
+                        db.session.add(PresentationLog(
+                            user_id=current_user.id,
+                            title=deck_title,
+                            num_slides=max(int(num_slides or 0), 0) or len(slides),
+                            units_used=1,
+                        ))
+                        current_user.presentations_count = (getattr(current_user, "presentations_count", 0) or 0) + 1
+                        db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                from urllib.parse import quote
+                _set_job_state(deck_id, {
+                    "status": "done",
+                    "deck_id": deck_id,
+                    "trace_id": trace_id,
+                    "redirect_url": f"/preview/{deck_id}?theme={quote(theme_key)}",
+                    "ended_at": time.time(),
+                })
+                return
+
+            if errors or not slides:
+                errs = errors or ["No slides generated"]
+                msg0 = None
+                try:
+                    msg0 = str(errs[0]) if errs else None
+                except Exception:
+                    msg0 = None
+                _fail(msg0 or "Generation failed", [str(x) for x in (errs or [])])
+                return
+
+            if len(slides) < MIN_SLIDES:
+                plan, _ = build_slide_type_plan(
+                    topic=title or input_text,
+                    input_text=input_text,
+                    slide_count=MIN_SLIDES,
+                    theme_name=theme_name,
+                )
+                slides = enforce_slide_count_postprocess(
+                    client=None,
+                    system_msg="",
+                    deck_title=title or input_text,
+                    input_text=input_text,
+                    slides=slides,
+                    slide_type_plan=plan,
+                    chosen_n=MIN_SLIDES,
+                    deck_id=deck_id,
+                    user_id=user_id,
+                )
+                body_titles = [
+                    str(sl.get("title") or "").strip()
+                    for sl in slides
+                    if isinstance(sl, dict) and str(sl.get("type") or "").strip().lower() not in {"title", "agenda", "thank_you", "cta"}
+                ]
+                for sl in slides:
+                    if isinstance(sl, dict) and str(sl.get("type") or "").strip().lower() == "agenda":
+                        content = sl.get("content") if isinstance(sl.get("content"), dict) else {}
+                        content["bullets"] = body_titles
+                        sl["content"] = content
+                        break
+
+            debug_log_slides("ai_raw", slides)
+
+            # Derive a better deck title
+            def _smart_title_from_prompt(prompt_text: str) -> str | None:
+                t = (prompt_text or "").strip()
+                if not t:
+                    return None
+                lo = t.lower()
+
+                name = None
+                full_name = None
+                acronym = None
+
+                m = re.search(r"\b([A-Z]{2,})\s*,\s*or\s+([^.,\n]+)", t, flags=re.I)
+                if m:
+                    acronym = m.group(1).strip()
+                    full_name = m.group(2).strip()
+                    name = f"{full_name} ({acronym})"
+                if not name:
+                    m2 = re.search(r"\b([^\(\)\n]{4,}?)\s*\(([A-Z]{2,})\)", t)
+                    if m2:
+                        full_name = m2.group(1).strip()
+                        acronym = m2.group(2).strip()
+                        name = f"{full_name} ({acronym})"
+                if not name:
+                    first_clause = re.split(r"[\.!?\n]\s*", t, maxsplit=1)[0]
+                    first_clause = re.sub(r"^(about|on|regarding|please|kindly|create|write|make|generate|i need|we need)\s+", "", first_clause, flags=re.I)
+                    first_clause = re.sub(r"^(an|a)\s+(overview|introduction)\s+of\s+", "", first_clause, flags=re.I)
+                    first_clause = first_clause.split(":", 1)[0].strip()
+                    name = first_clause
+
+                name_words = name.split()
+                if len(name_words) > 10:
+                    name = " ".join(name_words[:10])
+
+                THEMES = [
+                    (r"bank communication", "Bank Communications"),
+                    (r"payment approval|approval workflow", "Payment Approvals"),
+                    (r"status monitoring|payment status", "Status Monitoring"),
+                    (r"straight[- ]through processing|stp", "Straight‑Through Processing"),
+                    (r"automated processing|automation", "Automation"),
+                    (r"compliance|audit trail", "Compliance"),
+                    (r"visibility|end-to-end visibility|cash flow", "Visibility"),
+                    (r"cost savings|fees|per-transaction", "Cost Savings"),
+                    (r"workflow", "Workflow"),
+                ]
+                picks = []
+                for pat, label in THEMES:
+                    try:
+                        if re.search(pat, lo):
+                            picks.append(label)
+                    except Exception:
+                        continue
+                picks = picks[:2]
+
+                LIM = 48
+
+                candidates: list[str] = []
+                if picks:
+                    for k in [2, 1]:
+                        if len(picks) >= k:
+                            tail = ", ".join(picks[:k]) if k > 1 else picks[0]
+                            candidates.append(f"{name}: {tail}")
+                else:
+                    candidates.append(name)
+                if acronym:
+                    short_name = f"{acronym}" if not full_name else f"{acronym}: {picks[0]}" if picks else acronym
+                    candidates.append(short_name)
+                if full_name and acronym:
+                    candidates.append(f"{full_name} ({acronym})")
+
+                for c in candidates:
+                    if len(c) <= LIM:
+                        base = c
+                        break
+                else:
+                    base = (candidates[0])[:LIM]
+
+                small = {"and", "or", "the", "of", "in", "on", "for", "to", "a", "an", "with", "at", "by"}
+
+                def smart_tc(s: str) -> str:
+                    parts = s.split()
+                    out_parts = []
+                    for i2, w in enumerate(parts):
+                        if i2 > 0 and w.lower() in small:
+                            out_parts.append(w.lower())
+                        else:
+                            out_parts.append(w[:1].upper() + w[1:])
+                    return " ".join(out_parts)
+
+                return smart_tc(base)
+
+            def derive_deck_title(slides_list: List[Dict[str, Any]]) -> str | None:
+                try:
+                    for sl in slides_list or []:
+                        if isinstance(sl, dict) and (str(sl.get("type") or "").lower() == "title"):
+                            t0 = (sl.get("title") or "").strip()
+                            if t0:
+                                return t0
+                except Exception:
+                    pass
+                if title and len(title.split()) <= 12:
+                    return title
+                smart = _smart_title_from_prompt(input_text)
+                if smart:
+                    return smart
+                return None
+
+            deck_title = derive_deck_title(slides) or "Generated Presentation"
+
+            deck_obj = {
+                "deck_id": deck_id,
+                "slides": slides,
+                "slides_out": finalize_slides(slides, stage="post_generate"),
+                "theme_name": theme_name,
+                "deck_title": deck_title,
+                "input_text": input_text,
+                "generation_mode": generation_mode,
+                "provider": (hybrid_usage or {}).get("provider", "legacy_standard"),
+                "usage": hybrid_usage or {},
+            }
+
+            DECK_STORE[deck_id] = deck_obj
+
+            out_dir = os.path.join(PREVIEW_ROOT, deck_id)
+            try:
+                os.makedirs(out_dir, exist_ok=True)
+                with open(os.path.join(out_dir, "deck.json"), "w", encoding="utf-8") as f:
+                    json.dump(deck_obj, f, ensure_ascii=False)
+            except Exception:
+                pass
+
+            redirect_url = f"/outline/{deck_id}"
+            _set_job_state(deck_id, {
+                "status": "done",
+                "deck_id": deck_id,
+                "trace_id": trace_id,
+                "redirect_url": redirect_url,
+                "ended_at": time.time(),
+            })
+        except Exception as exc:  # noqa: BLE001
+            try:
+                current_app.logger.exception("generate_job:crash trace_id=%s deck_id=%s", trace_id, deck_id)
+            except Exception:
+                pass
+            _fail(f"Generation failed: {exc}", [f"Generation failed: {exc}"])
+        finally:
+            try:
+                if "ctx" in locals() and ctx is not None:
+                    ctx.pop()
+            except Exception:
+                pass
+
+    try:
+        th = threading.Thread(target=_run_generation_job, daemon=True)
+        th.start()
     except Exception as exc:  # noqa: BLE001
-        try:
-            current_app.logger.exception("generate:unhandled trace_id=%s deck_id=%s", trace_id, deck_id)
-        except Exception:
-            pass
-        return jsonify({
-            "ok": False,
-            "error": f"Generation failed: {exc}",
-            "errors": [f"Generation failed: {exc}"],
-            "trace_id": trace_id,
-            "deck_id": deck_id,
-        }), 500
+        _set_job_state(deck_id, {"status": "error", "deck_id": deck_id, "trace_id": trace_id, "error": f"Failed to start generation: {exc}", "errors": [f"Failed to start generation: {exc}"], "ended_at": time.time()})
+        return jsonify({"ok": False, "error": f"Failed to start generation: {exc}", "trace_id": trace_id, "deck_id": deck_id}), 500
 
-    if errors or not slides:
-        errs = errors or ["No slides generated"]
-        msg = None
-        try:
-            msg = str(errs[0]) if errs else None
-        except Exception:
-            msg = None
-
-        return jsonify({
-            "ok": False,
-            "error": msg or "Generation failed",
-            "errors": errs,
-            "trace_id": trace_id,
-            "deck_id": deck_id,
-        }), 422
+    poll_url = f"/api/generate/{deck_id}"
+    return jsonify({"ok": True, "deck_id": deck_id, "status": "processing", "trace_id": trace_id, "poll_url": poll_url})
 
 
 
-    debug_log_slides("ai_raw", slides)
+@bp.get("/api/generate/<deck_id>")
+def api_generate_status(deck_id: str) -> Any:
+    """Return async generation job status.
 
+    This endpoint always responds quickly to support polling from the loading screen.
+    """
+    with GENERATE_JOBS_LOCK:
+        st = dict(GENERATE_JOBS.get(deck_id) or {})
 
+    if st:
+        st.setdefault("ok", True)
+        return jsonify(st)
 
-    # Multi-page change: persist slides and return deck_id + redirect URL
+    # Fallback: if the deck exists, consider it done.
+    try:
+        if deck_id in DECK_STORE:
+            redirect_url = f"/outline/{deck_id}"
+            return jsonify({"ok": True, "status": "done", "deck_id": deck_id, "redirect_url": redirect_url})
+    except Exception:
+        pass
 
-    # deck_id already created earlier for logging
+    try:
+        if os.path.isfile(os.path.join(PREVIEW_ROOT, deck_id, "deck.json")):
+            redirect_url = f"/outline/{deck_id}"
+            return jsonify({"ok": True, "status": "done", "deck_id": deck_id, "redirect_url": redirect_url})
+    except Exception:
+        pass
 
-    
-
-    # Derive a better deck title
+    return jsonify({"ok": False, "status": "not_found", "deck_id": deck_id, "error": "Job not found"}), 404
 
     def _smart_title_from_prompt(prompt_text: str) -> str | None:
 
@@ -1585,11 +2584,9 @@ def generate() -> Any:
 
 
 
-    redirect_url = url_for("main.outline_page", deck_id=deck_id, _external=True)
+    redirect_url = f"/outline/{deck_id}"
 
     return jsonify({"ok": True, "deck_id": deck_id, "redirect_url": redirect_url})
-
-
 
 
 
@@ -1768,11 +2765,11 @@ def api_previews(deck_id: str) -> Any:
 
     try:
 
-        preview_max = int(os.getenv("PREVIEW_MAX_SLIDES") or "20")
+        preview_max = max(MIN_SLIDES, int(os.getenv("PREVIEW_MAX_SLIDES") or "20"))
 
     except Exception:
 
-        preview_max = 20
+        preview_max = MIN_SLIDES
 
     max_pages = None
 
@@ -2494,6 +3491,43 @@ def _export_presentation_impl() -> Any:
 
     no_log = str(data.get("no_log") or "").strip().lower() in {"1", "true", "yes"}
 
+    # Never route an already-generated structured deck through the legacy
+    # slide exporter. Preview-loading calls /export as part of the older flow,
+    # so restore the saved structured specification and rebuild it natively.
+    stored_deck = DECK_STORE.get(deck_id) if deck_id else None
+    if not stored_deck and deck_id:
+        try:
+            with open(os.path.join(PREVIEW_ROOT, deck_id, "deck.json"), "r", encoding="utf-8") as f:
+                stored_deck = json.load(f)
+        except Exception:
+            stored_deck = None
+    stored_mode = str((stored_deck or {}).get("generation_mode") or "").strip().lower()
+    if stored_mode in {"editorial", "editorial_deck"}:
+        slides_payload = (stored_deck or {}).get("slides") or (stored_deck or {}).get("slides_out") or []
+        theme_key = (theme_name or (stored_deck or {}).get("theme_name") or "SLEEK").strip().upper()
+        export_dir = os.path.join(PREVIEW_ROOT, deck_id, "exports", theme_key)
+        os.makedirs(export_dir, exist_ok=True)
+        pptx_path = os.path.join(export_dir, f"deck_{deck_id}.pptx")
+        if os.path.isfile(pptx_path):
+            current_app.logger.info("export:preserved_structured_existing deck_id=%s out=%s", deck_id, pptx_path)
+            return jsonify({"ok": True, "deck_id": deck_id, "theme": theme_key, "pptx_path": pptx_path})
+        try:
+            from app.services.editorial.build import build_editorial_pptx
+            from app.services.editorial.schema import DeckSpec
+
+            spec = DeckSpec(
+                title=str((stored_deck or {}).get("deck_title") or "Generated Presentation")[:180],
+                audience="Presentation audience",
+                thesis=str((stored_deck or {}).get("input_text") or "A clear story guides the next decision.")[:280],
+                slides=slides_payload,
+            )
+            build_editorial_pptx(spec, pptx_path, theme_name=theme_key)
+            current_app.logger.info("export:preserved_structured deck_id=%s slides=%s out=%s", deck_id, len(spec.slides), pptx_path)
+            return jsonify({"ok": True, "deck_id": deck_id, "theme": theme_key, "pptx_path": pptx_path})
+        except Exception as exc:
+            current_app.logger.exception("export:structured_rebuild_failed deck_id=%s", deck_id)
+            return jsonify({"ok": False, "error": f"Structured deck export failed: {exc}"}), 500
+
     # Optional, internal-only mode used to showcase all infographic types deterministically.
 
     # Default is normal behaviour (no special showcase handling).
@@ -2574,15 +3608,47 @@ def _export_presentation_impl() -> Any:
 
     try:
 
-        preview_max_slides = int(os.getenv("PREVIEW_MAX_SLIDES") or "20")
+        preview_max_slides = max(MIN_SLIDES, int(os.getenv("PREVIEW_MAX_SLIDES") or "20"))
 
     except Exception:
 
-        preview_max_slides = 20
+        preview_max_slides = MIN_SLIDES
 
 
+
+    def _ensure_minimum_slides(sl_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        arr = [s for s in (sl_list or []) if isinstance(s, dict)]
+        target = max(MIN_SLIDES, min(MAX_SLIDES, len(arr)))
+        if len(arr) >= target:
+            return arr
+        thanks = []
+        body = list(arr)
+        if body and str(body[-1].get("type") or "").strip().lower() in {"thank_you", "cta"}:
+            thanks = body[-1:]
+            body = body[:-1]
+        plan, _ = build_slide_type_plan(
+            topic=deck_title,
+            input_text=input_text or deck_title,
+            slide_count=target,
+            theme_name=theme_name,
+        )
+        filled = enforce_slide_count_postprocess(
+            client=None,
+            system_msg="",
+            deck_title=deck_title,
+            input_text=input_text or deck_title,
+            slides=body,
+            slide_type_plan=plan,
+            chosen_n=target,
+            deck_id=deck_id,
+        )
+        if not thanks:
+            thanks = [{"type": "thank_you", "title": "Thank You", "content": {}}]
+        return (filled[: max(0, target - 1)] + thanks[-1:])[:target]
 
     def _clamp_for_preview(sl_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+
+        sl_list = _ensure_minimum_slides(sl_list)
 
         if not preview_guardrails:
 
@@ -3486,6 +4552,49 @@ def _export_presentation_impl() -> Any:
 
 
 
+    def _eligible_insights(blob: str, bullets: list[str]) -> bool:
+
+        if len(bullets or []) < 3:
+
+            return False
+
+        if not blob:
+
+            return False
+
+        insight_terms = [
+            "insight", "insights", "finding", "findings", "signal", "signals", "observation", "observations",
+            "trend", "trends", "pattern", "patterns", "evidence", "what we learned", "lesson", "lessons",
+            "implication", "implications", "recommendation", "recommendations", "key takeaway", "key takeaways",
+        ]
+
+        challenge_terms = ["challenge", "challenges", "problem", "pain point", "pain points", "issue", "issues", "risk", "risks"]
+
+        solution_terms = ["solution", "approach", "intervention", "implementation", "initiative", "action", "recommendation", "next step"]
+
+        result_terms = ["result", "results", "outcome", "outcomes", "impact", "improvement", "roi", "%", "metric", "metrics"]
+
+        has_structured_story = (
+            any(k in blob for k in challenge_terms)
+            and any(k in blob for k in solution_terms)
+            and any(k in blob for k in result_terms)
+        )
+
+        if has_structured_story:
+
+            return True
+
+        if any(k in blob for k in insight_terms) and (
+            any(k in blob for k in result_terms)
+            or any(k in blob for k in ["driver", "drivers", "root cause", "cause", "factors", "factor"])
+        ):
+
+            return True
+
+        return False
+
+
+
     # Priority: prefer higher-value infographic intents when multiple are eligible
 
     _INTENT_PRIORITY: dict[str, int] = {
@@ -3498,15 +4607,17 @@ def _export_presentation_impl() -> Any:
 
         "COMPARE": 3,
 
-        "IMPACT": 4,
+        "INSIGHTS": 4,
 
-        "PROCESS": 5,
+        "IMPACT": 5,
 
-        "OPTIMIZATION": 6,
+        "PROCESS": 6,
 
-        "RISK": 7,
+        "OPTIMIZATION": 7,
 
-        "BENEFITS": 8,
+        "RISK": 8,
+
+        "BENEFITS": 9,
 
     }
 
@@ -3537,6 +4648,10 @@ def _export_presentation_impl() -> Any:
         if _eligible_comparison_matrix(blob, bullets):
 
             intents.append("COMPARE")
+
+        if _eligible_insights(blob, bullets):
+
+            intents.append("INSIGHTS")
 
         if _eligible_impact(blob):
 
@@ -3956,6 +5071,10 @@ def _export_presentation_impl() -> Any:
 
             "subtitle": (s1.get("subtitle") if isinstance(s1.get("subtitle"), str) else "") or (data.get("subtitle") or ""),
 
+            "presenter": (s1.get("presenter") if isinstance(s1.get("presenter"), str) else "") or (data.get("presenter") or ""),
+
+            "date": (s1.get("date") if isinstance(s1.get("date"), str) else "") or (data.get("date") or ""),
+
             "_render_exact": True,
 
         }
@@ -4014,7 +5133,7 @@ def _export_presentation_impl() -> Any:
 
             headline_src = (deck_title or "").strip() or (agenda_topics[0] if agenda_topics else "Overview")
 
-            headline = str(headline_src).strip()
+            headline = normalize_one_idea_headline(str(headline_src).strip(), deck_title=deck_title, agenda_topics=agenda_topics)
 
             # Soft character cap to keep it readable on one or two lines
 
@@ -4074,7 +5193,7 @@ def _export_presentation_impl() -> Any:
 
                     if ai_headline:
 
-                        headline = ai_headline
+                        headline = normalize_one_idea_headline(ai_headline, deck_title=deck_title, agenda_topics=agenda_topics)
 
                     if ai_expl:
 
@@ -4084,49 +5203,40 @@ def _export_presentation_impl() -> Any:
 
             if not expl:
 
-                # Pattern: "The Impact of X on Y" -> "X is changing how Y ..."
+                # Only use fallback patterns if AI generation was not attempted or failed
+                # If AI was attempted but returned empty, don't use generic fallbacks
+                if not ENABLE_EXPORT_ONE_IDEA_AI or ai_spec is None:
 
-                m = re.search(r"The Impact of (.+?) on (.+)", src, flags=re.IGNORECASE)
+                    # Pattern: "The Impact of X on Y" -> "X is changing how Y ..."
 
-                if m:
+                    m = re.search(r"The Impact of (.+?) on (.+)", src, flags=re.IGNORECASE)
 
-                    tech = m.group(1).strip()
+                    if m:
 
-                    area = m.group(2).strip()
+                        tech = m.group(1).strip()
 
-                    if "startup" in area.lower():
+                        area = m.group(2).strip()
 
-                        expl = f"{tech} is changing how startups build, launch, and grow products, from first ideas through scale-up."
+                        if "startup" in area.lower():
+
+                            expl = f"{tech} is reshaping how startups build, launch, and grow, creating new leverage but also demanding sharper choices about where it adds real value first."
+
+                        else:
+
+                            expl = f"{tech} is changing how {area.lower()} works, creating new ways to solve problems, improve decisions, and unlock value. The real advantage will depend on where adoption is practical and differentiating."
+
+                    elif agenda_topics:
+
+                        expl = compose_one_idea_intro_insight(base_title or headline, agenda_topics=agenda_topics)
 
                     else:
 
-                        expl = f"{tech} is changing how {area.lower()} works and opening new ways to create value."
+                        expl = compose_one_idea_intro_insight(base_title or headline)
 
-                elif agenda_topics:
-
-                    # Use the first agenda item as a simple anchor
-
-                    simple_topic = agenda_topics[0].strip()
-
-                    expl = f"{simple_topic} focuses on what the idea is, why it matters, and how it changes everyday work."
-
-                else:
-
-                    # Generic fallback when we only know the deck title
-
-                    subj = base_title or "this topic"
-
-                    expl = f"{subj} is about the core idea, why it matters, and the difference it can make in practice."
-
-
-
-            # Keep explainer reasonably tight
-
-            if len(expl) > 230:
-
-                e_trim = expl[:230]
-
-                expl = (e_trim.rsplit(" ", 1)[0] or e_trim).rstrip(",.;:- ") + "…"
+            # Only normalize with preserve_ai=False if we used a fallback pattern
+            # If AI content was used, preserve_ai=True was already set in derive_one_idea_intro
+            if expl and not (ENABLE_EXPORT_ONE_IDEA_AI and ai_spec is not None and ai_expl):
+                expl = normalize_one_idea_explainer(headline, expl, fallback_subject=src, agenda_topics=agenda_topics)
 
 
 
@@ -4284,6 +5394,8 @@ def _export_presentation_impl() -> Any:
 
                 "pricing": 1,
 
+                "image": 2,
+
             }
 
 
@@ -4369,6 +5481,8 @@ def _export_presentation_impl() -> Any:
                 "architecture",
 
                 "pricing",
+
+                "image",
 
             }
 
@@ -4682,6 +5796,8 @@ def _export_presentation_impl() -> Any:
 
                     "pricing": "Pricing/plan comparison with 2-4 plans and features.",
 
+                    "image": "A stock-photo-supported visual slide with a relevant image and concise supporting bullets.",
+
                 },
 
                 "rules": [
@@ -4712,7 +5828,9 @@ def _export_presentation_impl() -> Any:
 
                     "If you choose pricing, you MUST output content.plans=[{name, price?, features:[...]}] with 2-4 plans.",
 
-                    "If you choose infographic, you may optionally set content.infographic_intent or content.intent to one of: IMPACT_MAP_SIMPLE, IMPACT_MAP_COMPLEX, PROCESS_FLOW_CHEVRON, RISK_MATRIX_ADVANCED, LAYERED_BENEFITS_STACK, CYCLIC_OPTIMIZATION_LOOP, GANTT_CHART, BUSINESS_MODEL_CANVAS. You may also set content.impact_map_variant to one of: classic, radial, pyramid, two_sided, swimlane.",
+                    "If you choose image, output content.image_query, content.image_layout, and concise supporting bullets.",
+
+                    "If you choose infographic, you may optionally set content.infographic_intent or content.intent to one of: IMPACT_MAP_SIMPLE, IMPACT_MAP_COMPLEX, PROCESS_FLOW_CHEVRON, RISK_MATRIX_ADVANCED, LAYERED_BENEFITS_STACK, CYCLIC_OPTIMIZATION_LOOP, GANTT_CHART, BUSINESS_MODEL_CANVAS, INSIGHTS_SNAPSHOT, CASE_STUDY_SNAPSHOT. You may also set content.impact_map_variant to one of: classic, radial, pyramid, two_sided, swimlane.",
 
                     "Avoid selecting comparison/double_column when a more visual type above is clearly applicable.",
 
@@ -5328,7 +6446,7 @@ def _export_presentation_impl() -> Any:
 
 
 
-            if layout in {"timeline", "roadmap", "swot", "kpi", "risk_matrix", "before_after", "architecture", "pricing"}:
+            if layout in {"timeline", "roadmap", "swot", "kpi", "risk_matrix", "before_after", "architecture", "pricing", "image"}:
 
                 c0 = spec.get("ai_content")
 
@@ -5608,7 +6726,7 @@ def _export_presentation_impl() -> Any:
 
                 # can use more than 5 items when available.
 
-                if intent in {"GANTT", "BMC", "PROCESS_FLOW", "COMPARE"}:
+                if intent in {"GANTT", "BMC", "PROCESS_FLOW", "COMPARE", "INSIGHTS"}:
 
                     bullets = list(pts or [])[:18]
 
@@ -5659,6 +6777,10 @@ def _export_presentation_impl() -> Any:
                     elif intent == "COMPARE":
 
                         tag = "COMPARISON_MATRIX"
+
+                    elif intent == "INSIGHTS":
+
+                        tag = "INSIGHTS_SNAPSHOT"
 
                     elif intent == "IMPACT":
 
@@ -6974,6 +8096,143 @@ def admin_pricing_delete() -> Any:
 
 
 
+# ---------- SEO: IndexNow (Bing) ----------
+
+_INDEXNOW_KEY_DEFAULT = "81c78f79b06249f588fcc66bf8c96806"
+
+
+def _indexnow_key() -> str:
+
+    return (os.environ.get("INDEXNOW_KEY") or _INDEXNOW_KEY_DEFAULT).strip()
+
+
+def _indexnow_host() -> str:
+
+    host = (os.environ.get("INDEXNOW_HOST") or "").strip()
+
+    if host:
+
+        return host
+
+    try:
+
+        h = (request.host or "").strip()
+
+        return (h.split(":", 1)[0] or "pptjet.com").strip()
+
+    except Exception:
+
+        return "pptjet.com"
+
+
+@bp.get("/<key>.txt")
+
+def indexnow_key_file(key: str) -> Any:
+
+    k = _indexnow_key()
+
+    if key != k:
+
+        abort(404)
+
+    return Response(k, mimetype="text/plain")
+
+
+@bp.post("/indexnow/submit")
+
+def indexnow_submit() -> Any:
+
+    submit_token = (os.environ.get("INDEXNOW_SUBMIT_TOKEN") or "").strip()
+
+    if not submit_token:
+
+        abort(404)
+
+    auth = (request.headers.get("Authorization") or "").strip()
+
+    bearer = ""
+
+    if auth.lower().startswith("bearer "):
+
+        bearer = auth.split(" ", 1)[1].strip()
+
+    provided = (
+
+        (request.headers.get("X-IndexNow-Token") or "").strip()
+
+        or (request.args.get("token") or "").strip()
+
+        or bearer
+
+    )
+
+    if not provided or not secrets.compare_digest(provided, submit_token):
+
+        abort(403)
+
+    data = request.get_json(silent=True) or {}
+
+    url_list = data.get("urlList") or data.get("urls") or []
+
+    if isinstance(url_list, str):
+
+        url_list = [url_list]
+
+    if not isinstance(url_list, list):
+
+        return jsonify({"ok": False, "error": "Invalid urlList"}), 400
+
+    url_list = [str(u).strip() for u in url_list if str(u).strip()]
+
+    if not url_list:
+
+        return jsonify({"ok": False, "error": "Missing urlList"}), 400
+
+    host = _indexnow_host()
+
+    k = _indexnow_key()
+
+    key_location = f"https://{host}/{k}.txt"
+
+    endpoint = (os.environ.get("INDEXNOW_ENDPOINT") or "https://api.indexnow.org/indexnow").strip()
+
+    payload = {
+
+        "host": host,
+
+        "key": k,
+
+        "keyLocation": key_location,
+
+        "urlList": url_list,
+
+    }
+
+    try:
+
+        resp = requests.post(endpoint, json=payload, timeout=12)
+
+        return jsonify({
+
+            "ok": resp.ok,
+
+            "status": resp.status_code,
+
+            "response": (resp.text or "")[:4000],
+
+            "submitted": len(url_list),
+
+            "host": host,
+
+            "keyLocation": key_location,
+
+        }), (200 if resp.ok else 502)
+
+    except Exception as exc:
+
+        return jsonify({"ok": False, "error": str(exc), "submitted": len(url_list)}), 502
+
+
 # ---------- SEO: robots.txt and sitemap.xml ----------
 
 @bp.get("/robots.txt")
@@ -7020,7 +8279,78 @@ def sitemap_xml_route() -> Any:
 
         {"loc": url_for('main.terms', _external=True), "changefreq": "yearly", "priority": "0.2"},
 
+        {"loc": url_for('main.ai_presentation_generator_page', _external=True), "lastmod": "2026-04-29", "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.free_ai_presentation_generator_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.9"},
+
+        {"loc": url_for('main.best_ai_presentation_generators_2026_page', _external=True), "lastmod": "2026-04-29", "changefreq": "weekly", "priority": "0.9"},
+
+        {"loc": url_for('main.pptjet_vs_canva_page', _external=True), "lastmod": "2026-04-29", "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.pptjet_vs_gamma_page', _external=True), "lastmod": "2026-04-29", "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.best_free_ai_presentation_makers_no_watermark_page', _external=True), "lastmod": "2026-04-29", "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.free_powerpoint_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.pptx_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.export_to_pptx_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.free_ai_slide_generator_page', _external=True), "changefreq": "weekly", "priority": "0.9"},
+
+        {"loc": url_for('main.free_ai_ppt_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.sales_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.marketing_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.training_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.project_status_update_presentation_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_students_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_consultants_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_teachers_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_product_managers_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_executives_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_sales_teams_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_presentation_generator_for_analysts_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_business_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.create_timeline_slides_with_ai_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_product_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.ai_technical_presentation_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.pitch_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.risk_matrix_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.architecture_diagram_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
+        {"loc": url_for('main.free_ai_tool_to_create_slides_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.generate_slides_from_text_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.ai_powerpoint_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_powerpoint_generator_page', _external=True), "lastmod": "2026-04-30", "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.ai_ppt_maker_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_slideshow_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.free_ai_deck_generator_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+        {"loc": url_for('main.create_slides_with_ai_free_page', _external=True), "changefreq": "weekly", "priority": "0.8"},
+
     ]
+
+    default_lastmod = "2026-04-30"
+    for u in urls:
+        u.setdefault("lastmod", default_lastmod)
 
 
 
@@ -7183,4 +8513,3 @@ def admin_marketing_csv() -> Any:
         "Content-Disposition": "attachment; filename=marketing_optins.csv"
 
     })
-
