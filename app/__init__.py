@@ -201,6 +201,15 @@ def create_app():
         print(f"Warning: failed to auto-create tables: {_e}")
 
     try:
+        skip_db_startup = (
+            os.environ.get("PPTJET_SKIP_DB_STARTUP_TASKS") == "1"
+            or (
+                os.environ.get("FLASK_ENV") == "development"
+                and not str(app.config.get("SQLALCHEMY_DATABASE_URI") or "").startswith("sqlite")
+            )
+        )
+        if skip_db_startup:
+            raise RuntimeError("optional database startup tasks disabled")
         with app.app_context():
             from sqlalchemy import inspect as _sa_inspect
             insp = _sa_inspect(db.engine)
@@ -227,7 +236,10 @@ def create_app():
                     db.session.add(post)
                     db.session.commit()
     except Exception as _e:
-        print(f"Warning: failed to seed SaaSHub blog post: {_e}")
+        if skip_db_startup:
+            print("Info: skipped optional database startup inspection/seeding")
+        else:
+            print(f"Warning: failed to seed SaaSHub blog post: {_e}")
     
     # Prefer http in development (local) to match OAuth redirect URIs, https in prod
     is_dev = os.environ.get('FLASK_ENV') == 'development'
