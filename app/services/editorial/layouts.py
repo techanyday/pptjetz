@@ -233,14 +233,15 @@ def loop_diagram(slide, spec, theme, image_bytes=None):
     _title(slide, spec, theme)
     count = len(spec.fields.steps)
     positions = {
-        3: [(4.65, 1.95), (1.25, 4.55), (8.05, 4.55)],
+        3: [(4.65, 1.85), (1.1, 5.05), (8.2, 5.05)],
         4: [(1.25, 2.05), (8.05, 2.05), (8.05, 4.65), (1.25, 4.65)],
         5: [(1.25, 2.05), (7.85, 2.05), (9.15, 4.55), (4.55, 5.2), (0.0, 4.55)],
     }.get(count, [(1.25 + (index % 2) * 6.8, 2.1 + (index // 2) * 1.8) for index in range(count)])
     nodes = []
+    node_size = (4.0, 1.2)
     for index, step in enumerate(spec.fields.steps):
         x, y = positions[index]
-        node = _shape(slide, f"loop_node_{index}", x, y, 4.0, 1.2, theme.white, line=theme.blue, radius=True)
+        node = _shape(slide, f"loop_node_{index}", x, y, node_size[0], node_size[1], theme.white, line=theme.blue, radius=True)
         frame = node.text_frame
         frame.clear(); frame.word_wrap = True; frame.vertical_anchor = MSO_ANCHOR.MIDDLE
         paragraph = frame.paragraphs[0]; paragraph.alignment = PP_ALIGN.CENTER
@@ -249,27 +250,49 @@ def loop_diagram(slide, spec, theme, image_bytes=None):
         _shape(slide, f"loop_badge_{index}", x - 0.16, y - 0.16, 0.34, 0.34, theme.rust, line=theme.rust, kind=MSO_AUTO_SHAPE_TYPE.OVAL)
         _text(slide, f"loop_badge_text_{index}", f"{index + 1}.", x - 0.13, y - 0.11, 0.28, 0.18, theme, size=9, color=theme.white, bold=True, align=PP_ALIGN.CENTER, min_pt=9)
     for index in range(len(nodes)):
-        x1, y1 = positions[index]; x2, y2 = positions[(index + 1) % len(nodes)]
-        start_x, start_y = x1 + (4.0 if x2 >= x1 else 0.0), y1 + 0.6
-        end_x, end_y = x2 + (0.0 if x2 >= x1 else 4.0), y2 + 0.6
-        connector = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(start_x), Inches(start_y), Inches(end_x), Inches(end_y))
+        next_index = (index + 1) % len(nodes)
+        x1, y1 = positions[index]
+        x2, y2 = positions[next_index]
+        dx, dy = x2 - x1, y2 - y1
+        if count == 3:
+            site_pair = {
+                (0, 1): (2, 0),  # top centre -> bottom left
+                (1, 2): (3, 1),  # bottom left -> bottom right
+                (2, 0): (0, 2),  # bottom right -> top centre
+            }[(index, next_index)]
+        elif abs(dx) >= abs(dy):
+            site_pair = (3, 1) if dx >= 0 else (1, 3)
+        else:
+            site_pair = (2, 0) if dy >= 0 else (0, 2)
+        begin_site, end_site = site_pair
+        connector = slide.shapes.add_connector(
+            MSO_CONNECTOR.STRAIGHT,
+            Inches(x1 + node_size[0] / 2),
+            Inches(y1 + node_size[1] / 2),
+            Inches(x2 + node_size[0] / 2),
+            Inches(y2 + node_size[1] / 2),
+        )
         connector.name = f"loop_connector_{index}"
         connector.line.color.rgb = rgb(theme.rust); connector.line.width = Pt(1.5); connector.shadow.inherit = False
         _remove_theme_style(connector)
-        dx, dy = x2 - x1, y2 - y1
-        begin_site, end_site = (3, 1) if abs(dx) >= abs(dy) and dx >= 0 else (1, 3) if abs(dx) >= abs(dy) else (2, 0) if dy >= 0 else (0, 2)
         try:
             connector.begin_connect(nodes[index], begin_site)
             connector.end_connect(nodes[(index + 1) % len(nodes)], end_site)
+            tail = connector._element.spPr.ln.find(f"{{{P_NS}}}tailEnd")
+            if tail is None:
+                tail = etree.SubElement(connector._element.spPr.ln, f"{{{P_NS}}}tailEnd")
+            tail.set("type", "triangle")
+            tail.set("w", "med")
+            tail.set("len", "med")
         except Exception:
             pass
         try:
-            tail = etree.SubElement(connector._element.spPr.ln, "{http://schemas.openxmlformats.org/drawingml/2006/main}tailEnd")
-            tail.set("type", "triangle")
+            tree = slide.shapes._spTree
+            tree.remove(connector._element)
+            first_node = min(tree.index(node._element) for node in nodes)
+            tree.insert(first_node, connector._element)
         except Exception:
             pass
-        tree = slide.shapes._spTree
-        tree.remove(connector._element); tree.insert(2, connector._element)
     _footer(slide, spec, theme)
 
 

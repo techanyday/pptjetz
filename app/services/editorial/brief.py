@@ -558,7 +558,30 @@ def _clean_style_guide(value: Any) -> dict[str, str]:
     }
 
 
-def _normalize_slide_plan(plan: list[Any], evidence: list[Any] | None = None) -> list[dict[str, Any]]:
+def _is_cyclic_content(content_signal: str) -> bool:
+    text = re.sub(r"\s+", " ", str(content_signal or "").lower())
+    return any(
+        phrase in text
+        for phrase in (
+            "feedback loop",
+            "closed loop",
+            "cyclic",
+            "cycle",
+            "circular",
+            "recurring",
+            "recursive",
+            "iterative",
+            "flywheel",
+            "reinforcing loop",
+        )
+    )
+
+
+def _normalize_slide_plan(
+    plan: list[Any],
+    evidence: list[Any] | None = None,
+    content_signal: str = "",
+) -> list[dict[str, Any]]:
     """Turn model layout suggestions into a varied, schema-valid plan."""
     preferred = [
         "cover_photo_block",
@@ -591,6 +614,8 @@ def _normalize_slide_plan(plan: list[Any], evidence: list[Any] | None = None) ->
     for index, item in enumerate(plan):
         item = item if isinstance(item, dict) else {}
         requested = _normalize_layout(item.get("layout"))
+        if requested == "loop_diagram" and not _is_cyclic_content(content_signal):
+            requested = "process_chevrons"
         if requested == "stat_pair_banner" and numeric_evidence < 2:
             requested = "numbered_columns"
         if requested == "table" and not (len(evidence) >= 3 or item.get("tabular") or item.get("comparable_items")):
@@ -606,7 +631,7 @@ def _normalize_slide_plan(plan: list[Any], evidence: list[Any] | None = None) ->
             {
                 **item,
                 "layout": layout,
-                "action_title": str(item.get("action_title") or item.get("title") or f"Claim {index + 1}").strip(),
+                "action_title": str(item.get("action_title") or item.get("title") or "Core implication").strip(),
             }
         )
         counts[layout] = counts.get(layout, 0) + 1
@@ -662,7 +687,7 @@ def build_editorial_spec(
             }
             for index, (role, layout, variant) in enumerate(seeded)
             ]
-    plan = _normalize_slide_plan(plan[:effective_count], evidence)
+    plan = _normalize_slide_plan(plan[:effective_count], evidence, f"{topic}\n{source_text}")
     while len(plan) < effective_count:
         index = len(plan)
         plan.insert(-1 if plan else 0, {
