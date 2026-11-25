@@ -3513,13 +3513,23 @@ def _export_presentation_impl() -> Any:
             return jsonify({"ok": True, "deck_id": deck_id, "theme": theme_key, "pptx_path": pptx_path})
         try:
             from app.services.editorial.build import build_editorial_pptx
+            from app.services.editorial.brief import coerce_slide
             from app.services.editorial.schema import DeckSpec
+
+            normalized_slides = []
+            for raw_slide in slides_payload:
+                if not isinstance(raw_slide, dict):
+                    continue
+                raw_layout = str(raw_slide.get("layout") or "cover_photo_block")
+                normalized_slides.append(coerce_slide(raw_slide, raw_layout))
+            if not normalized_slides:
+                raise ValueError("Structured deck contains no valid slides")
 
             spec = DeckSpec(
                 title=str((stored_deck or {}).get("deck_title") or "Generated Presentation")[:180],
                 audience="Presentation audience",
                 thesis=str((stored_deck or {}).get("input_text") or "A clear story guides the next decision.")[:280],
-                slides=slides_payload,
+                slides=normalized_slides,
             )
             build_editorial_pptx(spec, pptx_path, theme_name=theme_key)
             current_app.logger.info("export:preserved_structured deck_id=%s slides=%s out=%s", deck_id, len(spec.slides), pptx_path)
