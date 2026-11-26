@@ -39,7 +39,7 @@ _NUMBER_WORD_RE = re.compile(
 )
 logger = logging.getLogger(__name__)
 FALLBACK_COUNT = 0
-_PHOTO_LAYOUTS = {"cover_photo_block", "split_photo_cards", "stack_with_photo", "photo_overlay", "numbered_list_photo", "image_grid"}
+_PHOTO_LAYOUTS = {"cover_photo_block", "split_photo_cards", "stack_with_photo", "photo_overlay", "numbered_list_photo", "image_grid", "quote_photo"}
 
 LAYOUT_ALIASES = {
     "title": "cover_photo_block",
@@ -644,10 +644,10 @@ def _normalize_slide_plan(
         photo_count = sum(item["layout"] in _PHOTO_LAYOUTS for item in normalized)
         photo_pool = [
             "split_photo_cards",
-            "stack_with_photo",
             "photo_overlay",
             "numbered_list_photo",
             "image_grid",
+            "quote_photo",
         ]
         used_layouts = {item["layout"] for item in normalized}
         photo_pool = [layout for layout in photo_pool if layout not in used_layouts]
