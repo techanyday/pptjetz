@@ -761,6 +761,29 @@ def build_editorial_spec(
             slides.insert(0, _validate_slide(coerce_slide(cover_raw, "cover_photo_block")))
         except Exception:
             logger.exception("Unable to construct required Editorial cover")
+    # A cover is a unique opening device, never a reusable body slide.
+    # Convert any later model-generated cover into a substantive body card.
+    for index in range(1, len(slides)):
+        if slides[index].layout != "cover_photo_block":
+            continue
+        cover = slides[index]
+        fields = cover.fields
+        body_raw = {
+            "layout": "numbered_columns",
+            "action_title": cover.action_title,
+            "notes": cover.notes,
+            "fields": {
+                "items": [
+                    {"heading": "Core claim", "body": str(fields.title or "").strip()},
+                    {"heading": "Why it matters", "body": str(fields.subtitle or "").strip()},
+                    {"heading": "Decision focus", "body": str(fields.footer_line or "").strip()},
+                ],
+            },
+        }
+        try:
+            slides[index] = _validate_slide(coerce_slide(body_raw, "numbered_columns"))
+        except Exception:
+            logger.exception("Unable to convert duplicate Editorial cover index=%s", index)
     if slides[-1].layout != "closing_actions":
         closing_raw = {
             "layout": "closing_actions",
@@ -782,10 +805,16 @@ def build_editorial_spec(
     # invalid or duplicate content. A valid slide is cloned with a distinct
     # claim rather than silently shrinking the presentation.
     seed_slides = list(slides)
+    body_slides = [
+        slide for slide in seed_slides
+        if slide.layout not in {"cover_photo_block", "closing_actions"}
+    ]
+    if not body_slides:
+        body_slides = [seed_slides[0]]
     while len(slides) < effective_count:
-        source = seed_slides[(len(slides) - len(seed_slides)) % len(seed_slides)]
+        source = body_slides[(len(slides) - len(seed_slides)) % len(body_slides)]
         slides.append(source.model_copy(update={
-            "action_title": f"{source.action_title} — continuation {len(slides) + 1}",
+            "action_title": f"{source.action_title} (continued)"[:100],
         }))
     if slides[-1].layout != "closing_actions":
         slides.pop()
