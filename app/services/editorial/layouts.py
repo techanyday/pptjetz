@@ -165,6 +165,8 @@ def _photo(slide, name, image_bytes, x, y, w, h, alt_text="Editorial photograph"
 
 def cover_photo_block(slide, spec, theme, image_bytes=None):
     _background(slide, theme)
+    cover_surface = theme.blue if image_bytes else theme.rust
+    cover_text = readable_text(cover_surface, theme)
     if image_bytes:
         _photo(slide, "cover_photo", image_bytes, 0, 0, 13.333, 7.5, getattr(spec.image, "alt_text", "Editorial cover"))
         _shape(slide, "cover_scrim", 0.4, 3.1, 6.7, 3.7, theme.blue)
@@ -172,10 +174,10 @@ def cover_photo_block(slide, spec, theme, image_bytes=None):
         _shape(slide, "cover_background", 0, 0, 13.333, 7.5, theme.blue)
         _shape(slide, "cover_scrim", 0.4, 3.1, 6.7, 3.7, theme.rust)
     fields = spec.fields
-    _text(slide, "cover_eyebrow", spec.eyebrow, 0.72, 3.42, 5.8, 0.25, theme, size=11, color=theme.white, bold=True, min_pt=11)
-    _text(slide, "cover_title", fields.title, 0.72, 3.8, 5.9, 1.45, theme, size=32, color=theme.white, font=theme.display_font)
-    _text(slide, "cover_subtitle", fields.subtitle, 0.72, 5.48, 5.7, 0.75, theme, size=15, color=theme.white)
-    _text(slide, "cover_footer", fields.footer_line, 0.72, 6.55, 5.8, 0.25, theme, size=10, color=theme.white, min_pt=10)
+    _text(slide, "cover_eyebrow", spec.eyebrow, 0.72, 3.42, 5.8, 0.25, theme, size=11, color=cover_text, bold=True, min_pt=11)
+    _text(slide, "cover_title", fields.title, 0.72, 3.8, 5.9, 1.45, theme, size=32, color=cover_text, font=theme.display_font)
+    _text(slide, "cover_subtitle", fields.subtitle, 0.72, 5.48, 5.7, 0.75, theme, size=15, color=cover_text)
+    _text(slide, "cover_footer", fields.footer_line, 0.72, 6.55, 5.8, 0.25, theme, size=10, color=cover_text, min_pt=10)
 
 
 def split_photo_cards(slide, spec, theme, image_bytes=None):
@@ -200,7 +202,7 @@ def split_photo_cards(slide, spec, theme, image_bytes=None):
             {"text": card.body, "size": 14, "color": theme.white, "after": 0},
         ], theme, h=3.1)
     _shape(slide, "takeaway_banner", title_x, 5.96, title_w, 0.55, theme.rust)
-    _text(slide, "takeaway", spec.fields.takeaway, title_x + 0.2, 6.1, title_w - 0.4, 0.22, theme, size=12, color=theme.white, bold=True)
+    _text(slide, "takeaway", spec.fields.takeaway, title_x + 0.2, 6.1, title_w - 0.4, 0.22, theme, size=12, color=readable_text(theme.rust, theme), bold=True)
     _footer(slide, spec, theme)
 
 
@@ -446,8 +448,9 @@ def quote(slide, spec, theme, image_bytes=None):
 def section_break(slide, spec, theme, image_bytes=None):
     _background(slide, theme)
     _shape(slide, "section_block", 0, 0, 13.333, 7.5, theme.rust)
-    _text(slide, "section_eyebrow", spec.eyebrow or "SECTION", 0.9, 2.2, 4.5, 0.3, theme, size=11, color=theme.white, bold=True)
-    _text(slide, "section_phrase", spec.fields.phrase, 0.9, 2.75, 10.8, 1.8, theme, size=42, color=theme.white, font=theme.display_font)
+    accent_text = readable_text(theme.rust, theme)
+    _text(slide, "section_eyebrow", spec.eyebrow or "SECTION", 0.9, 2.2, 4.5, 0.3, theme, size=11, color=accent_text, bold=True)
+    _text(slide, "section_phrase", spec.fields.phrase, 0.9, 2.75, 10.8, 1.8, theme, size=42, color=accent_text, font=theme.display_font)
 
 
 def comparison(slide, spec, theme, image_bytes=None):
