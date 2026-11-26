@@ -222,17 +222,9 @@ def _theme_display_name(theme_name: str) -> str:
 
 
 def _theme_entries() -> List[Dict[str, str]]:
-    preview_images = {
-        "SLEEK": "img/templates/modern.jpg",
-        "PULSE": "img/templates/Business.png",
-        "MINIMAL FLUX": "img/templates/minimalist.jpg",
-        "BLUE HORIZON": "img/templates/aesthetic.jpg",
-        "prime_meridian": "img/templates/vintage.jpg",
-    }
-
     return [
 
-        {"name": theme_name, "slug": _theme_slug(theme_name), "display_name": _theme_display_name(theme_name), "preview_image": preview_images.get(theme_name, "img/templates/modern.jpg")}
+        {"name": theme_name, "slug": _theme_slug(theme_name), "display_name": _theme_display_name(theme_name)}
 
         for theme_name in THEME_OPTIONS
 
@@ -3513,13 +3505,23 @@ def _export_presentation_impl() -> Any:
             return jsonify({"ok": True, "deck_id": deck_id, "theme": theme_key, "pptx_path": pptx_path})
         try:
             from app.services.editorial.build import build_editorial_pptx
+            from app.services.editorial.brief import coerce_slide
             from app.services.editorial.schema import DeckSpec
+
+            normalized_slides = []
+            for raw_slide in slides_payload:
+                if not isinstance(raw_slide, dict):
+                    continue
+                raw_layout = str(raw_slide.get("layout") or "cover_photo_block")
+                normalized_slides.append(coerce_slide(raw_slide, raw_layout))
+            if not normalized_slides:
+                raise ValueError("Structured deck contains no valid slides")
 
             spec = DeckSpec(
                 title=str((stored_deck or {}).get("deck_title") or "Generated Presentation")[:180],
                 audience="Presentation audience",
                 thesis=str((stored_deck or {}).get("input_text") or "A clear story guides the next decision.")[:280],
-                slides=slides_payload,
+                slides=normalized_slides,
             )
             build_editorial_pptx(spec, pptx_path, theme_name=theme_key)
             current_app.logger.info("export:preserved_structured deck_id=%s slides=%s out=%s", deck_id, len(spec.slides), pptx_path)

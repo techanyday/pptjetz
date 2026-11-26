@@ -47,8 +47,7 @@
                 {% endfor %}
               </select>
             </div>
-            <a id="downloadLink" href="#" class="hidden rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-400/20 hover:bg-cyan-300">Download editable PPTX</a>
-            <a href="{{ url_for('main.generate_page') }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm text-slate-200 hover:bg-white/5">Back</a>
+             <a href="{{ url_for('main.generate_page') }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm text-slate-200 hover:bg-white/5">Back</a>
           </div>
         </div>
 
@@ -83,6 +82,9 @@
           <div id="meta" class="mb-3 text-sm text-slate-400">Loading...</div>
           <div id="actions" class="mb-3"></div>
           <div id="slideList" class="max-h-[78vh] overflow-y-auto space-y-6 rounded-xl bg-[#11172d] p-3 sm:p-5"></div>
+        </div>
+        <div class="mt-5 flex justify-center">
+          <a id="downloadLink" href="#" class="hidden rounded-lg bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-400/20 hover:bg-cyan-300">Download editable PPTX</a>
         </div>
         {% if ADS_ENABLED and ADSENSE_ENABLED %}
         <div class="mt-6 rounded-xl border border-white/10 bg-[#0b1024] p-2" aria-label="Presentation preview bottom advertisement">

@@ -165,6 +165,8 @@ def _photo(slide, name, image_bytes, x, y, w, h, alt_text="Editorial photograph"
 
 def cover_photo_block(slide, spec, theme, image_bytes=None):
     _background(slide, theme)
+    cover_surface = theme.blue if image_bytes else theme.rust
+    cover_text = readable_text(cover_surface, theme)
     if image_bytes:
         _photo(slide, "cover_photo", image_bytes, 0, 0, 13.333, 7.5, getattr(spec.image, "alt_text", "Editorial cover"))
         _shape(slide, "cover_scrim", 0.4, 3.1, 6.7, 3.7, theme.blue)
@@ -172,10 +174,10 @@ def cover_photo_block(slide, spec, theme, image_bytes=None):
         _shape(slide, "cover_background", 0, 0, 13.333, 7.5, theme.blue)
         _shape(slide, "cover_scrim", 0.4, 3.1, 6.7, 3.7, theme.rust)
     fields = spec.fields
-    _text(slide, "cover_eyebrow", spec.eyebrow, 0.72, 3.42, 5.8, 0.25, theme, size=11, color=theme.white, bold=True, min_pt=11)
-    _text(slide, "cover_title", fields.title, 0.72, 3.8, 5.9, 1.45, theme, size=32, color=theme.white, font=theme.display_font)
-    _text(slide, "cover_subtitle", fields.subtitle, 0.72, 5.48, 5.7, 0.75, theme, size=15, color=theme.white)
-    _text(slide, "cover_footer", fields.footer_line, 0.72, 6.55, 5.8, 0.25, theme, size=10, color=theme.white, min_pt=10)
+    _text(slide, "cover_eyebrow", spec.eyebrow, 0.72, 3.42, 5.8, 0.25, theme, size=11, color=cover_text, bold=True, min_pt=11)
+    _text(slide, "cover_title", fields.title, 0.72, 3.8, 5.9, 1.45, theme, size=32, color=cover_text, font=theme.display_font)
+    _text(slide, "cover_subtitle", fields.subtitle, 0.72, 5.48, 5.7, 0.75, theme, size=15, color=cover_text)
+    _text(slide, "cover_footer", fields.footer_line, 0.72, 6.55, 5.8, 0.25, theme, size=10, color=cover_text, min_pt=10)
 
 
 def split_photo_cards(slide, spec, theme, image_bytes=None):
@@ -200,7 +202,7 @@ def split_photo_cards(slide, spec, theme, image_bytes=None):
             {"text": card.body, "size": 14, "color": theme.white, "after": 0},
         ], theme, h=3.1)
     _shape(slide, "takeaway_banner", title_x, 5.96, title_w, 0.55, theme.rust)
-    _text(slide, "takeaway", spec.fields.takeaway, title_x + 0.2, 6.1, title_w - 0.4, 0.22, theme, size=12, color=theme.white, bold=True)
+    _text(slide, "takeaway", spec.fields.takeaway, title_x + 0.2, 6.1, title_w - 0.4, 0.22, theme, size=12, color=readable_text(theme.rust, theme), bold=True)
     _footer(slide, spec, theme)
 
 
@@ -233,14 +235,15 @@ def loop_diagram(slide, spec, theme, image_bytes=None):
     _title(slide, spec, theme)
     count = len(spec.fields.steps)
     positions = {
-        3: [(4.65, 1.95), (1.25, 4.55), (8.05, 4.55)],
+        3: [(4.65, 1.85), (1.1, 5.05), (8.2, 5.05)],
         4: [(1.25, 2.05), (8.05, 2.05), (8.05, 4.65), (1.25, 4.65)],
         5: [(1.25, 2.05), (7.85, 2.05), (9.15, 4.55), (4.55, 5.2), (0.0, 4.55)],
     }.get(count, [(1.25 + (index % 2) * 6.8, 2.1 + (index // 2) * 1.8) for index in range(count)])
     nodes = []
+    node_size = (4.0, 1.2)
     for index, step in enumerate(spec.fields.steps):
         x, y = positions[index]
-        node = _shape(slide, f"loop_node_{index}", x, y, 4.0, 1.2, theme.white, line=theme.blue, radius=True)
+        node = _shape(slide, f"loop_node_{index}", x, y, node_size[0], node_size[1], theme.white, line=theme.blue, radius=True)
         frame = node.text_frame
         frame.clear(); frame.word_wrap = True; frame.vertical_anchor = MSO_ANCHOR.MIDDLE
         paragraph = frame.paragraphs[0]; paragraph.alignment = PP_ALIGN.CENTER
@@ -249,27 +252,49 @@ def loop_diagram(slide, spec, theme, image_bytes=None):
         _shape(slide, f"loop_badge_{index}", x - 0.16, y - 0.16, 0.34, 0.34, theme.rust, line=theme.rust, kind=MSO_AUTO_SHAPE_TYPE.OVAL)
         _text(slide, f"loop_badge_text_{index}", f"{index + 1}.", x - 0.13, y - 0.11, 0.28, 0.18, theme, size=9, color=theme.white, bold=True, align=PP_ALIGN.CENTER, min_pt=9)
     for index in range(len(nodes)):
-        x1, y1 = positions[index]; x2, y2 = positions[(index + 1) % len(nodes)]
-        start_x, start_y = x1 + (4.0 if x2 >= x1 else 0.0), y1 + 0.6
-        end_x, end_y = x2 + (0.0 if x2 >= x1 else 4.0), y2 + 0.6
-        connector = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(start_x), Inches(start_y), Inches(end_x), Inches(end_y))
+        next_index = (index + 1) % len(nodes)
+        x1, y1 = positions[index]
+        x2, y2 = positions[next_index]
+        dx, dy = x2 - x1, y2 - y1
+        if count == 3:
+            site_pair = {
+                (0, 1): (2, 0),  # top centre -> bottom left
+                (1, 2): (3, 1),  # bottom left -> bottom right
+                (2, 0): (0, 2),  # bottom right -> top centre
+            }[(index, next_index)]
+        elif abs(dx) >= abs(dy):
+            site_pair = (3, 1) if dx >= 0 else (1, 3)
+        else:
+            site_pair = (2, 0) if dy >= 0 else (0, 2)
+        begin_site, end_site = site_pair
+        connector = slide.shapes.add_connector(
+            MSO_CONNECTOR.STRAIGHT,
+            Inches(x1 + node_size[0] / 2),
+            Inches(y1 + node_size[1] / 2),
+            Inches(x2 + node_size[0] / 2),
+            Inches(y2 + node_size[1] / 2),
+        )
         connector.name = f"loop_connector_{index}"
         connector.line.color.rgb = rgb(theme.rust); connector.line.width = Pt(1.5); connector.shadow.inherit = False
         _remove_theme_style(connector)
-        dx, dy = x2 - x1, y2 - y1
-        begin_site, end_site = (3, 1) if abs(dx) >= abs(dy) and dx >= 0 else (1, 3) if abs(dx) >= abs(dy) else (2, 0) if dy >= 0 else (0, 2)
         try:
             connector.begin_connect(nodes[index], begin_site)
             connector.end_connect(nodes[(index + 1) % len(nodes)], end_site)
+            tail = connector._element.spPr.ln.find(f"{{{P_NS}}}tailEnd")
+            if tail is None:
+                tail = etree.SubElement(connector._element.spPr.ln, f"{{{P_NS}}}tailEnd")
+            tail.set("type", "triangle")
+            tail.set("w", "med")
+            tail.set("len", "med")
         except Exception:
             pass
         try:
-            tail = etree.SubElement(connector._element.spPr.ln, "{http://schemas.openxmlformats.org/drawingml/2006/main}tailEnd")
-            tail.set("type", "triangle")
+            tree = slide.shapes._spTree
+            tree.remove(connector._element)
+            first_node = min(tree.index(node._element) for node in nodes)
+            tree.insert(first_node, connector._element)
         except Exception:
             pass
-        tree = slide.shapes._spTree
-        tree.remove(connector._element); tree.insert(2, connector._element)
     _footer(slide, spec, theme)
 
 
@@ -423,8 +448,9 @@ def quote(slide, spec, theme, image_bytes=None):
 def section_break(slide, spec, theme, image_bytes=None):
     _background(slide, theme)
     _shape(slide, "section_block", 0, 0, 13.333, 7.5, theme.rust)
-    _text(slide, "section_eyebrow", spec.eyebrow or "SECTION", 0.9, 2.2, 4.5, 0.3, theme, size=11, color=theme.white, bold=True)
-    _text(slide, "section_phrase", spec.fields.phrase, 0.9, 2.75, 10.8, 1.8, theme, size=42, color=theme.white, font=theme.display_font)
+    accent_text = readable_text(theme.rust, theme)
+    _text(slide, "section_eyebrow", spec.eyebrow or "SECTION", 0.9, 2.2, 4.5, 0.3, theme, size=11, color=accent_text, bold=True)
+    _text(slide, "section_phrase", spec.fields.phrase, 0.9, 2.75, 10.8, 1.8, theme, size=42, color=accent_text, font=theme.display_font)
 
 
 def comparison(slide, spec, theme, image_bytes=None):
@@ -550,23 +576,33 @@ def process_chevrons(slide, spec, theme, image_bytes=None):
         details.extend([""] * (len(spec.fields.steps) - len(details)))
     for index, step in enumerate(spec.fields.steps):
         x = 0.8 + index * width
-        shape = _shape(slide, f"chevron_{index}", x, 2.35, width - 0.12, 1.35, theme.blue if index % 2 else theme.rust, line=None, kind=MSO_AUTO_SHAPE_TYPE.CHEVRON)
-        frame = shape.text_frame
-        frame.clear()
-        frame.word_wrap = True
-        frame.vertical_anchor = MSO_ANCHOR.MIDDLE
-        frame.margin_left = Inches(0.18)
-        frame.margin_right = Inches(0.28)
-        frame.margin_top = Inches(0.08)
-        frame.margin_bottom = Inches(0.08)
-        paragraph = frame.paragraphs[0]
-        paragraph.alignment = PP_ALIGN.CENTER
-        run = paragraph.add_run()
-        run.text = str(step)
-        run.font.name = theme.body_font
-        run.font.size = Pt(15)
-        run.font.bold = True
-        run.font.color.rgb = rgb(theme.white)
+        surface = theme.blue if index % 2 else theme.rust
+        _shape(
+            slide,
+            f"chevron_{index}",
+            x,
+            2.35,
+            width - 0.12,
+            1.35,
+            surface,
+            line=None,
+            kind=MSO_AUTO_SHAPE_TYPE.CHEVRON,
+        )
+        _text(
+            slide,
+            f"chevron_label_{index}",
+            step,
+            x + 0.14,
+            2.57,
+            max(0.8, width - 0.56),
+            0.9,
+            theme,
+            size=13,
+            color=readable_text(surface, theme),
+            bold=True,
+            align=PP_ALIGN.CENTER,
+            min_pt=9,
+        )
         if details[index]:
             _text(slide, f"chevron_detail_{index}", details[index], x + 0.08, 4.05, width - 0.28, 0.78, theme, size=14, color=theme.ink, align=PP_ALIGN.CENTER, min_pt=12)
     _footer(slide, spec, theme)

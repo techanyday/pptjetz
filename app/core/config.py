@@ -43,12 +43,6 @@ class Settings(BaseSettings):
     EDITORIAL_ENABLED: bool = False
     EDITORIAL_MODEL: str = "gpt-4o-mini"
 
-    # Managed KPI API (single global data source for KPI slides)
-    MANAGED_KPI_API_URL: str | None = None
-    MANAGED_KPI_API_KEY: str | None = None
-    MANAGED_KPI_API_AUTH_HEADER: str = "Authorization"
-    MANAGED_KPI_API_TIMEOUT_SECONDS: int = 12
-
     # Comma-separated list of emails that have unlimited presentation units
     UNLIMITED_USERS: str | None = None
 

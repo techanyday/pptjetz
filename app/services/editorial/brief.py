@@ -39,7 +39,7 @@ _NUMBER_WORD_RE = re.compile(
 )
 logger = logging.getLogger(__name__)
 FALLBACK_COUNT = 0
-_PHOTO_LAYOUTS = {"cover_photo_block", "split_photo_cards", "stack_with_photo", "photo_overlay", "numbered_list_photo", "image_grid"}
+_PHOTO_LAYOUTS = {"cover_photo_block", "split_photo_cards", "stack_with_photo", "photo_overlay", "numbered_list_photo", "image_grid", "quote_photo"}
 
 LAYOUT_ALIASES = {
     "title": "cover_photo_block",
@@ -200,7 +200,7 @@ figures or number words in the presentation. Every numeric value must appear ver
 Each slide must contain only layout and action_title at this stage.
 Use the allowed editorial layouts and vary them: no adjacent duplicate layouts,
 no layout more than twice unless the deck exceeds 14 slides. Use photo layouts
-on at least 40 percent of slides. Include a statistic, diagram, and table or
+on at least 60 percent of slides. Include a statistic, diagram, and table or
 comparison only when supported by the source. Never invent statistics."""
     slide_count = min(30, max(10, int(slide_count or 10)))
     prompt = json.dumps(
@@ -558,7 +558,30 @@ def _clean_style_guide(value: Any) -> dict[str, str]:
     }
 
 
-def _normalize_slide_plan(plan: list[Any], evidence: list[Any] | None = None) -> list[dict[str, Any]]:
+def _is_cyclic_content(content_signal: str) -> bool:
+    text = re.sub(r"\s+", " ", str(content_signal or "").lower())
+    return any(
+        phrase in text
+        for phrase in (
+            "feedback loop",
+            "closed loop",
+            "cyclic",
+            "cycle",
+            "circular",
+            "recurring",
+            "recursive",
+            "iterative",
+            "flywheel",
+            "reinforcing loop",
+        )
+    )
+
+
+def _normalize_slide_plan(
+    plan: list[Any],
+    evidence: list[Any] | None = None,
+    content_signal: str = "",
+) -> list[dict[str, Any]]:
     """Turn model layout suggestions into a varied, schema-valid plan."""
     preferred = [
         "cover_photo_block",
@@ -591,6 +614,8 @@ def _normalize_slide_plan(plan: list[Any], evidence: list[Any] | None = None) ->
     for index, item in enumerate(plan):
         item = item if isinstance(item, dict) else {}
         requested = _normalize_layout(item.get("layout"))
+        if requested == "loop_diagram" and not _is_cyclic_content(content_signal):
+            requested = "process_chevrons"
         if requested == "stat_pair_banner" and numeric_evidence < 2:
             requested = "numbered_columns"
         if requested == "table" and not (len(evidence) >= 3 or item.get("tabular") or item.get("comparable_items")):
@@ -606,13 +631,33 @@ def _normalize_slide_plan(plan: list[Any], evidence: list[Any] | None = None) ->
             {
                 **item,
                 "layout": layout,
-                "action_title": str(item.get("action_title") or item.get("title") or f"Claim {index + 1}").strip(),
+                "action_title": str(item.get("action_title") or item.get("title") or "Core implication").strip(),
             }
         )
         counts[layout] = counts.get(layout, 0) + 1
     if normalized:
         normalized[0]["layout"] = "cover_photo_block"
         normalized[-1]["layout"] = "closing_actions"
+        # Enforce an image-led deck instead of relying on the model to honor
+        # the photo-layout request in the brief.
+        photo_target = 1 + ((max(0, len(normalized) - 2) * 3 + 4) // 5)
+        photo_count = sum(item["layout"] in _PHOTO_LAYOUTS for item in normalized)
+        photo_pool = [
+            "split_photo_cards",
+            "photo_overlay",
+            "numbered_list_photo",
+            "image_grid",
+            "quote_photo",
+        ]
+        used_layouts = {item["layout"] for item in normalized}
+        photo_pool = [layout for layout in photo_pool if layout not in used_layouts]
+        for item in normalized[1:-1]:
+            if photo_count >= photo_target:
+                break
+            if item["layout"] in _PHOTO_LAYOUTS or not photo_pool:
+                continue
+            item["layout"] = photo_pool.pop(0)
+            photo_count += 1
     return normalized
 
 
@@ -662,7 +707,7 @@ def build_editorial_spec(
             }
             for index, (role, layout, variant) in enumerate(seeded)
             ]
-    plan = _normalize_slide_plan(plan[:effective_count], evidence)
+    plan = _normalize_slide_plan(plan[:effective_count], evidence, f"{topic}\n{source_text}")
     while len(plan) < effective_count:
         index = len(plan)
         plan.insert(-1 if plan else 0, {

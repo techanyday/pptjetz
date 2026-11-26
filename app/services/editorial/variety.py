@@ -11,7 +11,7 @@ ROLE_LAYOUTS = {
     "comparison": ("comparison", "table", "matrix_2x2"),
     "example": ("photo_overlay", "split_photo_cards", "quote", "image_grid", "quote_photo"),
     "tension": ("comparison", "quote", "color_block_list"),
-    "solution": ("stack_with_photo", "numbered_list_photo", "numbered_columns"),
+    "solution": ("numbered_list_photo", "numbered_columns", "photo_overlay"),
     "action": ("closing_actions", "numbered_columns", "timeline"),
     "breather": ("quote", "section_break"),
 }
