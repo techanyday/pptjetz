@@ -200,7 +200,7 @@ figures or number words in the presentation. Every numeric value must appear ver
 Each slide must contain only layout and action_title at this stage.
 Use the allowed editorial layouts and vary them: no adjacent duplicate layouts,
 no layout more than twice unless the deck exceeds 14 slides. Use photo layouts
-on at least 40 percent of slides. Include a statistic, diagram, and table or
+on at least 60 percent of slides. Include a statistic, diagram, and table or
 comparison only when supported by the source. Never invent statistics."""
     slide_count = min(30, max(10, int(slide_count or 10)))
     prompt = json.dumps(
@@ -638,6 +638,26 @@ def _normalize_slide_plan(
     if normalized:
         normalized[0]["layout"] = "cover_photo_block"
         normalized[-1]["layout"] = "closing_actions"
+        # Enforce an image-led deck instead of relying on the model to honor
+        # the photo-layout request in the brief.
+        photo_target = 1 + ((max(0, len(normalized) - 2) * 3 + 4) // 5)
+        photo_count = sum(item["layout"] in _PHOTO_LAYOUTS for item in normalized)
+        photo_pool = [
+            "split_photo_cards",
+            "stack_with_photo",
+            "photo_overlay",
+            "numbered_list_photo",
+            "image_grid",
+        ]
+        used_layouts = {item["layout"] for item in normalized}
+        photo_pool = [layout for layout in photo_pool if layout not in used_layouts]
+        for item in normalized[1:-1]:
+            if photo_count >= photo_target:
+                break
+            if item["layout"] in _PHOTO_LAYOUTS or not photo_pool:
+                continue
+            item["layout"] = photo_pool.pop(0)
+            photo_count += 1
     return normalized
 
 
