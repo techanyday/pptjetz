@@ -26,6 +26,11 @@ BANNED_PHRASES = (
     "use a sourced measure",
     "second sourced measure",
     "editorial brief",
+    "learn about",
+    "explore the fundamentals",
+    "we will discuss",
+    "this slide",
+    "key takeaways",
 )
 
 _NUMBER_TOKEN_RE = re.compile(
@@ -197,6 +202,10 @@ Return: title, subtitle, audience, thesis, style_guide, and slides.
 Also return evidence: a list of claim, value, and source entries copied only from source_text.
 Never invent statistics or numeric claims. If source_text contains no numbers, use no numeric
 figures or number words in the presentation. Every numeric value must appear verbatim in source_text.
+Write slide content as substantive topic material, not presentation instructions. Do not use
+phrases such as "learn about", "explore the fundamentals", "understand", "this slide",
+"we will discuss", or "key takeaways" as the main content. Each slide must state a specific
+claim, mechanism, example, contrast, consequence, or action grounded in the topic or source_text.
 Each slide must contain only layout and action_title at this stage.
 Use the allowed editorial layouts and vary them: no adjacent duplicate layouts,
 no layout more than twice unless the deck exceeds 14 slides. Use photo layouts
@@ -372,7 +381,8 @@ def lint_slide(
 ) -> list[str]:
     findings: list[str] = []
     data = slide.model_dump()
-    serialized = json.dumps(data, ensure_ascii=False).lower()
+    visible_data = {key: value for key, value in data.items() if key not in {"notes", "source"}}
+    serialized = json.dumps(visible_data, ensure_ascii=False).lower()
     for phrase in BANNED_PHRASES:
         if phrase in serialized:
             findings.append(f"banned filler phrase: {phrase}")

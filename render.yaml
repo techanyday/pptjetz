@@ -17,6 +17,10 @@ services:
         value: development
       - key: ENVIRONMENT
         value: development
+      - key: PPTJET_GENERATION_MODE
+        value: editorial
+      - key: EDITORIAL_ENABLED
+        value: "1"
 
   # Production Environment
   - type: web
@@ -35,3 +39,7 @@ services:
         value: production
       - key: ENVIRONMENT
         value: production
+      - key: PPTJET_GENERATION_MODE
+        value: editorial
+      - key: EDITORIAL_ENABLED
+        value: "1"
