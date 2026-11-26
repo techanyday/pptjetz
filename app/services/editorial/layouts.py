@@ -14,6 +14,7 @@ from .schema import EditorialSlide
 from .theme import EditorialTheme, ensure_editorial_contrast, readable_text, rgb
 
 P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
+A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
 
 def _remove_theme_style(shape):
@@ -47,14 +48,10 @@ def fit_text(text, font, size_pt, box_w_in, box_h_in, min_pt=12):
         size -= 1
     chars_per_line = max(8, int(box_w_in * 72 / (size * 0.55)))
     max_chars = max(chars_per_line, int(chars_per_line * max(1, box_h_in * 72 / (size * 1.2))))
-    words = value.split()
-    output = ""
-    for word in words:
-        candidate = f"{output} {word}".strip()
-        if len(candidate) > max_chars:
-            break
-        output = candidate
-    return output or value[:max_chars], size
+    # Never silently truncate a sentence or heading. The Editorial brief must
+    # produce copy that fits; preserving the complete text is safer than
+    # rendering a misleading fragment.
+    return value, size
 
 
 def distribute(n, top, bottom, max_pitch):
@@ -66,6 +63,8 @@ def distribute(n, top, bottom, max_pitch):
 
 
 def _text(slide, name, value, x, y, w, h, theme, *, size=14, color=None, bold=False, font=None, align=PP_ALIGN.LEFT, min_pt=12):
+    minimum = 11 if size <= 11 else 14
+    min_pt = max(min_pt, minimum)
     value, size = fit_text(value, font or theme.body_font, size, w, h, min_pt)
     box = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
     box.name = name
@@ -102,7 +101,9 @@ def _stack(slide, name, x, y, w, paragraphs, theme, h=None):
         run = paragraph.add_run()
         run.text = str(item.get("text") or "")
         run.font.name = item.get("font") or theme.body_font
-        run.font.size = Pt(item.get("size", 12))
+        requested_size = float(item.get("size", 12))
+        minimum = 12 if item.get("bold", False) else 14
+        run.font.size = Pt(max(requested_size, minimum))
         run.font.bold = item.get("bold", False)
         run.font.color.rgb = rgb(item.get("color") or theme.ink)
     return box
@@ -169,15 +170,15 @@ def cover_photo_block(slide, spec, theme, image_bytes=None):
     cover_text = readable_text(cover_surface, theme)
     if image_bytes:
         _photo(slide, "cover_photo", image_bytes, 0, 0, 13.333, 7.5, getattr(spec.image, "alt_text", "Editorial cover"))
-        _shape(slide, "cover_scrim", 0.4, 3.1, 6.7, 3.7, theme.blue)
+        _shape(slide, "cover_scrim", 0.4, 2.72, 8.35, 4.78, theme.blue)
     else:
         _shape(slide, "cover_background", 0, 0, 13.333, 7.5, theme.blue)
-        _shape(slide, "cover_scrim", 0.4, 3.1, 6.7, 3.7, theme.rust)
+        _shape(slide, "cover_scrim", 0.4, 2.72, 8.35, 4.78, theme.rust)
     fields = spec.fields
-    _text(slide, "cover_eyebrow", spec.eyebrow, 0.72, 3.42, 5.8, 0.25, theme, size=11, color=cover_text, bold=True, min_pt=11)
-    _text(slide, "cover_title", fields.title, 0.72, 3.8, 5.9, 1.45, theme, size=32, color=cover_text, font=theme.display_font)
-    _text(slide, "cover_subtitle", fields.subtitle, 0.72, 5.48, 5.7, 0.75, theme, size=15, color=cover_text)
-    _text(slide, "cover_footer", fields.footer_line, 0.72, 6.55, 5.8, 0.25, theme, size=10, color=cover_text, min_pt=10)
+    _text(slide, "cover_eyebrow", spec.eyebrow, 0.72, 2.98, 7.3, 0.25, theme, size=11, color=cover_text, bold=True, min_pt=11)
+    _text(slide, "cover_title", fields.title, 0.72, 3.28, 7.35, 2.35, theme, size=40, color=cover_text, font=theme.display_font, min_pt=40)
+    _text(slide, "cover_subtitle", fields.subtitle, 0.72, 5.88, 7.2, 0.62, theme, size=18, color=cover_text, min_pt=18)
+    _text(slide, "cover_footer", fields.footer_line, 0.72, 6.92, 7.2, 0.25, theme, size=11, color=cover_text, min_pt=11)
 
 
 def split_photo_cards(slide, spec, theme, image_bytes=None):
@@ -280,9 +281,9 @@ def loop_diagram(slide, spec, theme, image_bytes=None):
         try:
             connector.begin_connect(nodes[index], begin_site)
             connector.end_connect(nodes[(index + 1) % len(nodes)], end_site)
-            tail = connector._element.spPr.ln.find(f"{{{P_NS}}}tailEnd")
+            tail = connector._element.spPr.ln.find(f"{{{A_NS}}}tailEnd")
             if tail is None:
-                tail = etree.SubElement(connector._element.spPr.ln, f"{{{P_NS}}}tailEnd")
+                tail = etree.SubElement(connector._element.spPr.ln, f"{{{A_NS}}}tailEnd")
             tail.set("type", "triangle")
             tail.set("w", "med")
             tail.set("len", "med")
@@ -439,6 +440,7 @@ def numbered_list_photo(slide, spec, theme, image_bytes=None):
 
 def quote(slide, spec, theme, image_bytes=None):
     _background(slide, theme)
+    _title(slide, spec, theme)
     _shape(slide, "quote_panel", 0.8, 1.55, 11.75, 4.8, theme.blue)
     _text(slide, "quote_mark", "“", 1.25, 1.9, 1.0, 0.9, theme, size=60, color=theme.rust, font=theme.display_font)
     _text(slide, "quote_text", spec.fields.quote, 1.65, 2.5, 9.8, 1.8, theme, size=28, color=theme.white, font=theme.display_font)
@@ -449,7 +451,8 @@ def section_break(slide, spec, theme, image_bytes=None):
     _background(slide, theme)
     _shape(slide, "section_block", 0, 0, 13.333, 7.5, theme.rust)
     accent_text = readable_text(theme.rust, theme)
-    _text(slide, "section_eyebrow", spec.eyebrow or "SECTION", 0.9, 2.2, 4.5, 0.3, theme, size=11, color=accent_text, bold=True)
+    if spec.eyebrow:
+        _text(slide, "section_eyebrow", spec.eyebrow, 0.9, 2.2, 4.5, 0.3, theme, size=11, color=accent_text, bold=True)
     _text(slide, "section_phrase", spec.fields.phrase, 0.9, 2.75, 10.8, 1.8, theme, size=42, color=accent_text, font=theme.display_font)
 
 

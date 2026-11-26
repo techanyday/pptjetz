@@ -15,6 +15,11 @@ def _query_words(value: str) -> set[str]:
     return {word.lower() for word in str(value or "").split() if len(word) > 2}
 
 
+def _topic_words(value: str) -> set[str]:
+    ignored = {"people", "making", "natural", "light", "candid", "editorial", "photograph"}
+    return {word for word in _query_words(value) if word not in ignored}
+
+
 def _orientation(frame_w_in: float, frame_h_in: float) -> str:
     if frame_h_in > frame_w_in * 1.12:
         return "portrait"
@@ -56,11 +61,16 @@ def get_slide_photo(
     orientation = _orientation(frame_w_in, frame_h_in)
     for query in queries[:3]:
         full_query = " ".join(part for part in (str(query).strip(), style.strip()) if part)
+        topic = "-".join(sorted(_topic_words(str(query)))[:3]) or "general"
+        topic_count = sum(1 for item in used if item.startswith(f"topic:{topic}:"))
+        if topic_count >= 2:
+            continue
         candidates = search_pexels_candidates(full_query, orientation=orientation, per_page=15)
         candidates = [
             candidate
             for candidate in candidates
             if str(candidate.get("id")) not in used and str(candidate.get("image_url")) not in used
+            and _topic_words(full_query) & _query_words(candidate.get("alt", ""))
         ]
         candidates.sort(key=lambda item: _score(item, full_query, frame_w_in, frame_h_in), reverse=True)
         for candidate in candidates:
@@ -71,6 +81,7 @@ def get_slide_photo(
                 used.add(str(candidate.get("id")))
                 if used_target is not None:
                     used_target.add(str(candidate.get("id")))
+                    used_target.add(f"topic:{topic}:{topic_count + 1}")
                 return cached
             content = download_image_bytes(candidate["image_url"], timeout=10)
             if content:
@@ -79,6 +90,7 @@ def get_slide_photo(
                 used.add(str(candidate.get("id")))
                 if used_target is not None:
                     used_target.add(str(candidate.get("id")))
+                    used_target.add(f"topic:{topic}:{topic_count + 1}")
                 return content
     return None
 

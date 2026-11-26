@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import ast
 import logging
 from pathlib import Path
 
@@ -27,8 +28,17 @@ def _frame(layout: str) -> tuple[float, float]:
 
 def _write_notes(slide, notes: str) -> None:
     try:
+        if isinstance(notes, dict):
+            notes = notes.get("notes") or notes.get("note") or ""
+        elif isinstance(notes, str) and notes.lstrip().startswith("{"):
+            try:
+                parsed = ast.literal_eval(notes)
+                if isinstance(parsed, dict):
+                    notes = parsed.get("notes") or parsed.get("note") or notes
+            except (SyntaxError, ValueError):
+                pass
         notes_slide = slide.notes_slide
-        notes_slide.notes_text_frame.text = notes
+        notes_slide.notes_text_frame.text = str(notes or "").strip()
     except Exception:
         # Notes support varies across python-pptx versions; never fail the deck
         # after the native slide content has been created.
