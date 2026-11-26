@@ -222,17 +222,9 @@ def _theme_display_name(theme_name: str) -> str:
 
 
 def _theme_entries() -> List[Dict[str, str]]:
-    preview_images = {
-        "SLEEK": "img/templates/modern.jpg",
-        "PULSE": "img/templates/Business.png",
-        "MINIMAL FLUX": "img/templates/minimalist.jpg",
-        "BLUE HORIZON": "img/templates/aesthetic.jpg",
-        "prime_meridian": "img/templates/vintage.jpg",
-    }
-
     return [
 
-        {"name": theme_name, "slug": _theme_slug(theme_name), "display_name": _theme_display_name(theme_name), "preview_image": preview_images.get(theme_name, "img/templates/modern.jpg")}
+        {"name": theme_name, "slug": _theme_slug(theme_name), "display_name": _theme_display_name(theme_name)}
 
         for theme_name in THEME_OPTIONS
 

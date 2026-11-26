@@ -69,7 +69,11 @@
               </div>
 
               <div class="mt-8 relative min-h-[220px] overflow-hidden rounded-2xl border shadow-sm">
-                <img src="{{ current_entry.preview_image_url or url_for('static', filename=current_entry.preview_image) }}" alt="{{ current_entry.display_name }} theme preview" class="absolute inset-0 h-full w-full object-cover" style="object-position: center;">
+                {% if current_entry.preview_image_url %}
+                <img src="{{ current_entry.preview_image_url }}" alt="{{ current_entry.display_name }} theme preview" class="absolute inset-0 h-full w-full object-cover" style="object-position: center;">
+                {% else %}
+                <div class="absolute inset-0" style="background: radial-gradient(circle at 20% 20%, rgba({{ accent[0] }}, {{ accent[1] }}, {{ accent[2] }}, .9), transparent 38%), linear-gradient(135deg, rgb({{ primary[0] }}, {{ primary[1] }}) 0%, rgb({{ bg[0] }}, {{ bg[1] }}, {{ bg[2] }}) 100%);"></div>
+                {% endif %}
                 <div class="absolute inset-0" style="background: linear-gradient(120deg, rgba({{ primary[0] }}, {{ primary[1] }}, {{ primary[2] }}, .88), rgba({{ bg[0] }}, {{ bg[1] }}, {{ bg[2] }}, .20));"></div>
                 <div class="relative flex min-h-[220px] flex-col justify-end p-6 text-white">
                   <div class="text-xs font-semibold uppercase tracking-[0.22em]">Visual direction</div>
